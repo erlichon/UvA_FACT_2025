@@ -1,1 +1,0 @@
-from toy.model import Model, Config
