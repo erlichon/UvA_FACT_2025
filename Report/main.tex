@@ -1,0 +1,88 @@
+\documentclass[10pt]{article}
+\usepackage{tmlr}
+% If accepted, instead use the following line for the camera-ready submission:
+%\usepackage[accepted]{tmlr}
+% To de-anonymize and remove mentions to TMLR (for example for posting to preprint servers), instead use the following:
+%\usepackage[preprint]{tmlr}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+% Additional packages for our report
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\title{Reproducing ``Bilinear MLPs Enable Weight-Based Mechanistic Interpretability''}
+
+% For course submission, add your names.
+% For MLRC submission, this should be anonymous.
+\author{\name Author 1 \email author1@student.uva.nl \\
+      \addr Informatics Institute\\
+      University of Amsterdam
+      \AND
+      \name Author 2 \email author2@student.uva.nl \\
+      \addr Informatics Institute\\
+      University of Amsterdam}
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\def\month{01}
+\def\year{2026}
+\def\openreview{\url{https://github.com/YOUR_REPO}} % Update with actual repo
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+% TODO: Write abstract (max 1 paragraph)
+% Key points:
+% - We reproduce Section 4 (Vision) of Pearce et al. (2024)
+% - Verify that regularization induces low-rank structure in bilinear MLPs
+% - Extend to robustness analysis (Rotated MNIST, EMNIST)
+% - Propose CP-decomposition as structural alternative to regularization
+% - Report environmental impact (CO2 emissions)
+\end{abstract}
+
+% Modular sections
+\input{sections/01_introduction}
+\input{sections/02_scope}
+\input{sections/03_method}
+\input{sections/04_reproduction}
+\input{sections/05_extension}
+\input{sections/06_fact_discussion}
+
+\subsubsection*{Broader Impact Statement}
+This work contributes to the field of mechanistic interpretability, which aims to make neural networks more transparent and understandable.
+Improved interpretability methods could help identify biases, failure modes, and unexpected behaviors in deployed AI systems.
+
+\subsubsection*{Author Contributions}
+% Fill in after completion
+
+\subsubsection*{Acknowledgments}
+% Fill in after completion
+% Acknowledge: Snellius compute resources, course instructors, etc.
+
+\bibliography{main}
+\bibliographystyle{tmlr}
+
+\appendix
+\section{Additional Figures}
+\label{app:figures}
+% Additional eigenvector visualizations, ablation plots, etc.
+
+\section{Hyperparameter Details}
+\label{app:hyperparams}
+% Full configuration tables
+
+\section{CO2 Tracking Details}
+\label{app:co2}
+% Detailed codecarbon logs
+
+\end{document}

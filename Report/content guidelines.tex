@@ -1,0 +1,146 @@
+
+\documentclass[10pt]{article} % For LaTeX2e
+
+\usepackage{tmlr}
+% If accepted, instead use the following line for the camera-ready submission:
+%\usepackage[accepted]{tmlr}
+% To de-anonymize and remove mentions to TMLR (for example for posting to preprint servers), instead use the following:
+%\usepackage[preprint]{tmlr}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+
+
+\title{Fairness, Accountability, Confidentiality, Transparency in AI, UvA, 2025-2026 \\
+Content guidelines for final report}
+
+% For tmlr, authors must *not* appear in the submitted version! They should be hidden
+% as long as the tmlr package is used without the [accepted] or [preprint] options.
+% Non-anonymous submissions will be rejected without review.
+% For your course submission, of course, you should add your names to the report. 
+
+
+ \author{\name John Doe \email John@Doe.com \\
+      \addr Department of Computer Science\\
+      University of Amsterdam
+      \AND
+      \name Jane Doe \email Jane@Doe.com \\
+      \addr Department of Computer Science\\
+      University of Amsterdam}
+      
+
+% The \author macro works with any number of authors. Use \AND 
+% to separate the names and addresses of multiple authors.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\def\month{MM}  % Insert correct month for camera-ready version
+\def\year{YYYY} % Insert correct year for camera-ready version
+\def\openreview{\url{www.your-git-repo.com}} % Insert correct link to OpenReview for camera-ready version
+
+\begin{document}
+	
+	
+	\maketitle
+
+    \section*{Notes}
+    \begin{enumerate}
+    	\item This document has been adapted from the MLRC guidelines document. It provides a suggestion for a useful structure for your reproducibility report. 
+    	\item Using the structure in this document is not mandatory, but highly suggested. You are free to add sections or restructure your report. 
+    	\item It \textit{is} mandatory to stick to the TMLR formatting guidelines, provided in this .zip. This document (the content guidelines) is built on the TMLR template, so you can work from this LaTeX-template if you want. Additionally, take a close look at the LaTeX-files with the formatting guidelines. Not following these guidelines will result in an immediate rejection of your work by TMLR. (E.g., TMLR submissions should be anonymous, see comments in LaTeX-code). You can also take a look at MLRC papers from earlier years (\url{https://reproml.org/proceedings/}) to get inspired about the structure and contents of your report. 
+    	\item TMLR limits the number of pages to 12 (of content; everything up to references, no appendices; see \url{https://jmlr.org/tmlr/faq.html/}). In our course, your report should have a maximum of \textbf{10} pages.
+        \item Keep in mind that the submission to the course should not be anonymous; submitting to the MLRC or other venue requires however that all files and codebase are anonymized. 
+    \end{enumerate}
+
+	\section{Introduction}
+	A few sentences placing the work in high-level context. Limit it to a few paragraphs at most; your report is on reproducing a piece of work, you don’t have to motivate that work.
+	
+	\section{Scope of reproducibility / Background}
+	\label{sec:claims}
+	
+	You can decide what to call this section: Scope of Reproducibility, Background or other designation you find appropriate. The important thing here is that you introduce the specific setting or problem addressed in this work, and list the main claims from the original paper. Succinctly try to fit the approach proposed in this work in the broader topics of FACT discussed in the lectures (e.g., if this approach is about Fairness, how does it relate to other fairness intervention methods?). Think of this as writing out the main contributions of the original paper. Each claim should be relatively concise; some papers may not clearly list their claims, and one must formulate them in terms of the presented experiments. (For those familiar, these claims are roughly the scientific hypotheses evaluated in the original work.)
+	
+	A claim should be something that can be supported or rejected by your data. An example is, ``Finetuning pretrained BERT on dataset X will have higher accuracy than an LSTM trained with GloVe embeddings.''
+	This is concise, and is something that can be supported by experiments.
+	An example of a claim that is too vague, which can't be supported by experiments, is ``Contextual embedding models have shown strong performance on a number of tasks. We will run experiments evaluating two types of contextual embedding models on datasets X, Y, and Z."
+	
+	This section roughly tells a reader what to expect in the rest of the report. Clearly itemize the claims you are testing:
+	\begin{itemize}
+		\item Claim 1
+		\item Claim 2
+		\item Claim 3
+	\end{itemize}
+	
+	Each experiment in Section~\ref{sec:results} will support (at least) one of these claims, so a reader of your report should be able to separately understand the \emph{claims} and the \emph{evidence} that supports them.
+	
+	\section{Methodology}
+	Explain your approach - did you use the author's code, or did you aim to re-implement the approach from the description in the paper? Summarize the resources (code, documentation, GPUs) that you used.
+	
+	\subsection{Model descriptions}
+	Include a description of each model or algorithm used. Be sure to list the type of model, the number of parameters, and other relevant info (e.g. if it's pretrained). 
+	
+	\subsection{Datasets}
+	For each dataset include 1) relevant statistics such as the number of examples and label distributions, 2) details of train / dev / test splits, 3) an explanation of any preprocessing done, and 4) a link to download the data (if available).
+	
+	\subsection{Hyperparameters}
+	Describe how the hyperparameter values were set. If there was a hyperparameter search done, be sure to include the range of hyperparameters searched over, the method used to search (e.g. manual search, random search, Bayesian optimization, etc.), and the best hyperparameters found. Include the number of total experiments (e.g. hyperparameter trials). You can also include all results from that search (not just the best-found results).
+	
+	\subsection{Experimental setup and code}
+	Include a description of how the experiments were set up that's clear enough a reader could replicate the setup. 
+	Include a description of the specific measure used to evaluate the experiments (e.g. accuracy, precision@K, BLEU score, etc.). 
+	Provide a link to your code.
+	
+	\subsection{Computational requirements}
+	Include a description of the hardware used, such as the GPU or CPU the experiments were run on. 
+	For each model, include a measure of the average runtime (e.g. average time to predict labels for a given validation set with a particular batch size).
+	For each experiment, include the total computational requirements (e.g. the total GPU hours spent).
+	(Note: you'll likely have to record this as you run your experiments, so it's better to think about it ahead of time). Generally, consider the perspective of a reader who wants to use the approach described in the paper --- list what they would find useful.
+	
+	\section{Results}
+	\label{sec:results}
+	Start with a high-level overview of your results. Do your results support the main claims of the original paper? Keep this section as factual and precise as possible, reserve your judgement and discussion points for the next "Discussion" section. 
+	
+	
+	\subsection{Results reproducing original paper}
+	For each experiment, say 1) which claim in Section~\ref{sec:claims} it supports, and 2) if it successfully reproduced the associated experiment in the original paper. 
+	For example, an experiment training and evaluating a model on a dataset may support a claim that that model outperforms some baseline.
+	Logically group related results into sections. 
+	
+	\begin{itemize}
+	\item{Result 1}
+	\item{Result 2}
+	\end{itemize} 
+	
+	\subsection{Results beyond original paper}
+	Often papers don't include enough information to fully specify their experiments, so some additional experimentation may be necessary. For example, it might be the case that batch size was not specified, and so different batch sizes need to be evaluated to reproduce the original results. Include the results of any additional experiments here. Note: this won't be necessary for all reproductions.
+	
+	\begin{itemize}
+	\item{Additional Result 1}
+	\item{Additional Result 2}
+	\end{itemize} 
+	
+	\section{Discussion / Conclusion}
+	
+	Give your judgement on if your experimental results support the claims of the paper. Discuss the strengths and weaknesses of your approach - perhaps you didn't have time to run all the experiments, or perhaps you did additional experiments that further strengthened the claims in the paper.
+	
+	\subsection{What was easy}
+	Give your judgement of what was easy to reproduce. Perhaps the author's code is clearly written and easy to run, so it was easy to verify the majority of original claims. Or, the explanation in the paper was really easy to follow and put into code. 
+	
+	Be careful not to give sweeping generalizations. Something that is easy for you might be difficult to others. Put what was easy in context and explain why it was easy (e.g. code had extensive API documentation and a lot of examples that matched experiments in papers). 
+	
+	\subsection{What was difficult}
+	List part of the reproduction study that took more time than you anticipated or you felt were difficult. 
+	
+	Be careful to put your discussion in context. For example, don't say "the maths was difficult to follow", say "the math requires advanced knowledge of calculus to follow". 
+
+    \subsection{Environmental impact}
+    Discuss environmental impacts associated with this paper 
+	
+	\subsection{Communication with original authors (this part is often removed when submitting to the MLRC or other venue)}
+	Document the extent of (or lack of) communication with the original authors. To make sure the reproducibility report is a fair assessment of the original research we recommend getting in touch with the original authors. You can ask authors specific questions, or if you don't have any questions you can send them the full report to get their feedback before it gets published. 
+	
+\end{document}
