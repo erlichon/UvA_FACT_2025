@@ -1,0 +1,23 @@
+% Section 2: Scope of Reproducibility
+% Explicitly state: "We reproduce Section 4 (Vision) of Pearce et al. (2024)."
+% Define the Hyperparameters used (refer to src/configs/)
+
+\section{Scope of Reproducibility}
+\label{sec:scope}
+
+We reproduce Section 4 (Vision) of \citet{pearce2024bilinear}, which demonstrates that bilinear MLPs enable weight-based mechanistic interpretability through eigendecomposition of the interaction tensor.
+
+\subsection{Claims to Verify}
+
+The original paper makes the following testable claims regarding the vision experiments:
+
+\begin{itemize}
+    \item \textbf{Claim 1:} Regularization (input noise + weight decay) induces low-rank structure in the bilinear interaction tensor, as measured by effective rank.
+    \item \textbf{Claim 2:} The eigenvectors of the regularized model's interaction tensor correspond to interpretable digit-like patterns.
+    \item \textbf{Claim 3:} Without regularization, the eigenspectrum is flat (high effective rank) and eigenvectors show noise-like overfitting patterns.
+\end{itemize}
+
+\subsection{Paper Context}
+
+% TODO: Briefly describe how this fits into broader FACT topics
+% Connect to mechanistic interpretability landscape

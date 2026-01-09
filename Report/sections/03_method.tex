@@ -1,0 +1,68 @@
+% Section 3: Methodology
+% Define the BilinearLayer math: y = (W_l x) \odot (W_r x)
+% Define our Extension: The CP-Decomposition layer (Rank-R)
+
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Bilinear Layer}
+
+The core component is the bilinear layer, which replaces standard nonlinearities with element-wise multiplication:
+\begin{equation}
+    \mathbf{y} = (\mathbf{W}_l \mathbf{x}) \odot (\mathbf{W}_r \mathbf{x})
+    \label{eq:bilinear}
+\end{equation}
+where $\mathbf{W}_l, \mathbf{W}_r \in \mathbb{R}^{d_{out} \times d_{in}}$ are learnable weight matrices and $\odot$ denotes the Hadamard (element-wise) product.
+
+This can be expressed as a third-order interaction tensor:
+\begin{equation}
+    y_i = \sum_{j,k} B_{ijk} x_j x_k
+    \label{eq:tensor}
+\end{equation}
+where $B_{ijk} = (W_l)_{ij} (W_r)_{ik}$.
+
+\subsection{Eigendecomposition for Interpretability}
+
+The interaction tensor $\mathbf{B}$ can be reshaped and decomposed via eigendecomposition to reveal interpretable structure. For each output dimension $i$, the matrix $B_i \in \mathbb{R}^{d_{in} \times d_{in}}$ admits:
+\begin{equation}
+    B_i = \sum_r \lambda_r^{(i)} \mathbf{v}_r^{(i)} (\mathbf{v}_r^{(i)})^\top
+\end{equation}
+
+\subsection{Effective Rank}
+
+We measure the interpretability of the learned representation using effective rank~\citep{roy2007effective}:
+\begin{equation}
+    \text{EffRank}(\mathbf{B}) = \exp\left( -\sum_i p_i \log p_i \right), \quad p_i = \frac{|\lambda_i|}{\sum_j |\lambda_j|}
+    \label{eq:effrank}
+\end{equation}
+Lower effective rank indicates more concentrated eigenspectrum, corresponding to more interpretable structure.
+
+\subsection{Extension: CP-Decomposition Layer}
+\label{sec:cp}
+
+As an extension, we implement a CP-decomposed bilinear layer with explicit rank control:
+\begin{equation}
+    B_{ijk} = \sum_{r=1}^{R} \lambda_r A_{ir} B_{jr} C_{kr}
+    \label{eq:cp}
+\end{equation}
+where $R$ is the chosen rank. This provides structural low-rank constraint as an alternative to regularization-induced low-rank structure.
+
+\subsection{Datasets}
+
+% TODO: Describe MNIST, Rotated MNIST, EMNIST datasets
+% Include statistics, preprocessing, train/val/test splits
+
+\subsection{Hyperparameters}
+
+% TODO: Reference src/configs/ and list key hyperparameters
+% - Architecture: hidden_dim, etc.
+% - Regularization: noise_std, weight_decay
+% - Training: epochs, lr, batch_size
+% - Seeds: [42, 43, 44, 45, 46]
+
+\subsection{Computational Requirements}
+
+% TODO: Fill in after experiments
+% - Hardware: Snellius A100 GPUs
+% - Total GPU hours
+% - CO2 emissions from codecarbon
