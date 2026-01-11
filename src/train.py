@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
-from image.datasets import MNIST
+from image.datasets import MNIST, FMNIST
 import kornia
 
 
@@ -93,9 +93,17 @@ def main():
     start_time = time.time()
 
     # Load data
-    print("Loading MNIST data...")
-    train_data = MNIST(train=True, device=device)
-    test_data = MNIST(train=False, device=device)
+    dataset_name = config.get('data', {}).get('dataset', 'mnist')
+    if dataset_name == 'mnist':
+        print("Loading MNIST data...")
+        train_data = MNIST(train=True, device=device)
+        test_data = MNIST(train=False, device=device)
+    elif dataset_name == 'fashion_mnist':
+        print("Loading Fashion-MNIST data...")
+        train_data = FMNIST(train=True, device=device)
+        test_data = FMNIST(train=False, device=device)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
 
     # Create model
     model_config = Config(
@@ -176,6 +184,7 @@ def main():
             'lr': config['training'].get('lr', 1e-3),
             'noise_std': config['regularization']['noise_std'],
             'weight_decay': config['regularization']['weight_decay'],
+            'dataset': dataset_name,
         },
         'model_state_dict': model.state_dict(),
         'metrics': {
