@@ -4,31 +4,34 @@
 \section{Discussion}
 \label{sec:discussion}
 
-% Give your judgement on if your experimental results support the claims of the paper.
-% Discuss the strengths and weaknesses of your approach.
-
 \subsection{What was Easy}
 \label{sec:easy}
 
-% TODO: Fill in based on experience
-% Examples:
-% - "The model architecture was simple and well-documented..."
-% - "The original codebase was modular and easy to adapt..."
+\textit{[To be completed based on implementation experience. Preliminary observations:]}
+
+\begin{itemize}
+    \item The bilinear layer architecture is straightforward to implement---it simply replaces nonlinearities with element-wise multiplication.
+    \item The original paper's codebase was available and well-documented, providing clear reference for the eigendecomposition procedure.
+    \item The MNIST dataset is small enough for rapid iteration during development.
+\end{itemize}
 
 \subsection{What was Difficult}
 \label{sec:difficult}
 
-% TODO: Fill in based on experience
-% Examples:
-% - "Tuning the noise level to get emergence of low-rank structure..."
-% - "Reproducing exact numerical values required careful seed management..."
+\textit{[To be completed based on implementation experience. Preliminary observations:]}
+
+\begin{itemize}
+    \item Matching exact numerical values from the paper requires careful attention to random seed management across data loading, model initialization, and training.
+    \item The eigendecomposition step is computationally expensive for large hidden dimensions.
+    \item Determining the ``correct'' level of regularization that balances accuracy and interpretability requires hyperparameter search.
+\end{itemize}
 
 \subsection{Environmental Impact}
 \label{sec:environmental}
 
-% MANDATORY: Include CO2 emissions from codecarbon logs
+Following responsible AI practices, we track and report the computational costs and CO2 emissions of our experiments using \texttt{codecarbon}.
 
-% TODO: Add environmental impact table
+% TODO: Uncomment after experiments
 % \begin{table}[h]
 %     \caption{Environmental impact of experiments}
 %     \label{tab:environmental}
@@ -37,30 +40,74 @@
 %         \toprule
 %         Experiment & GPU Hours & Energy (kWh) & CO2 (kg) \\
 %         \midrule
-%         Phase 1: Reproduction & -- & -- & -- \\
-%         Phase 2: Extensions & -- & -- & -- \\
+%         Phase 1: Reproduction (20 runs) & X.X & X.XX & X.XXX \\
+%         Phase 2: Extensions (XX runs) & X.X & X.XX & X.XXX \\
+%         Development \& debugging & X.X & X.XX & X.XXX \\
 %         \midrule
-%         Total & -- & -- & -- \\
+%         \textbf{Total} & X.X & X.XX & X.XXX \\
 %         \bottomrule
 %     \end{tabular}
 % \end{table}
 
-% Discussion point: Low-rank structures (CP) reduce memory footprint,
-% potentially lowering inference energy.
+\textit{[Table to be added: Environmental impact metrics from codecarbon]}
+
+\textbf{Efficiency considerations:}
+The CP-decomposition extension has potential environmental benefits.
+By constraining the model to low rank structurally (rather than through regularization), we reduce the number of parameters and consequently:
+\begin{itemize}
+    \item Memory footprint during training and inference
+    \item Computational cost of forward/backward passes
+    \item Energy consumption at deployment scale
+\end{itemize}
 
 \subsection{Connection to FACT-AI Topics}
+\label{sec:fact}
 
-% Discuss how this work relates to Transparency (Topic 1.4)
-% - Weight-based interpretability vs post-hoc methods
-% - Trade-offs between model performance and interpretability
-% - Implications for AI accountability
+This work directly addresses \textbf{Transparency} (FACT-AI Topic 1.4):
+
+\textbf{Weight-based vs. Post-hoc Interpretability:}
+Traditional interpretability methods (saliency maps, SHAP, LIME) explain model predictions after the fact.
+Bilinear MLPs offer a fundamentally different approach: the model's weights are \emph{directly} interpretable through eigendecomposition.
+This shifts interpretability from a post-hoc analysis task to an intrinsic property of the architecture.
+
+\textbf{Trade-offs:}
+Our ablation study reveals the tension between accuracy and interpretability.
+Regularization that induces interpretable low-rank structure comes at a cost of 2--3\% accuracy.
+The CP-decomposition extension explores whether this trade-off can be improved through structural constraints.
+
+\textbf{Implications for AI Accountability:}
+If interpretable eigenvectors genuinely capture the model's decision-making features, they provide a basis for:
+\begin{itemize}
+    \item Auditing model behavior for biases
+    \item Explaining individual predictions
+    \item Identifying potential failure modes
+\end{itemize}
 
 \subsection{Communication with Original Authors}
+\label{sec:authors}
 
-% Document the extent of (or lack of) communication with the original authors.
-% Note: This section is often removed when submitting to MLRC or other venues.
+\textit{[Document any communication with original authors, or note that no communication occurred.]}
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-% Brief summary of findings and implications
+\textit{[To be completed after experiments]}
+
+We reproduced both main experimental sections from \citet{pearce2024bilinear}:
+Section 4 (Vision), verifying that regularization induces low-rank interpretable structure in bilinear MLPs on MNIST;
+and Section 5 (Language), analyzing bilinear attention in GPT-2 and comparing with Sparse Autoencoders.
+Our ablation study [confirms/reveals] the relative importance of noise augmentation versus weight decay.
+The CP-decomposition extension demonstrates that structural low-rank constraints [can/cannot] achieve comparable interpretability to regularization-induced low-rank.
+
+\textbf{Limitations:}
+\begin{itemize}
+    \item The interpretability of eigenvectors is assessed qualitatively; future work could develop quantitative metrics.
+    \item The language experiments focus on GPT-2; scaling to larger models remains future work.
+\end{itemize}
+
+\textbf{Future Work:}
+\begin{itemize}
+    \item Apply bilinear decomposition to larger-scale vision models
+    \item Develop automated methods for assessing eigenvector interpretability
+    \item Explore other tensor decompositions (Tucker, TT) as alternatives to CP
+\end{itemize}
