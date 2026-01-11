@@ -1,0 +1,27 @@
+name: language_interaction
+experiment_id: L5.3
+
+model:
+  pretrained: "tdooms/ts-medium"
+
+sae:
+  layer: 2
+  # SAE configs for input and output (loaded via Tracer from HuggingFace)
+  input:
+    name: "mlp-in"
+    expansion: 4
+    k: 30
+  output:
+    name: "mlp-out"
+    expansion: 4
+    k: 30
+
+analysis:
+  # Number of output features to analyze
+  n_features: 500
+  # Rank for low-rank approximation
+  rank_k: 2
+  # Whether to project Q onto SAE latents
+  project: false
+  # Paper claim: 69% above 0.75
+  target_correlation: 0.75

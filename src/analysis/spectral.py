@@ -8,7 +8,6 @@ spectral metrics used to evaluate the interpretability of bilinear models.
 import torch
 from torch import Tensor
 from jaxtyping import Float
-from typing import Union
 
 
 def effective_rank(eigenvalues: Float[Tensor, "... n"]) -> Float[Tensor, "..."]:

@@ -142,9 +142,10 @@ def main():
     sae = SAE(sae_cfg).to(device)
 
     # Train SAE using original paper's fit method
+    # Note: Pass project=None to avoid double wandb initialization
+    # (we already initialized wandb above if --no-wandb was not set)
     print(f"Training SAE for {n_buffers} buffers...")
-    project_name = args.wandb_project if not args.no_wandb else None
-    sae.fit(model, train_loader, validate, project=project_name)
+    sae.fit(model, train_loader, validate, project=None)
 
     # Stop tracking
     end_time = time.time()

@@ -1,0 +1,19 @@
+name: language_negation
+experiment_id: L5.2
+
+model:
+  pretrained: "tdooms/ts-medium"
+
+sae:
+  # Use pretrained SAEs from HuggingFace (tdooms/ts-medium-scope)
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 2
+  expansion: 4
+  k: 30
+
+analysis:
+  # Number of samples to analyze for negation patterns
+  n_samples: 50000
+  # Number of top features to report
+  top_k: 20

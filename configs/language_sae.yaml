@@ -1,0 +1,28 @@
+name: language_sae_layer2
+experiment_id: L5.1
+
+model:
+  # Pretrained bilinear transformer from HuggingFace
+  pretrained: "tdooms/ts-medium"
+
+sae:
+  # Hook point for activations
+  point: "mlp-out"
+  layer: 2
+  # SAE expansion factor (features = expansion * d_model)
+  expansion: 8
+  # Top-k sparsity
+  k: 32
+  # Context length
+  n_ctx: 256
+
+training:
+  lr: 0.0001
+  batch_size: 32
+  out_batch: 4096
+  n_batches: 256
+  n_buffers: 100
+
+data:
+  dataset: tinystories
+  n_samples: 100000
