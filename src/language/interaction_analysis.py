@@ -110,7 +110,7 @@ def analyze_interactions_batch(tracer: Tracer, feature_indices: list, rank_k: in
             if Q is None or Q.numel() == 0:
                 continue
 
-            # Move to CPU for analysis
+            # Ensure on CPU for analysis
             Q = Q.cpu()
 
             # Compute rank-k correlation
@@ -146,12 +146,13 @@ def main():
 
     # Auto-detect device (includes MPS support)
     device = get_device(args.device)
-    print(f"Using device: {device}")
 
-    # Setup MPS fallbacks if needed
+    # Force CPU for interaction analysis - MPS has bugs with einsum operations
     if is_mps_device(device):
-        setup_mps_fallbacks()
-        print("MPS device detected - eigendecomposition will use CPU fallback")
+        print(f"MPS detected but forcing CPU for interaction analysis (MPS einsum bugs)")
+        device = "cpu"
+    else:
+        print(f"Using device: {device}")
 
     # Load config
     config = load_config(args.config)
