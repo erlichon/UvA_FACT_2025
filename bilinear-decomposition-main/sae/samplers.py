@@ -57,7 +57,7 @@ class ShuffleSampler(BaseSampler):
     def _extract(self, input_ids):
         with torch.no_grad(), self.sight.trace(input_ids, validate=False, scan=False):
             saved = self.sight[self.point].save()
-            self.sight[self.point].stop()
+            # NOTE: .stop() removed - deprecated in nnsight 0.5.x
         return saved
     
     def __iter__(self):

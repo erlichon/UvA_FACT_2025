@@ -2,18 +2,22 @@ name: language_interaction
 experiment_id: L5.3
 
 model:
-  pretrained: "tdooms/ts-medium"
+  # FineWeb-EDU bilinear transformer (paper's primary model for Section 5)
+  # Paper uses fw-medium at layer 7 for interaction analysis
+  pretrained: "tdooms/fw-medium"
 
 sae:
-  layer: 2
+  # Paper uses layer 7 for interaction matrix analysis
+  # Available config: expansion=8, k=30 (k=32 not available in fw-medium-scope)
+  layer: 7
   # SAE configs for input and output (loaded via Tracer from HuggingFace)
   input:
     name: "mlp-in"
-    expansion: 4
+    expansion: 8
     k: 30
   output:
     name: "mlp-out"
-    expansion: 4
+    expansion: 8
     k: 30
 
 analysis:

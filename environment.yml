@@ -31,7 +31,7 @@ dependencies:
     - wandb
     - codecarbon
     - kornia
-    - nnsight
+    - nnsight>=0.5.0  # Requires 0.5.x API (Sight class updated)
     - bidict
     - pandas
     - plotly

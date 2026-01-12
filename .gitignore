@@ -1,1 +1,15 @@
 *.pyc
+__pycache__/
+wandb/
+logs/
+results/
+data/
+
+Report/*.aux
+Report/*.log
+Report/*.out
+Report/*.synctex.gz
+Report/*.toc
+Report/*.fls
+Report/*.fdb_latexmk
+.DS_Store

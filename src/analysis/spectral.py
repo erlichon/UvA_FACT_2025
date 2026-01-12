@@ -12,10 +12,38 @@ from jaxtyping import Float
 
 def effective_rank(eigenvalues: Float[Tensor, "... n"]) -> Float[Tensor, "..."]:
     """
-    Compute entropy-based effective rank (Roy & Bhattacharyya 2007).
+    Compute ratio-based effective rank: (||lambda||_1 / ||lambda||_2)^2
 
+    This matches the original paper implementation in sae/functions.py.
     The effective rank measures how "spread out" the eigenvalue distribution is.
     Lower values indicate a sharper spectrum (more interpretable).
+
+    Formula: (L1 / L2)^2 where L1 = sum(|lambda|), L2 = sqrt(sum(lambda^2))
+
+    Args:
+        eigenvalues: Eigenvalue tensor of shape [..., n]
+
+    Returns:
+        Effective rank tensor of shape [...]
+    """
+    abs_vals = eigenvalues.abs()
+
+    # L1 norm: sum of absolute values
+    l1 = abs_vals.sum(dim=-1)
+
+    # L2 norm: sqrt of sum of squares
+    l2 = abs_vals.pow(2).sum(dim=-1).sqrt()
+
+    # Effective rank = (L1/L2)^2
+    return (l1 / l2.clamp(min=1e-10)).pow(2)
+
+
+def effective_rank_entropy(eigenvalues: Float[Tensor, "... n"]) -> Float[Tensor, "..."]:
+    """
+    Compute entropy-based effective rank (Roy & Bhattacharyya 2007).
+
+    NOTE: This is NOT the formula used in the original paper. It is kept for
+    reference and comparison. Use effective_rank() for paper-compatible results.
 
     Args:
         eigenvalues: Eigenvalue tensor of shape [..., n]

@@ -1,5 +1,22 @@
 # FACT-AI & MLRC Report Guidelines
 
+## 0. Current Status (Updated: 2026-01-11)
+
+**Experiments Running Overnight:**
+- 40 vision runs (MNIST + Fashion-MNIST, 4 configs x 5 seeds each)
+- 3 language runs (SAE training, negation discovery, interaction analysis)
+- Tracking: https://wandb.ai/itayerlich96-student/fact-bilinear
+- Estimated completion: ~6-8 hours
+
+**After Experiments Complete:**
+1. Download checkpoints from `results/` directories
+2. Use `src/analysis/spectral.py` to extract eigenspectrum data
+3. Generate figures and save to `Report/figures/`
+4. Uncomment figure/table blocks in LaTeX sections
+5. Fill in actual values from wandb/checkpoints
+
+---
+
 ## 1. Philosophy: Continuous Reporting
 * **Never wait.** If a plot is generated in `src/`, immediately save a copy to `Report/figures/`.
 * **Caption first.** When saving a figure, write the LaTeX figure block with a caption describing *what it shows* (not just what it is).
@@ -118,4 +135,78 @@ fig.savefig('../Report/figures/eigenspectrum_comparison.pdf', bbox_inches='tight
   journal={European Signal Processing Conference},
   year={2007}
 }
+```
+
+## 9. Post-Experiment Figure Generation
+
+After overnight experiments complete, use these scripts to generate figures:
+
+### Vision Figures (Section 4)
+
+```python
+# Load checkpoints and analyze
+from pathlib import Path
+import torch
+from src.analysis.spectral import load_checkpoint_eigenvalues, spectral_summary, effective_rank
+import matplotlib.pyplot as plt
+
+# 1. Eigenspectrum comparison
+checkpoints = {
+    'none': 'results/phase1/checkpoints/mnist_dense_none_seed42.pt',
+    'full': 'results/phase1/checkpoints/mnist_dense_full_seed42.pt',
+}
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+for i, (name, path) in enumerate(checkpoints.items()):
+    eigenvalues, _ = load_checkpoint_eigenvalues(path)
+    for cls in range(10):
+        axes[i].plot(eigenvalues[cls].abs().numpy(), alpha=0.5)
+    axes[i].set_title(f'{name.title()} Regularization')
+    axes[i].set_xlabel('Eigenvalue Index')
+    axes[i].set_ylabel('|Eigenvalue|')
+fig.savefig('Report/figures/eigenspectrum_comparison.pdf', bbox_inches='tight')
+
+# 2. Eigenvector visualization
+eigenvalues, eigenvectors = load_checkpoint_eigenvalues(checkpoints['full'])
+fig, axes = plt.subplots(2, 5, figsize=(12, 5))
+for cls in range(10):
+    ax = axes[cls // 5, cls % 5]
+    img = eigenvectors[cls, 0].reshape(28, 28)  # Top eigenvector
+    ax.imshow(img.numpy(), cmap='RdBu_r')
+    ax.set_title(f'Class {cls}')
+    ax.axis('off')
+fig.savefig('Report/figures/eigenvectors_reg.pdf', bbox_inches='tight')
+```
+
+### Language Figures (Section 5)
+
+```python
+import json
+
+# Negation results
+with open('results/language/negation_analysis.json') as f:
+    negation = json.load(f)
+print(f"Top not+positive feature: {negation['not_positive_features'][0]}")
+print(f"Top not+negative feature: {negation['not_negative_features'][0]}")
+print(f"Cosine similarity: {negation['top_pair_analysis']['cosine_similarity']:.3f}")
+
+# Interaction results
+with open('results/language/interaction_analysis.json') as f:
+    interaction = json.load(f)
+print(f"Fraction above 0.75: {interaction['summary']['fraction_above_075']:.1%}")
+print(f"Claim supported: {interaction['summary']['claim_supported']}")
+```
+
+### wandb Data Export
+
+```python
+import wandb
+api = wandb.Api()
+runs = api.runs("itayerlich96-student/fact-bilinear")
+
+# Get all vision runs
+vision_runs = [r for r in runs if 'vision' in r.tags]
+for run in vision_runs:
+    print(f"{run.name}: acc={run.summary.get('final_val_acc', 'N/A'):.4f}, "
+          f"rank={run.summary.get('effective_rank', 'N/A'):.1f}")
 ```

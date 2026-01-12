@@ -14,21 +14,35 @@ import sys
 from pathlib import Path
 import argparse
 import time
-import yaml
 import json
+import warnings
+
+# Suppress torchvision image extension warning (libjpeg not needed for our use case)
+warnings.filterwarnings("ignore", message="Failed to load image Python extension")
+
 import torch
 import numpy as np
 from tqdm import tqdm
 
-# Add original code to path
+# Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-ORIG_PATH = PROJECT_ROOT / "bilinear-decomposition-main"
-sys.path.insert(0, str(ORIG_PATH))
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from language.transformer import Transformer
 from sae.tracer import Tracer
 from sae.functions import compute_effective_rank, compute_truncated_eigenvalues
-from codecarbon import EmissionsTracker
+
+from src.utils import (
+    get_device,
+    load_config,
+    track_emissions,
+    setup_mps_fallbacks,
+    is_mps_device,
+    safe_eigh,
+    init_wandb,
+    finish_wandb,
+)
 
 
 def rank_k_approximation_correlation(Q: torch.Tensor, k: int = 2) -> float:
@@ -42,9 +56,9 @@ def rank_k_approximation_correlation(Q: torch.Tensor, k: int = 2) -> float:
     # Symmetrize Q
     Q_sym = 0.5 * (Q + Q.T)
 
-    # Eigendecompose
+    # Eigendecompose (MPS-safe)
     try:
-        eigenvalues, eigenvectors = torch.linalg.eigh(Q_sym)
+        eigenvalues, eigenvectors = safe_eigh(Q_sym)
     except Exception:
         return float('nan')
 
@@ -127,60 +141,68 @@ def main():
     parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
     parser.add_argument("--output", type=str, default="results/language/interaction_analysis.json")
     parser.add_argument("--device", type=str, default=None)
+    parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     args = parser.parse_args()
 
-    # Auto-detect device
-    if args.device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    else:
-        device = args.device
-
+    # Auto-detect device (includes MPS support)
+    device = get_device(args.device)
     print(f"Using device: {device}")
 
+    # Setup MPS fallbacks if needed
+    if is_mps_device(device):
+        setup_mps_fallbacks()
+        print("MPS device detected - eigendecomposition will use CPU fallback")
+
     # Load config
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
+    config_name = config.get("name", Path(args.config).stem)
 
-    # Start tracking
-    tracker = EmissionsTracker(project_name="fact-bilinear-language", log_level="warning")
-    tracker.start()
-    start_time = time.time()
+    # Initialize wandb
+    wandb_enabled = init_wandb(
+        name=config_name,
+        config=config,
+        device=device,
+        enabled=not args.no_wandb,
+        tags=["language", "interaction"],
+    )
 
-    # Load model
-    model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
-    print(f"Loading model: {model_name}")
-    model = Transformer.from_pretrained(model_name, device=device)
+    # Run analysis with emissions tracking
+    with track_emissions("fact-bilinear") as tracker:
+        # Load model
+        model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
+        print(f"Loading model: {model_name}")
+        model = Transformer.from_pretrained(model_name, device=device)
 
-    # SAE configuration for Tracer
-    sae_config = config.get("sae", {})
-    layer = sae_config.get("layer", 2)
-    inp_config = sae_config.get("input", {"name": "mlp-in", "expansion": 4, "k": 30})
-    out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 4, "k": 30})
+        # SAE configuration for Tracer
+        sae_config = config.get("sae", {})
+        layer = sae_config.get("layer", 2)
+        inp_config = sae_config.get("input", {"name": "mlp-in", "expansion": 4, "k": 30})
+        out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 4, "k": 30})
 
-    # Create Tracer using original paper code
-    # Tracer auto-loads pretrained SAEs from {model.config.repo}-scope
-    print(f"Creating Tracer for layer {layer}...")
-    print(f"  Input SAE: {inp_config}")
-    print(f"  Output SAE: {out_config}")
+        # Create Tracer using original paper code
+        # Tracer auto-loads pretrained SAEs from {model.config.repo}-scope
+        print(f"Creating Tracer for layer {layer}...")
+        print(f"  Input SAE: {inp_config}")
+        print(f"  Output SAE: {out_config}")
 
-    tracer = Tracer(model, layer, out=out_config, inp=inp_config, device=device)
+        tracer = Tracer(model, layer, out=out_config, inp=inp_config, device=device)
 
-    # Analysis configuration
-    analysis_config = config.get("analysis", {})
-    n_features = analysis_config.get("n_features", 500)
-    rank_k = analysis_config.get("rank_k", 2)
-    project = analysis_config.get("project", False)  # Project onto SAE latents
+        # Analysis configuration
+        analysis_config = config.get("analysis", {})
+        n_features = analysis_config.get("n_features", 500)
+        rank_k = analysis_config.get("rank_k", 2)
+        project = analysis_config.get("project", False)  # Project onto SAE latents
 
-    # Get number of output features
-    n_out_features = tracer.out.d_features
-    print(f"Total output features: {n_out_features}")
+        # Get number of output features
+        n_out_features = tracer.out.d_features
+        print(f"Total output features: {n_out_features}")
 
-    # Select features to analyze
-    feature_indices = list(range(min(n_features, n_out_features)))
-    print(f"Analyzing {len(feature_indices)} features...")
+        # Select features to analyze
+        feature_indices = list(range(min(n_features, n_out_features)))
+        print(f"Analyzing {len(feature_indices)} features...")
 
-    # Run analysis
-    results = analyze_interactions_batch(tracer, feature_indices, rank_k=rank_k, project=project)
+        # Run analysis
+        results = analyze_interactions_batch(tracer, feature_indices, rank_k=rank_k, project=project)
 
     # Compute summary statistics
     correlations = np.array(results["correlations"])
@@ -188,6 +210,8 @@ def main():
 
     if len(correlations) == 0:
         print("ERROR: No features successfully analyzed")
+        if wandb_enabled:
+            finish_wandb(tracker.result, extra_summary={"error": "no_features_analyzed"})
         return
 
     fraction_above_075 = (correlations > 0.75).mean()
@@ -206,7 +230,9 @@ def main():
         "std_effective_rank": float(effective_ranks.std()),
         "paper_claim": "69% of features have >0.75 rank-2 correlation",
         "our_result": f"{fraction_above_075*100:.1f}% of features have >0.75 rank-{rank_k} correlation",
-        "claim_supported": fraction_above_075 > 0.60,  # Allow 9% margin
+        "claim_supported": bool(fraction_above_075 > 0.60),  # Allow 9% margin
+        "wall_time_seconds": tracker.result.wall_time_seconds,
+        "co2_kg": tracker.result.emissions_kg,
     }
 
     print(f"\n{'='*60}")
@@ -222,23 +248,28 @@ def main():
     print(f"Claim supported: {summary['claim_supported']}")
     print(f"{'='*60}")
 
-    # Stop tracking
-    end_time = time.time()
-    emissions_kg = tracker.stop()
-
-    summary["wall_time_seconds"] = end_time - start_time
-    summary["co2_kg"] = emissions_kg
+    # Finalize wandb with results
+    if wandb_enabled:
+        finish_wandb(tracker.result, extra_summary={
+            "n_features": n_features,
+            "fraction_above_075": fraction_above_075,
+            "fraction_above_050": fraction_above_050,
+            "mean_correlation": summary["mean_correlation"],
+            "mean_effective_rank": summary["mean_effective_rank"],
+            "claim_supported": summary["claim_supported"],
+        })
 
     # Save results
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Convert numpy arrays to lists for JSON serialization
     full_results = {
         "summary": summary,
         "per_feature": {
-            "feature_indices": results["feature_indices"],
-            "correlations": results["correlations"],
-            "effective_ranks": results["effective_ranks"],
+            "feature_indices": [int(x) for x in results["feature_indices"]],
+            "correlations": [float(x) for x in results["correlations"]],
+            "effective_ranks": [float(x) for x in results["effective_ranks"]],
         },
         "config": config,
     }
