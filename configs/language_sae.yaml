@@ -1,0 +1,31 @@
+name: language_sae_layer7
+experiment_id: L5.1
+
+model:
+  # FineWeb-EDU bilinear transformer (paper's primary model)
+  pretrained: "tdooms/fw-medium"
+
+sae:
+  # Hook point for activations
+  point: "mlp-out"
+  # Paper uses layer 7 for negation/interaction analysis
+  layer: 7
+  # SAE expansion factor (features = expansion * d_model)
+  # Paper configuration: expansion=8
+  expansion: 8
+  # Top-k sparsity (available config: k=30, k=32 not available)
+  k: 30
+  # Context length (must match model's n_ctx)
+  n_ctx: 512
+
+training:
+  lr: 0.0001
+  batch_size: 32
+  out_batch: 4096
+  n_batches: 256
+  n_buffers: 100
+
+data:
+  # FineWeb-EDU dataset (same as model training)
+  dataset: fineweb-edu
+  n_samples: 100000

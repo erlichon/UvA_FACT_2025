@@ -1,0 +1,31 @@
+name: language_interaction
+experiment_id: L5.3
+
+model:
+  # FineWeb-EDU bilinear transformer (paper's primary model for Section 5)
+  # Paper uses fw-medium at layer 7 for interaction analysis
+  pretrained: "tdooms/fw-medium"
+
+sae:
+  # Paper uses layer 7 for interaction matrix analysis
+  # Available config: expansion=8, k=30 (k=32 not available in fw-medium-scope)
+  layer: 7
+  # SAE configs for input and output (loaded via Tracer from HuggingFace)
+  input:
+    name: "mlp-in"
+    expansion: 8
+    k: 30
+  output:
+    name: "mlp-out"
+    expansion: 8
+    k: 30
+
+analysis:
+  # Number of output features to analyze
+  n_features: 500
+  # Rank for low-rank approximation
+  rank_k: 2
+  # Whether to project Q onto SAE latents
+  project: false
+  # Paper claim: 69% above 0.75
+  target_correlation: 0.75

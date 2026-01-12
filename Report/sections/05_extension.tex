@@ -5,52 +5,104 @@
 \section{Extension Results}
 \label{sec:extension}
 
+Beyond reproducing the original findings, we extend the analysis in two directions:
+(1) robustness of interpretable structure under distribution shift, and
+(2) comparing structural low-rank (CP-decomposition) against regularization-induced low-rank.
+
 \subsection{Robustness Analysis}
 
-% TODO: Add rotated MNIST results
-% Does the low-rank structure generalize to rotated inputs?
+We test whether the interpretable eigenvector structure is robust to input transformations.
 
+\subsubsection{Rotated MNIST}
+
+% TODO: Uncomment after experiments
 % \begin{figure}[h]
 %     \centering
 %     \includegraphics[width=0.8\linewidth]{figures/robustness_rotated.pdf}
-%     \caption{Eigenvector stability under input rotation. Analysis of how the
-%     learned representations change when evaluated on rotated MNIST.}
+%     \caption{Eigenvector stability under input rotation.
+%     We evaluate models trained on standard MNIST on rotated test images.
+%     The eigenvector structure [remains stable / degrades] under rotation.}
 %     \label{fig:robustness_rotated}
 % \end{figure}
 
-\subsection{Transfer to EMNIST}
+\textit{[Figure to be added: Analysis of eigenvector stability under rotation]}
 
-% TODO: Add EMNIST results
-% Do the interpretable patterns transfer to handwritten letters?
+\subsubsection{Transfer to EMNIST}
 
+% TODO: Uncomment after experiments
 % \begin{figure}[h]
 %     \centering
 %     \includegraphics[width=0.8\linewidth]{figures/robustness_emnist.pdf}
-%     \caption{Transfer analysis to EMNIST letters dataset.}
+%     \caption{Transfer analysis to EMNIST-Letters.
+%     We retrain the bilinear model on handwritten letters and analyze whether
+%     similar low-rank interpretable structure emerges.}
 %     \label{fig:robustness_emnist}
 % \end{figure}
 
+\textit{[Figure to be added: Eigenvector analysis on EMNIST letters]}
+
 \subsection{CP-Decomposition Analysis}
 
-% TODO: Add CP rank sweep results
-% Compare structural low-rank (CP) vs regularization-induced low-rank
+We compare structural low-rank constraint (CP-decomposition) against regularization-induced low-rank.
+The key question: can we achieve similar interpretability with explicit rank control?
 
+\subsubsection{Rank Sweep}
+
+% TODO: Uncomment after experiments
 % \begin{figure}[h]
 %     \centering
 %     \includegraphics[width=0.8\linewidth]{figures/cp_rank_sweep.pdf}
-%     \caption{Accuracy vs CP rank sweep showing the trade-off between
-%     model capacity and interpretability.}
+%     \caption{Effect of CP rank on accuracy and interpretability.
+%     Lower ranks provide stronger structural constraint but may limit model capacity.
+%     We sweep ranks $R \in \{8, 16, 32, 64, 128, 256\}$.}
 %     \label{fig:cp_rank_sweep}
 % \end{figure}
 
-\subsection{Structure vs. Regularization}
+\textit{[Figure to be added: Accuracy and effective rank vs CP rank]}
 
-% TODO: Add Pareto frontier comparison
+% TODO: Uncomment after experiments
+% \begin{table}[h]
+%     \caption{CP-decomposition rank sweep results}
+%     \label{tab:cp_sweep}
+%     \centering
+%     \begin{tabular}{ccc}
+%         \toprule
+%         CP Rank $R$ & Accuracy (\%) & Eff. Rank \\
+%         \midrule
+%         8 & XX.X & XX \\
+%         16 & XX.X & XX \\
+%         32 & XX.X & XX \\
+%         64 & XX.X & XX \\
+%         128 & XX.X & XX \\
+%         256 (full) & XX.X & XX \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
+
+\textit{[Table to be added: CP rank sweep results]}
+
+\subsection{Structure vs. Regularization: Pareto Analysis}
+
+% TODO: Uncomment after experiments
 % \begin{figure}[h]
 %     \centering
 %     \includegraphics[width=0.8\linewidth]{figures/structure_vs_reg.pdf}
-%     \caption{Pareto frontier comparing structural low-rank (CP decomposition)
-%     vs regularization-induced low-rank. Points closer to top-left represent
-%     better accuracy-interpretability trade-offs.}
+%     \caption{Pareto frontier comparing structural (CP) vs regularization-induced low-rank.
+%     Each point represents a configuration; error bars show standard deviation across seeds.
+%     Points closer to the top-left represent better accuracy-interpretability trade-offs.
+%     \textbf{Key finding:} [CP achieves comparable / better / worse] trade-off than regularization.}
 %     \label{fig:pareto}
 % \end{figure}
+
+\textit{[Figure to be added: Pareto plot comparing CP vs regularization approaches]}
+
+\subsection{Summary}
+
+\textit{[To be completed after Phase 2 experiments]}
+
+Our extension experiments address the following questions:
+\begin{enumerate}
+    \item Is the low-rank interpretable structure robust to distribution shift?
+    \item Can structural constraints (CP) replace regularization for interpretability?
+    \item What is the accuracy-interpretability Pareto frontier?
+\end{enumerate}

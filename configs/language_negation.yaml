@@ -1,0 +1,22 @@
+name: language_negation
+experiment_id: L5.2
+
+model:
+  # FineWeb-EDU bilinear transformer (paper's primary model for Section 5)
+  # Paper uses fw-medium at layer 7 for negation analysis
+  pretrained: "tdooms/fw-medium"
+
+sae:
+  # Use pretrained SAEs from HuggingFace (tdooms/fw-medium-scope)
+  # Available config: layer 7, expansion 8, k=30 (k=32 not available)
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 7
+  expansion: 8
+  k: 30
+
+analysis:
+  # Number of samples to analyze for negation patterns
+  n_samples: 50000
+  # Number of top features to report
+  top_k: 20

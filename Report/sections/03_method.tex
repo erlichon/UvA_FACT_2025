@@ -12,57 +12,133 @@ The core component is the bilinear layer, which replaces standard nonlinearities
     \mathbf{y} = (\mathbf{W}_l \mathbf{x}) \odot (\mathbf{W}_r \mathbf{x})
     \label{eq:bilinear}
 \end{equation}
-where $\mathbf{W}_l, \mathbf{W}_r \in \mathbb{R}^{d_{out} \times d_{in}}$ are learnable weight matrices and $\odot$ denotes the Hadamard (element-wise) product.
+where $\mathbf{W}_l, \mathbf{W}_r \in \mathbb{R}^{d_{\text{hidden}} \times d_{\text{in}}}$ are learnable weight matrices and $\odot$ denotes the Hadamard (element-wise) product.
 
 This can be expressed as a third-order interaction tensor:
 \begin{equation}
-    y_i = \sum_{j,k} B_{ijk} x_j x_k
+    y_c = \sum_{i,j} B_{cij} x_i x_j
     \label{eq:tensor}
 \end{equation}
-where $B_{ijk} = (W_l)_{ij} (W_r)_{ik}$.
+where $B_{cij} = \sum_h W_{\text{head},ch} (W_l)_{hi} (W_r)_{hj}$ and $W_{\text{head}}$ is the output projection.
 
 \subsection{Eigendecomposition for Interpretability}
 
-The interaction tensor $\mathbf{B}$ can be reshaped and decomposed via eigendecomposition to reveal interpretable structure. For each output dimension $i$, the matrix $B_i \in \mathbb{R}^{d_{in} \times d_{in}}$ admits:
+For each output class $c$, the interaction matrix $B_c \in \mathbb{R}^{d_{\text{in}} \times d_{\text{in}}}$ is first symmetrized:
 \begin{equation}
-    B_i = \sum_r \lambda_r^{(i)} \mathbf{v}_r^{(i)} (\mathbf{v}_r^{(i)})^\top
+    B_c^{\text{sym}} = \frac{1}{2}(B_c + B_c^\top)
 \end{equation}
+This symmetrization removes arbitrary asymmetry from the factorization and enables eigendecomposition:
+\begin{equation}
+    B_c^{\text{sym}} = \sum_{r=1}^{d_{\text{in}}} \lambda_r^{(c)} \mathbf{v}_r^{(c)} (\mathbf{v}_r^{(c)})^\top
+\end{equation}
+where $\lambda_r^{(c)}$ are eigenvalues (sorted by magnitude) and $\mathbf{v}_r^{(c)} \in \mathbb{R}^{784}$ are eigenvectors that can be reshaped to $28 \times 28$ images.
 
 \subsection{Effective Rank}
 
-We measure the interpretability of the learned representation using effective rank~\citep{roy2007effective}:
+We measure interpretability using the entropy-based effective rank~\citep{roy2007effective}:
 \begin{equation}
     \text{EffRank}(\mathbf{B}) = \exp\left( -\sum_i p_i \log p_i \right), \quad p_i = \frac{|\lambda_i|}{\sum_j |\lambda_j|}
     \label{eq:effrank}
 \end{equation}
-Lower effective rank indicates more concentrated eigenspectrum, corresponding to more interpretable structure.
+Lower effective rank indicates a more concentrated eigenspectrum, corresponding to more interpretable low-rank structure.
 
 \subsection{Extension: CP-Decomposition Layer}
 \label{sec:cp}
 
-As an extension, we implement a CP-decomposed bilinear layer with explicit rank control:
+As an extension, we implement a CP-decomposed bilinear layer with explicit rank control~\citep{kolda2009tensor}:
 \begin{equation}
-    B_{ijk} = \sum_{r=1}^{R} \lambda_r A_{ir} B_{jr} C_{kr}
+    B_{cij} = \sum_{r=1}^{R} \lambda_r A_{cr} B_{ir} C_{jr}
     \label{eq:cp}
 \end{equation}
-where $R$ is the chosen rank. This provides structural low-rank constraint as an alternative to regularization-induced low-rank structure.
+where $R$ is the chosen rank, $\lambda_r$ are learnable scaling factors, and $\mathbf{A}, \mathbf{B}, \mathbf{C}$ are factor matrices.
+This provides \emph{structural} low-rank constraint as an alternative to \emph{regularization-induced} low-rank structure.
+
+\subsection{Negation Circuit Analysis (Language)}
+\label{sec:negation_circuits}
+
+For the language experiments, we analyze bilinear transformers trained on TinyStories to discover \textbf{sentiment negation circuits}.
+
+\subsubsection{Sparse Autoencoder Integration}
+
+Following \citet{pearce2024bilinear}, we train Sparse Autoencoders (SAEs) around MLP layers:
+\begin{equation}
+    \mathbf{z} = \text{ReLU}(W_{\text{enc}} \mathbf{h} + \mathbf{b}_{\text{enc}}), \quad \hat{\mathbf{h}} = W_{\text{dec}} \mathbf{z} + \mathbf{b}_{\text{dec}}
+\end{equation}
+where $\mathbf{h}$ is the MLP hidden state and $\mathbf{z}$ are sparse SAE features.
+SAEs are trained with reconstruction loss plus L1 sparsity penalty.
+
+\subsubsection{Interaction Matrix Analysis}
+
+For each SAE output feature $o$, we compute the interaction matrix $Q$ between input SAE features:
+\begin{equation}
+    Q_{ij}^{(o)} = \sum_{\text{samples}} z_i^{\text{in}} \cdot z_j^{\text{in}} \cdot z_o^{\text{out}}
+\end{equation}
+where $z_i^{\text{in}}$ are input SAE activations and $z_o^{\text{out}}$ is the output feature activation.
+
+Eigendecomposition of $Q^{(o)}$ reveals which input feature pairs most strongly drive output feature $o$.
+The paper finds that 69\% of features have $>$0.75 correlation with just a rank-2 approximation.
+
+\subsubsection{Negation Feature Discovery}
+
+The analysis identifies two key SAE output features:
+\begin{itemize}
+    \item Feature 3834: Activates on ``not + negative words'' (e.g., ``not lost'', ``no interference'')
+    \item Feature 751: Activates on ``not + positive words'' (e.g., ``not free'', ``little relief'')
+\end{itemize}
+These features form opposing directions in SAE feature space, implementing a sentiment flip mechanism.
 
 \subsection{Datasets}
 
-% TODO: Describe MNIST, Rotated MNIST, EMNIST datasets
-% Include statistics, preprocessing, train/val/test splits
+\subsubsection{Vision Datasets}
+
+\textbf{MNIST:} We use the standard MNIST dataset~\citep{goodfellow2016deep} of 28$\times$28 grayscale handwritten digits.
+Training set: 60,000 images; Test set: 10,000 images.
+We use a 90/10 train/validation split for hyperparameter selection.
+Images are flattened to 784-dimensional vectors and normalized to $[0, 1]$.
+
+\textbf{Rotated MNIST (Extension):} For robustness analysis, we evaluate on MNIST images rotated by random angles.
+
+\textbf{EMNIST (Extension):} For transfer analysis, we evaluate on EMNIST-Letters to test generalization to handwritten letters.
+
+\subsubsection{Language Datasets}
+
+\textbf{GPT-2 Analysis:} We analyze pretrained GPT-2 models using the methodology from \citet{pearce2024bilinear}.
+We use standard text corpora for probing attention head behavior and comparing eigendecomposition with SAE features.
 
 \subsection{Hyperparameters}
 
-% TODO: Reference src/configs/ and list key hyperparameters
-% - Architecture: hidden_dim, etc.
-% - Regularization: noise_std, weight_decay
-% - Training: epochs, lr, batch_size
-% - Seeds: [42, 43, 44, 45, 46]
+Table~\ref{tab:hyperparams} summarizes the hyperparameters used in our experiments, matching the original paper.
 
-\subsection{Computational Requirements}
+\begin{table}[h]
+    \caption{Hyperparameters for Phase 1 reproduction experiments}
+    \label{tab:hyperparams}
+    \centering
+    \begin{tabular}{lc}
+        \toprule
+        Hyperparameter & Value \\
+        \midrule
+        Hidden dimension ($d_{\text{hidden}}$) & 256 \\
+        Input dimension ($d_{\text{in}}$) & 784 \\
+        Output classes & 10 \\
+        Epochs & 100 \\
+        Learning rate & $1 \times 10^{-3}$ \\
+        Batch size & 64 \\
+        Optimizer & AdamW \\
+        \midrule
+        \multicolumn{2}{c}{\textit{Regularization (ablation configurations)}} \\
+        \midrule
+        Noise std (none, wd) & 0.0 \\
+        Noise std (noise, full) & 0.4 \\
+        Weight decay (none, noise) & 0.0 \\
+        Weight decay (wd, full) & 0.5 \\
+        \midrule
+        Random seeds & 42, 43, 44, 45, 46 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-% TODO: Fill in after experiments
-% - Hardware: Snellius A100 GPUs
-% - Total GPU hours
-% - CO2 emissions from codecarbon
+\subsection{Computational Setup}
+
+Experiments were conducted on the Snellius HPC cluster using NVIDIA A100 GPUs.
+We track computational costs using \texttt{codecarbon} for CO2 emission estimates.
+Total budget: 25,000 SBUs (Service Billing Units).
