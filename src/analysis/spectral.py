@@ -150,5 +150,118 @@ def load_checkpoint_eigenvalues(checkpoint_path: str) -> tuple[Tensor, Tensor]:
     Returns:
         Tuple of (eigenvalues, eigenvectors)
     """
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
     return checkpoint['eigenvalues'], checkpoint['eigenvectors']
+
+
+def load_checkpoint(checkpoint_path: str) -> dict:
+    """
+    Load full checkpoint dict from file.
+
+    Args:
+        checkpoint_path: Path to the checkpoint .pt file
+
+    Returns:
+        Full checkpoint dictionary
+    """
+    return torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+
+
+def load_all_checkpoints(
+    checkpoint_dir: str,
+    dataset: str = "mnist",
+    configs: list = None,
+    seeds: list = None,
+) -> "pd.DataFrame":
+    """
+    Load metrics from all checkpoints in a directory.
+
+    Args:
+        checkpoint_dir: Directory containing checkpoint files
+        dataset: 'mnist' or 'fashion'
+        configs: List of config names (default: ['none', 'noise', 'wd', 'full'])
+        seeds: List of seeds (default: [42, 43, 44, 45, 46])
+
+    Returns:
+        DataFrame with columns: config, seed, accuracy, effective_rank, top5_coverage, etc.
+    """
+    import pandas as pd
+    from pathlib import Path
+
+    if configs is None:
+        configs = ["none", "noise", "wd", "full"]
+    if seeds is None:
+        seeds = [42, 43, 44, 45, 46]
+
+    results = []
+    checkpoint_dir = Path(checkpoint_dir)
+
+    for config in configs:
+        for seed in seeds:
+            filename = f"{dataset}_dense_{config}_seed{seed}.pt"
+            path = checkpoint_dir / filename
+
+            if not path.exists():
+                print(f"Warning: {path} not found")
+                continue
+
+            checkpoint = load_checkpoint(str(path))
+            eigenvalues = checkpoint["eigenvalues"]
+
+            # Compute spectral metrics
+            summary = spectral_summary(eigenvalues)
+
+            results.append({
+                "config": config,
+                "seed": seed,
+                "accuracy": checkpoint["metrics"]["val_acc"],
+                "train_accuracy": checkpoint["metrics"].get("train_acc", None),
+                "effective_rank": summary["effective_rank_mean"],
+                "effective_rank_std": summary["effective_rank_std"],
+                "top5_coverage": summary["top5_coverage_mean"],
+                "top10_coverage": summary["top10_coverage_mean"],
+                "decay_rate": summary["decay_rate_mean"],
+            })
+
+    return pd.DataFrame(results)
+
+
+def aggregate_by_config(df: "pd.DataFrame") -> "pd.DataFrame":
+    """
+    Aggregate results by configuration (mean +/- std across seeds).
+
+    Args:
+        df: DataFrame from load_all_checkpoints()
+
+    Returns:
+        Aggregated DataFrame with mean/std for each config
+    """
+    metrics = ["accuracy", "effective_rank", "top5_coverage", "top10_coverage", "decay_rate"]
+
+    agg_dict = {}
+    for m in metrics:
+        if m in df.columns:
+            agg_dict[m] = ["mean", "std"]
+
+    aggregated = df.groupby("config").agg(agg_dict)
+    aggregated.columns = [f"{col[0]}_{col[1]}" for col in aggregated.columns]
+    aggregated = aggregated.reset_index()
+
+    return aggregated
+
+
+def compute_rank_ratio(df: "pd.DataFrame", baseline: str = "none", target: str = "full") -> float:
+    """
+    Compute effective rank ratio between two configurations.
+
+    Args:
+        df: DataFrame from load_all_checkpoints()
+        baseline: Baseline config name (typically 'none')
+        target: Target config name (typically 'full' or 'wd')
+
+    Returns:
+        Ratio of mean effective ranks (target / baseline)
+    """
+    baseline_mean = df[df["config"] == baseline]["effective_rank"].mean()
+    target_mean = df[df["config"] == target]["effective_rank"].mean()
+    return target_mean / baseline_mean

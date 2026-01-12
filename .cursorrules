@@ -91,18 +91,30 @@ UvA_FACT_2025/
 ├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
 ├── src/
 │   ├── models/bilinear_layer.py  # BilinearDense (wrapper) + BilinearCP (extension)
-│   ├── analysis/spectral.py      # effective_rank, top_k_coverage
+│   ├── analysis/spectral.py      # effective_rank, top_k_coverage, data loading
+│   ├── plot_utils/               # Reusable plotting functions
+│   │   ├── style.py              # Publication style, colors
+│   │   ├── eigenspectrum.py      # Eigenvalue plots
+│   │   ├── eigenvectors.py       # Eigenvector visualizations
+│   │   └── ablation.py           # Ablation study plots
 │   ├── language/                 # Section 5 wrappers
 │   ├── train.py                  # Vision training
 │   └── utils.py                  # Shared utilities
 ├── configs/                      # YAML experiment configs
 ├── jobs/                         # SLURM scripts
+├── scripts/                      # Standalone scripts
+│   └── generate_figures.py       # Generate all figures
 ├── results/
-│   ├── phase1/checkpoints/       # Vision checkpoints
+│   ├── phase1/
+│   │   ├── checkpoints/          # MNIST checkpoints (40 files)
+│   │   └── figures/              # Generated PDF figures
 │   ├── phase1_fashion/checkpoints/
 │   └── language/                 # Language results (JSON + checkpoints)
 ├── notebooks/                    # Analysis notebooks
-├── Report/                       # LaTeX (TMLR template)
+│   └── 01_reproduction.ipynb     # Vision reproduction analysis
+├── Report/
+│   ├── figures/                  # Figures for LaTeX
+│   └── sections/                 # LaTeX sections
 └── tests/                        # Unit tests
 ```
 
@@ -139,6 +151,42 @@ def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
 - **Dense mode**: Wrap original `Bilinear` class for exact reproduction
 - **CP mode**: Our extension with explicit rank control
 - **SAE/Language**: Use original `sae/` and `language/` modules via wrappers
+
+### Plotting Utilities
+Use `src/plot_utils/` for all visualization:
+```python
+from src.plot_utils.style import set_publication_style, COLORS
+from src.plot_utils.eigenspectrum import plot_eigenspectrum_comparison
+from src.plot_utils.eigenvectors import plot_eigenvectors_grid
+from src.plot_utils.ablation import plot_ablation_bars
+
+set_publication_style()  # Call once at start
+```
+
+**Key functions**:
+- `plot_eigenspectrum_comparison(eigenvalues_dict, ...)` - Compare configs
+- `plot_eigenvectors_grid(eigenvectors, eigenvalues, ...)` - 10x5 grid
+- `plot_ablation_bars(df, metrics, ...)` - Grouped bar chart
+- `plot_accuracy_vs_effective_rank(df, ...)` - Trade-off scatter
+
+### Notebooks
+- Use project root discovery pattern at top of notebook
+- Keep notebooks minimal; reuse `plot_utils/` functions
+- Save figures as PDF to both `results/.../figures/` and `Report/figures/`
+
+---
+
+## Current Status
+
+**Phase 1 (Vision)**: COMPLETE
+- 40/40 MNIST checkpoints (4 configs x 5 seeds x 2 datasets)
+- All figures generated in `Report/figures/`
+- Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
+
+**Phase 2 (Language)**: IN PROGRESS
+- SAE training complete
+- Negation discovery needs validation
+- Interaction analysis in progress
 
 ---
 
@@ -180,6 +228,12 @@ sbatch jobs/language_full_pipeline.job
 ```bash
 python -m pytest tests/ -v
 python -m pytest tests/ -v -k "test_effective_rank"
+```
+
+### Figure Generation
+```bash
+# Generate all Phase 1 figures (run from project root)
+python scripts/generate_figures.py
 ```
 
 ### Local MPS Scripts (Apple Silicon)
@@ -323,15 +377,23 @@ from src.analysis.spectral import (
     top_k_coverage,
     spectral_summary,
     load_checkpoint_eigenvalues,
+    load_all_checkpoints,
+    aggregate_by_config,
+    compute_rank_ratio,
 )
 
-# Load and analyze
+# Load single checkpoint
 vals, vecs = load_checkpoint_eigenvalues("path/to/checkpoint.pt")
 summary = spectral_summary(vals)
 print(f"Effective Rank: {summary['effective_rank_mean']:.2f}")
 
 # Visualize eigenvector as 28x28 image
 img = vecs[0, 0].reshape(28, 28)  # First eigenvector of class 0
+
+# Load all checkpoints into DataFrame
+df = load_all_checkpoints("results/phase1/checkpoints", dataset="mnist")
+agg = aggregate_by_config(df)  # Mean/std per config
+ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
 ```
 
 ---
