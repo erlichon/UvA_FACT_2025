@@ -46,7 +46,7 @@ rsync -avz --progress $DRY_RUN \
     --exclude='Report/*.out' \
     --exclude='.ipynb_checkpoints' \
     --exclude='node_modules' \
-    "$LOCAL_DIR/" "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/"
+    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/" "$LOCAL_DIR/"
 
 echo ""
 echo "Sync complete!"
