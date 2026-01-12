@@ -16,22 +16,35 @@ import sys
 from pathlib import Path
 import argparse
 import time
+import warnings
 import yaml
 import json
+
+# Suppress torchvision image extension warning (libjpeg not needed for our use case)
+warnings.filterwarnings("ignore", message="Failed to load image Python extension")
+
 import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 
-# Add original code to path
+# Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-ORIG_PATH = PROJECT_ROOT / "bilinear-decomposition-main"
-sys.path.insert(0, str(ORIG_PATH))
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from language.transformer import Transformer
-from language.utils import Sight
 from sae.sae import SAE, SAEConfig
 from datasets import load_dataset
-from codecarbon import EmissionsTracker
+
+from src.utils import (
+    get_device,
+    load_config,
+    track_emissions,
+    setup_mps_fallbacks,
+    is_mps_device,
+    init_wandb,
+    finish_wandb,
+)
 
 
 # Negation and sentiment word lists (from paper analysis)
@@ -81,7 +94,15 @@ def collect_activations_with_patterns(model, sae, dataloader, layer: int, point:
         feature_activations: dict mapping pattern -> mean activation per feature
         sample_counts: dict mapping pattern -> count
     """
-    sight = Sight(model)
+    # Use PyTorch hooks instead of nnsight (more reliable with custom models)
+    mlp_output_cache = {}
+
+    def capture_mlp_output(module, input, output):
+        mlp_output_cache["output"] = output
+
+    # Register hook on the target MLP layer
+    target_mlp = model.transformer.h[layer].mlp
+    hook = target_mlp.register_forward_hook(capture_mlp_output)
 
     # Accumulators for each pattern
     patterns = ["neg_positive", "neg_negative", "baseline"]
@@ -91,51 +112,56 @@ def collect_activations_with_patterns(model, sae, dataloader, layer: int, point:
     model.eval()
     total_processed = 0
 
-    for batch in tqdm(dataloader, desc="Collecting activations"):
-        if total_processed >= n_samples:
-            break
+    try:
+        for batch in tqdm(dataloader, desc="Collecting activations"):
+            if total_processed >= n_samples:
+                break
 
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch.get("attention_mask", torch.ones_like(input_ids)).to(device)
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch.get("attention_mask", torch.ones_like(input_ids)).to(device)
 
-        # Get MLP activations using NNSight
-        with sight.trace(input_ids, validate=False, scan=False):
-            mlp_out = sight[(point, layer)].save()
+            # Forward pass to capture MLP output via hook
+            _ = model(input_ids)
+            mlp_out = mlp_output_cache["output"]
 
-        # Flatten to [batch * seq, d_model]
-        acts = mlp_out.reshape(-1, mlp_out.shape[-1])
+            # Flatten to [batch * seq, d_model]
+            acts = mlp_out.reshape(-1, mlp_out.shape[-1])
 
-        # Encode through SAE
-        _, sae_acts = sae(acts)
+            # Encode through SAE
+            _, sae_acts = sae(acts)
 
-        # Mean activation per sample (average over sequence)
-        batch_size, seq_len = input_ids.shape
-        sae_acts_reshaped = sae_acts.reshape(batch_size, seq_len, -1)
-        # Mask padded positions
-        mask = attention_mask.unsqueeze(-1).float()
-        mean_acts = (sae_acts_reshaped * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
+            # Mean activation per sample (average over sequence)
+            batch_size, seq_len = input_ids.shape
+            sae_acts_reshaped = sae_acts.reshape(batch_size, seq_len, -1)
+            # Mask padded positions
+            mask = attention_mask.unsqueeze(-1).float()
+            mean_acts = (sae_acts_reshaped * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1)
 
-        # Classify samples by pattern
-        for i, ids in enumerate(input_ids):
-            text = model.tokenizer.decode(ids.tolist()).lower()
+            # Classify samples by pattern
+            for i, ids in enumerate(input_ids):
+                text = model.tokenizer.decode(ids.tolist()).lower()
 
-            has_negation = any(neg in text for neg in NEGATION_WORDS)
-            has_positive = any(pos in text for pos in POSITIVE_WORDS)
-            has_negative = any(neg in text for neg in NEGATIVE_WORDS)
+                has_negation = any(neg in text for neg in NEGATION_WORDS)
+                has_positive = any(pos in text for pos in POSITIVE_WORDS)
+                has_negative = any(neg in text for neg in NEGATIVE_WORDS)
 
-            if has_negation and has_positive and not has_negative:
-                pattern = "neg_positive"
-            elif has_negation and has_negative and not has_positive:
-                pattern = "neg_negative"
-            elif not has_negation:
-                pattern = "baseline"
-            else:
-                continue  # Skip ambiguous samples
+                if has_negation and has_positive and not has_negative:
+                    pattern = "neg_positive"
+                elif has_negation and has_negative and not has_positive:
+                    pattern = "neg_negative"
+                elif not has_negation:
+                    pattern = "baseline"
+                else:
+                    continue  # Skip ambiguous samples
 
-            accum[pattern].append(mean_acts[i].cpu())
-            counts[pattern] += 1
+                accum[pattern].append(mean_acts[i].cpu())
+                counts[pattern] += 1
 
-        total_processed += batch_size
+            total_processed += batch_size
+
+    finally:
+        # Remove the hook
+        hook.remove()
 
     # Compute mean activations per pattern
     feature_activations = {}
@@ -198,104 +224,122 @@ def main():
     parser.add_argument("--output", type=str, default="results/language/negation_analysis.json")
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--use-pretrained", action="store_true", help="Use pretrained SAEs from HuggingFace")
+    parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     args = parser.parse_args()
 
-    # Auto-detect device
-    if args.device is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    else:
-        device = args.device
-
+    # Auto-detect device (includes MPS support)
+    device = get_device(args.device)
     print(f"Using device: {device}")
 
+    # Setup MPS fallbacks if needed
+    if is_mps_device(device):
+        setup_mps_fallbacks()
+        print("MPS device detected - some operations may use CPU fallback")
+
     # Load config
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
+    config_name = config.get("name", Path(args.config).stem)
 
     # Override pretrained flag if specified
     if args.use_pretrained:
         config.setdefault("sae", {})["use_pretrained"] = True
 
-    # Start tracking
-    tracker = EmissionsTracker(project_name="fact-bilinear-language", log_level="warning")
-    tracker.start()
-    start_time = time.time()
-
-    # Load model
-    model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
-    print(f"Loading model: {model_name}")
-    model = Transformer.from_pretrained(model_name, device=device)
-
-    # Load SAE
-    sae = load_sae(config, device)
-    layer = config.get("sae", {}).get("layer", 2)
-    point = config.get("sae", {}).get("point", "mlp-out")
-
-    # Create dataloader
-    print("Loading TinyStories dataset...")
-    dataset = load_dataset("roneneldan/TinyStories", split="train")
-    n_samples = config.get("analysis", {}).get("n_samples", 50000)
-    dataset = dataset.select(range(min(n_samples, len(dataset))))
-
-    def tokenize(examples):
-        return model.tokenizer(
-            examples["text"],
-            truncation=True,
-            max_length=model.config.n_ctx,
-            padding="max_length",
-            return_tensors="pt",
-        )
-
-    dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
-    dataset.set_format("torch")
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
-
-    # Collect activations
-    print(f"Analyzing activations at ({point}, layer {layer})...")
-    feature_activations, counts = collect_activations_with_patterns(
-        model, sae, dataloader, layer, point, device, n_samples
+    # Initialize wandb
+    wandb_enabled = init_wandb(
+        name=config_name,
+        config=config,
+        device=device,
+        enabled=not args.no_wandb,
+        tags=["language", "negation"],
     )
 
-    print(f"\nSample counts:")
-    for pattern, count in counts.items():
-        print(f"  {pattern}: {count}")
+    # Run analysis with emissions tracking
+    with track_emissions("fact-bilinear") as tracker:
+        # Load model
+        model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
+        print(f"Loading model: {model_name}")
+        model = Transformer.from_pretrained(model_name, device=device)
 
-    # Find negation features
-    top_k = config.get("analysis", {}).get("top_k", 20)
-    results = find_negation_features(feature_activations, top_k)
-    results["sample_counts"] = counts
+        # Load SAE
+        sae = load_sae(config, device)
+        layer = config.get("sae", {}).get("layer", 2)
+        point = config.get("sae", {}).get("point", "mlp-out")
 
-    # Check opposing directions for top features
-    if results["not_positive_features"] and results["not_negative_features"]:
-        feat_pos = results["not_positive_features"][0]
-        feat_neg = results["not_negative_features"][0]
-        cosine_sim = check_opposing_directions(sae, feat_pos, feat_neg)
+        # Create dataloader
+        print("Loading TinyStories dataset...")
+        dataset = load_dataset("roneneldan/TinyStories", split="train")
+        n_samples = config.get("analysis", {}).get("n_samples", 50000)
+        dataset = dataset.select(range(min(n_samples, len(dataset))))
 
-        results["top_pair_analysis"] = {
-            "not_positive_feature": feat_pos,
-            "not_negative_feature": feat_neg,
-            "cosine_similarity": cosine_sim,
-            "opposing_directions": cosine_sim < 0,
-            "paper_claim": "Negation features should have negative cosine similarity",
-        }
+        def tokenize(examples):
+            return model.tokenizer(
+                examples["text"],
+                truncation=True,
+                max_length=model.config.n_ctx,
+                padding="max_length",
+                return_tensors="pt",
+            )
 
-        print(f"\n{'='*60}")
-        print(f"TOP NEGATION FEATURE PAIR")
-        print(f"{'='*60}")
-        print(f"Not + Positive feature: {feat_pos}")
-        print(f"Not + Negative feature: {feat_neg}")
-        print(f"Cosine similarity: {cosine_sim:.4f}")
-        print(f"Opposing directions: {cosine_sim < 0}")
-        print(f"{'='*60}")
+        dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
+        dataset.set_format("torch")
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=False)
 
-    # Stop tracking
-    end_time = time.time()
-    emissions_kg = tracker.stop()
+        # Collect activations
+        print(f"Analyzing activations at ({point}, layer {layer})...")
+        feature_activations, counts = collect_activations_with_patterns(
+            model, sae, dataloader, layer, point, device, n_samples
+        )
 
+        print(f"\nSample counts:")
+        for pattern, count in counts.items():
+            print(f"  {pattern}: {count}")
+
+        # Find negation features
+        top_k = config.get("analysis", {}).get("top_k", 20)
+        results = find_negation_features(feature_activations, top_k)
+        results["sample_counts"] = counts
+
+        # Check opposing directions for top features
+        cosine_sim = None
+        if results["not_positive_features"] and results["not_negative_features"]:
+            feat_pos = results["not_positive_features"][0]
+            feat_neg = results["not_negative_features"][0]
+            cosine_sim = check_opposing_directions(sae, feat_pos, feat_neg)
+
+            results["top_pair_analysis"] = {
+                "not_positive_feature": feat_pos,
+                "not_negative_feature": feat_neg,
+                "cosine_similarity": cosine_sim,
+                "opposing_directions": cosine_sim < 0,
+                "paper_claim": "Negation features should have negative cosine similarity",
+            }
+
+            print(f"\n{'='*60}")
+            print(f"TOP NEGATION FEATURE PAIR")
+            print(f"{'='*60}")
+            print(f"Not + Positive feature: {feat_pos}")
+            print(f"Not + Negative feature: {feat_neg}")
+            print(f"Cosine similarity: {cosine_sim:.4f}")
+            print(f"Opposing directions: {cosine_sim < 0}")
+            print(f"{'='*60}")
+
+    # Build metrics for results and wandb
     results["metrics"] = {
-        "wall_time_seconds": end_time - start_time,
-        "co2_kg": emissions_kg,
+        "wall_time_seconds": tracker.result.wall_time_seconds,
+        "co2_kg": tracker.result.emissions_kg,
     }
+
+    # Finalize wandb with results
+    if wandb_enabled:
+        extra_summary = {
+            "n_samples": n_samples,
+            "not_positive_feature": results.get("not_positive_features", [None])[0],
+            "not_negative_feature": results.get("not_negative_features", [None])[0],
+        }
+        if cosine_sim is not None:
+            extra_summary["cosine_similarity"] = cosine_sim
+            extra_summary["opposing_directions"] = cosine_sim < 0
+        finish_wandb(tracker.result, extra_summary=extra_summary)
 
     # Save results
     output_path = Path(args.output)

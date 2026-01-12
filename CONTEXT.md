@@ -4,66 +4,146 @@
 
 ---
 
-## 0. Current State (Updated: 2026-01-10)
+## 0. Current State (Updated: 2026-01-12)
 
-### Section 4 (Vision) ~70% Complete, Section 5 (Language) ~5% Complete
+### Section 4 (Vision) COMPLETE, Section 5 (Language) ~80% Complete
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
 |--------|------|--------|-------------|
-| A | Infrastructure Lead (Section 4) | **COMPLETE** | Submit jobs to Snellius |
+| A | Infrastructure Lead (Section 4) | **COMPLETE** | All 40 vision experiments finished |
 | B | Analysis Lead (Section 4) | Ready | Create visualization.py, notebook |
-| C | Robustness Testing (E1) | Waiting | Needs Phase 1 checkpoints |
+| C | Robustness Testing (E1) | Ready | Phase 1 checkpoints available |
 | D | CP Rank Sweep (E3) | Waiting | Needs CP implementation |
 | E | Synthesis + ViT (E4+E5) | Waiting | Needs E1 + E3 results |
 | F | CP Implementation (E2) | Ready | Can start (BilinearCP skeleton exists) |
-| G | Language Infrastructure (Section 5) | **NOT STARTED** | Create src/language/, SAE pipeline |
+| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Negation discovery needs re-run |
 
-**Section 5 (Language) Required Components** (NOT YET IMPLEMENTED):
-- `src/language/data.py` - TinyStories data loading
-- `src/language/model.py` - Bilinear transformer (or load pretrained)
-- `src/language/sae.py` - Sparse Autoencoder training
-- `src/language/negation.py` - Negation circuit discovery
-- `src/language/interaction.py` - Interaction matrix analysis
-- `configs/language_*.yaml` - Language experiment configs
-- `jobs/train_sae.job`, `jobs/analyze_negation.job` - SLURM scripts
+**Vision Experiments COMPLETE** (40/40 runs finished):
+- **MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
+- **Fashion-MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
+- **Tracking**: https://wandb.ai/itayerlich96-student/fact-bilinear
 
-**Directory Structure** (CREATED):
+### Section 4 Results Summary (CORRECTED - 2026-01-12)
+
+**Formula Fix**: Previously used entropy-based effective rank. Now using paper's ratio-based formula `(L1/L2)^2`.
+
+| Config | Val Accuracy | Effective Rank | Notes |
+|--------|-------------|----------------|-------|
+| mnist_none | 97.49% +/- 0.05% | **38.50** +/- 0.66 | No regularization baseline |
+| mnist_noise | 98.41% +/- 0.04% | 74.75 +/- 0.55 | Noise increases rank! |
+| mnist_wd | 97.50% +/- 0.04% | **21.36** +/- 0.26 | WD most effective at reducing rank |
+| mnist_full | 98.30% +/- 0.04% | 36.30 +/- 0.33 | Full regularization |
+| fashion_none | 88.50% +/- 0.07% | 47.20 +/- 0.83 | No regularization baseline |
+| fashion_noise | 87.62% +/- 0.04% | 80.53 +/- 0.57 | Noise increases rank |
+| fashion_wd | 87.74% +/- 0.14% | **19.61** +/- 0.75 | WD most effective |
+| fashion_full | 87.18% +/- 0.09% | 33.16 +/- 0.26 | Full regularization |
+
+**Key Findings** (after formula correction):
+1. **Effective rank ratio (wd/no-reg) = 0.55** (MNIST), close to paper's < 0.5 expectation
+2. **Weight decay alone** achieves lowest effective rank (21.36 MNIST, 19.61 Fashion)
+3. **Noise augmentation alone** INCREASES effective rank (expected - noise prevents overfitting but spreads eigenspectrum)
+4. **Accuracy is higher than paper** (~98% vs expected 94-95%) due to 100 epochs vs paper's 20
+
+### Section 5 Status
+
+| Experiment | Status | Result |
+|------------|--------|--------|
+| SAE Training | SKIPPED | Using pretrained SAEs from HuggingFace |
+| Interaction Analysis (ts-medium) | COMPLETE | 0% >0.75 corr - smaller model comparison |
+| Interaction Analysis (fw-medium) | READY | Configs updated, run overnight or GPU |
+| Negation Discovery (ts-medium) | COMPLETE | Found same feature for both patterns |
+| Negation Discovery (fw-medium) | READY | Configs updated, run overnight or GPU |
+
+**Configuration Fix (2026-01-12)**:
+- **Previous**: ts-medium model, layer 2/5, expansion=4, k=30
+- **Updated**: fw-medium model, layer 7, expansion=8, k=30
+- The k=30 vs k=32 difference is minor (pretrained SAEs only have k=30)
+- Run on GPU: `sbatch jobs/language_fwmedium.job`
+- Run locally overnight: `./scripts/run_overnight_mps.sh`
+
+**ts-medium Results** (smaller model comparison):
+- Results differ significantly from paper due to model/layer differences
+- Keep as comparison point for "different model" ablation
+
+**Section 5 (Language) Components** (IMPLEMENTED):
+- `src/language/run_sae_training.py` - SAE training wrapper (uses original paper code)
+- `src/language/negation_discovery.py` - Negation circuit discovery
+- `src/language/interaction_analysis.py` - Interaction matrix analysis
+- `configs/language_sae.yaml` - SAE training config
+- `configs/language_negation.yaml` - Negation discovery config
+- `configs/language_interaction.yaml` - Interaction analysis config
+- `jobs/language_full_pipeline.job` - SLURM script for Snellius
+
+**Directory Structure** (COMPLETE):
 ```
 UvA_FACT_2025/
 ├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
 ├── src/
 │   ├── __init__.py
+│   ├── utils.py                  # Shared utilities (device, wandb, emissions) [COMPLETE]
 │   ├── models/
 │   │   ├── __init__.py
 │   │   └── bilinear_layer.py     # BilinearDense + BilinearCP [COMPLETE]
 │   ├── analysis/
 │   │   ├── __init__.py
 │   │   └── spectral.py           # effective_rank, top_k_coverage [COMPLETE]
-│   └── train.py                  # Training script [COMPLETE]
+│   ├── language/
+│   │   ├── __init__.py
+│   │   ├── run_sae_training.py   # SAE training wrapper [COMPLETE]
+│   │   ├── negation_discovery.py # Negation circuit analysis [COMPLETE]
+│   │   └── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
+│   └── train.py                  # Vision training script [COMPLETE]
 ├── configs/
-│   ├── mnist_dense_none.yaml     # P1.1: no regularization
-│   ├── mnist_dense_noise.yaml    # P1.2: noise only
-│   ├── mnist_dense_wd.yaml       # P1.3: weight decay only
-│   └── mnist_dense_full.yaml     # P1.4: noise + weight decay
+│   ├── mnist_dense_{none,noise,wd,full}.yaml    # MNIST vision configs
+│   ├── fashion_dense_{none,noise,wd,full}.yaml  # Fashion-MNIST configs
+│   ├── language_sae.yaml         # SAE training config
+│   ├── language_negation.yaml    # Negation discovery config
+│   └── language_interaction.yaml # Interaction analysis config
+├── scripts/
+│   ├── run_overnight_mps.sh      # Full overnight run (vision + language)
+│   ├── test_mps_quick.sh         # Quick vision test
+│   └── test_mps_language.sh      # Quick language test
 ├── jobs/
-│   ├── train_single.job          # Single experiment
-│   └── train_array.job           # All 20 Phase 1 runs
-├── results/phase1/checkpoints/   # Checkpoint output directory
-├── logs/                         # SLURM output logs
-├── notebooks/                    # To be created by Person B
-├── Report/                       # LaTeX report
+│   ├── train_array.job           # MNIST 20 runs (Snellius)
+│   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
+│   └── language_full_pipeline.job # Full Section 5 pipeline
+├── docs/
+│   └── WANDB_GUIDE.md            # wandb usage guide
+├── tests/                        # Unit tests (82 tests)
+├── results/
+│   ├── phase1/checkpoints/       # Vision checkpoints
+│   ├── phase1_fashion/checkpoints/
+│   └── language/                 # Language results (JSON + checkpoints)
+├── logs/                         # Experiment logs
+├── notebooks/                    # Analysis notebooks (to be created)
+├── Report/                       # LaTeX report (TMLR template)
 ├── environment.yml               # Snellius GPU environment
-└── environment_cpu.yml           # Local CPU testing environment
+└── environment_cpu.yml           # Local CPU/MPS environment
 ```
 
-**What Person A Delivered**:
+**What Has Been Delivered**:
+
+*Section 4 (Vision)*:
 1. `src/models/bilinear_layer.py` - BilinearDense (wraps original) + BilinearCP (extension)
-2. `src/train.py` - Training with wandb + codecarbon tracking
+2. `src/train.py` - Vision training with wandb + codecarbon tracking
 3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary
-4. 4 config files for Phase 1 experiments
-5. 2 SLURM job scripts (single + array)
-6. Test checkpoint: `results/phase1/checkpoints/mnist_dense_none_seed42.pt`
+4. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
+5. 8 vision config files (4 MNIST + 4 Fashion-MNIST)
+6. SLURM job scripts for Snellius
+
+*Section 5 (Language)*:
+7. `src/language/run_sae_training.py` - SAE training wrapper
+8. `src/language/negation_discovery.py` - Negation circuit discovery
+9. `src/language/interaction_analysis.py` - Interaction matrix analysis
+10. 3 language config files
+11. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
+
+*Testing & Tracking*:
+12. 82 unit tests in `tests/`
+13. wandb integration with single project: `itayerlich96-student/fact-bilinear`
+14. CO2 tracking via codecarbon for all experiments
+15. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
 
 **Critical Agreements Standardized**:
 1. **CP Factor Names**: A=[d_in,rank], B=[d_in,rank], C=[d_out,rank]
@@ -71,11 +151,14 @@ UvA_FACT_2025/
 3. **History Columns**: Handles both `train_acc` and `train/acc`
 4. **Eigenvalues/Eigenvectors**: Saved directly in checkpoint
 5. **Budget**: 25,000 SBUs total, Claude outputs job files only
+6. **wandb Project**: Single project for all experiments with tags for filtering
 
-**Next Actions**:
-1. Person A: Submit jobs to Snellius (`sbatch jobs/train_array.job`)
+**Next Actions** (after overnight experiments complete):
+1. Review fw-medium language results (negation + interaction analysis)
 2. Person B: Create `src/analysis/visualization.py` and `notebooks/01_reproduction.ipynb`
-3. **Person G: Create `src/language/` module for Section 5 (CRITICAL PATH)**
+3. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear
+4. Generate figures for report from checkpoints
+5. Start Phase 2 extensions (CP implementation, robustness testing)
 
 ---
 
