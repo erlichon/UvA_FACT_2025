@@ -6,22 +6,23 @@
 
 ## 0. Current State (Updated: 2026-01-12)
 
-### Section 4 (Vision) COMPLETE, Section 5 (Language) ~80% Complete
+### Section 4 (Vision) COMPLETE + ANALYZED, Section 5 (Language) ~80% Complete
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
 |--------|------|--------|-------------|
 | A | Infrastructure Lead (Section 4) | **COMPLETE** | All 40 vision experiments finished |
-| B | Analysis Lead (Section 4) | Ready | Create visualization.py, notebook |
+| B | Analysis Lead (Section 4) | **COMPLETE** | All figures generated, notebook ready |
 | C | Robustness Testing (E1) | Ready | Phase 1 checkpoints available |
 | D | CP Rank Sweep (E3) | Waiting | Needs CP implementation |
 | E | Synthesis + ViT (E4+E5) | Waiting | Needs E1 + E3 results |
 | F | CP Implementation (E2) | Ready | Can start (BilinearCP skeleton exists) |
-| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Negation discovery needs re-run |
+| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Negation discovery needs re-run with fw-medium |
 
-**Vision Experiments COMPLETE** (40/40 runs finished):
+**Vision Experiments COMPLETE** (40/40 runs finished + analyzed):
 - **MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
 - **Fashion-MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
+- **Analysis**: All figures generated, saved to `Report/figures/`
 - **Tracking**: https://wandb.ai/itayerlich96-student/fact-bilinear
 
 ### Section 4 Results Summary (CORRECTED - 2026-01-12)
@@ -87,7 +88,13 @@ UvA_FACT_2025/
 │   │   └── bilinear_layer.py     # BilinearDense + BilinearCP [COMPLETE]
 │   ├── analysis/
 │   │   ├── __init__.py
-│   │   └── spectral.py           # effective_rank, top_k_coverage [COMPLETE]
+│   │   └── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints [COMPLETE]
+│   ├── plot_utils/               # Reusable plotting functions [NEW]
+│   │   ├── __init__.py
+│   │   ├── style.py              # Publication style, colors, constants
+│   │   ├── eigenspectrum.py      # Eigenspectrum visualization
+│   │   ├── eigenvectors.py       # Eigenvector image visualization
+│   │   └── ablation.py           # Ablation and trade-off plots
 │   ├── language/
 │   │   ├── __init__.py
 │   │   ├── run_sae_training.py   # SAE training wrapper [COMPLETE]
@@ -103,7 +110,8 @@ UvA_FACT_2025/
 ├── scripts/
 │   ├── run_overnight_mps.sh      # Full overnight run (vision + language)
 │   ├── test_mps_quick.sh         # Quick vision test
-│   └── test_mps_language.sh      # Quick language test
+│   ├── test_mps_language.sh      # Quick language test
+│   └── generate_figures.py       # Generate all vision figures [NEW]
 ├── jobs/
 │   ├── train_array.job           # MNIST 20 runs (Snellius)
 │   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
@@ -112,38 +120,46 @@ UvA_FACT_2025/
 │   └── WANDB_GUIDE.md            # wandb usage guide
 ├── tests/                        # Unit tests (82 tests)
 ├── results/
-│   ├── phase1/checkpoints/       # Vision checkpoints
-│   ├── phase1_fashion/checkpoints/
+│   ├── phase1/
+│   │   ├── checkpoints/          # MNIST vision checkpoints (20 files)
+│   │   └── figures/              # Generated figures (11 PDFs + 2 CSVs) [NEW]
+│   ├── phase1_fashion/checkpoints/ # Fashion-MNIST checkpoints (20 files)
 │   └── language/                 # Language results (JSON + checkpoints)
 ├── logs/                         # Experiment logs
-├── notebooks/                    # Analysis notebooks (to be created)
-├── Report/                       # LaTeX report (TMLR template)
+├── notebooks/
+│   └── 01_reproduction.ipynb     # Vision analysis notebook [NEW]
+├── Report/
+│   └── figures/                  # Publication figures (9 PDFs) [NEW]
 ├── environment.yml               # Snellius GPU environment
 └── environment_cpu.yml           # Local CPU/MPS environment
 ```
 
 **What Has Been Delivered**:
 
-*Section 4 (Vision)*:
+*Section 4 (Vision) - COMPLETE*:
 1. `src/models/bilinear_layer.py` - BilinearDense (wraps original) + BilinearCP (extension)
 2. `src/train.py` - Vision training with wandb + codecarbon tracking
-3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary
-4. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
-5. 8 vision config files (4 MNIST + 4 Fashion-MNIST)
-6. SLURM job scripts for Snellius
+3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
+4. `src/plot_utils/` - Reusable plotting module (style, eigenspectrum, eigenvectors, ablation)
+5. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
+6. 8 vision config files (4 MNIST + 4 Fashion-MNIST)
+7. SLURM job scripts for Snellius
+8. `scripts/generate_figures.py` - Standalone figure generation script
+9. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
+10. **11 publication figures** in `Report/figures/` (eigenspectrum, eigenvectors, ablation, trade-off)
 
 *Section 5 (Language)*:
-7. `src/language/run_sae_training.py` - SAE training wrapper
-8. `src/language/negation_discovery.py` - Negation circuit discovery
-9. `src/language/interaction_analysis.py` - Interaction matrix analysis
-10. 3 language config files
-11. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
+11. `src/language/run_sae_training.py` - SAE training wrapper
+12. `src/language/negation_discovery.py` - Negation circuit discovery
+13. `src/language/interaction_analysis.py` - Interaction matrix analysis
+14. 3 language config files
+15. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
 
 *Testing & Tracking*:
-12. 82 unit tests in `tests/`
-13. wandb integration with single project: `itayerlich96-student/fact-bilinear`
-14. CO2 tracking via codecarbon for all experiments
-15. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
+16. 82 unit tests in `tests/`
+17. wandb integration with single project: `itayerlich96-student/fact-bilinear`
+18. CO2 tracking via codecarbon for all experiments
+19. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
 
 **Critical Agreements Standardized**:
 1. **CP Factor Names**: A=[d_in,rank], B=[d_in,rank], C=[d_out,rank]
@@ -153,12 +169,13 @@ UvA_FACT_2025/
 5. **Budget**: 25,000 SBUs total, Claude outputs job files only
 6. **wandb Project**: Single project for all experiments with tags for filtering
 
-**Next Actions** (after overnight experiments complete):
-1. Review fw-medium language results (negation + interaction analysis)
-2. Person B: Create `src/analysis/visualization.py` and `notebooks/01_reproduction.ipynb`
-3. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear
-4. Generate figures for report from checkpoints
+**Next Actions**:
+1. ~~Person B: Create visualization code and notebook~~ **DONE**
+2. ~~Generate figures for report from checkpoints~~ **DONE** (11 figures in Report/figures/)
+3. Run fw-medium language experiments (negation + interaction analysis)
+4. Update Report LaTeX with actual figures and tables
 5. Start Phase 2 extensions (CP implementation, robustness testing)
+6. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear
 
 ---
 

@@ -15,84 +15,161 @@ We trained bilinear MLPs on MNIST under four regularization configurations (none
 
 \subsubsection{Eigenspectrum Analysis}
 
-% TODO: Uncomment and update after generating figures
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
-%     \caption{Eigenspectrum comparison between unregularized and fully regularized models.
-%     \textbf{Left:} Without regularization, the eigenvalue spectrum is flat, indicating high effective rank ($\sim$160).
-%     \textbf{Right:} With regularization (noise + weight decay), the spectrum shows sharp decay, indicating low effective rank ($\sim$30--40).
-%     Shaded regions show standard deviation across 10 classes. Results averaged over 5 seeds.}
-%     \label{fig:eigenspectrum}
-% \end{figure}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
+    \caption{Eigenspectrum comparison across regularization configurations on MNIST.
+    Weight decay (WD) produces the sharpest spectral decay with effective rank $\sim$21, while noise augmentation alone increases effective rank to $\sim$75.
+    The combination (Full) achieves a moderate effective rank of $\sim$36.
+    All curves show top-100 eigenvalues on log scale, averaged over 5 seeds per configuration.}
+    \label{fig:eigenspectrum}
+\end{figure}
 
-\textit{[Figure to be added after experiments: Eigenspectrum comparison showing regularization induces low-rank structure]}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/eigenvalue_decay.pdf}
+    \caption{Normalized eigenvalue decay for top-30 eigenvalues.
+    Values are normalized by the maximum eigenvalue per configuration.
+    Weight decay shows the steepest decay, indicating concentration of variance in few eigenvectors.}
+    \label{fig:eigenvalue_decay}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_per_class.pdf}
+    \caption{Per-class eigenspectrum for the fully regularized MNIST model.
+    Each line represents a digit class (0--9).
+    All classes show similar low-rank structure with approximately 10--15 significant eigenvalues, consistent with the paper's claims about class-specific interpretability.}
+    \label{fig:eigenspectrum_per_class}
+\end{figure}
 
 \subsubsection{Eigenvector Visualization}
 
-% TODO: Uncomment after generating figures
-% \begin{figure}[h]
-%     \centering
-%     \begin{subfigure}{0.48\textwidth}
-%         \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
-%         \caption{Without regularization: noise-like patterns}
-%     \end{subfigure}
-%     \hfill
-%     \begin{subfigure}{0.48\textwidth}
-%         \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
-%         \caption{With regularization: digit-like templates}
-%     \end{subfigure}
-%     \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class.
-%     Without regularization, eigenvectors show high-frequency noise patterns indicating overfitting.
-%     With regularization, eigenvectors resemble interpretable digit templates.}
-%     \label{fig:eigenvectors}
-% \end{figure}
-
-\textit{[Figure to be added: Eigenvector grids showing interpretable patterns emerge with regularization]}
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
+        \caption{Without regularization: noise-like patterns}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
+        \caption{With full regularization: more structured patterns}
+    \end{subfigure}
+    \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class (0--9).
+    Without regularization, eigenvectors show diffuse patterns.
+    With regularization, eigenvectors show more localized structure, though interpretation remains challenging.
+    Each row corresponds to a digit class; columns show the top 5 eigenvectors ranked by eigenvalue magnitude.}
+    \label{fig:eigenvectors}
+\end{figure}
 
 \subsubsection{Ablation Study}
 
 We disentangle the contributions of noise augmentation and weight decay by training under four configurations.
 
-% TODO: Uncomment after experiments
-% \begin{table}[h]
-%     \caption{Ablation study: Effect of regularization components on accuracy and interpretability}
-%     \label{tab:ablation}
-%     \centering
-%     \begin{tabular}{lcccc}
-%         \toprule
-%         Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
-%         \midrule
-%         None & -- & -- & $97.X \pm X.X$ & $16X \pm X$ \\
-%         Noise only & 0.4 & -- & $9X.X \pm X.X$ & $XX \pm X$ \\
-%         WD only & -- & 0.5 & $9X.X \pm X.X$ & $XX \pm X$ \\
-%         Full & 0.4 & 0.5 & $9X.X \pm X.X$ & $XX \pm X$ \\
-%         \bottomrule
-%     \end{tabular}
-% \end{table}
+\begin{table}[h]
+    \caption{Ablation study: Effect of regularization components on accuracy and interpretability (MNIST, mean $\pm$ std over 5 seeds)}
+    \label{tab:ablation}
+    \centering
+    \begin{tabular}{lcccc}
+        \toprule
+        Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
+        \midrule
+        None & -- & -- & $97.49 \pm 0.12$ & $38.5 \pm 2.1$ \\
+        Noise only & 0.4 & -- & $98.41 \pm 0.08$ & $74.8 \pm 3.2$ \\
+        WD only & -- & 0.5 & $97.50 \pm 0.15$ & $21.4 \pm 1.8$ \\
+        Full & 0.4 & 0.5 & $98.30 \pm 0.10$ & $36.3 \pm 2.5$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\textit{[Table to be added: Ablation results showing relative importance of noise vs weight decay]}
+Weight decay alone achieves the lowest effective rank (21.4), producing the most low-rank representation.
+Noise augmentation improves accuracy but increases effective rank.
+The combination balances accuracy and effective rank.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist_ablation.pdf}
+    \caption{Ablation study visualization for MNIST showing accuracy and effective rank across regularization configurations.
+    Weight decay (WD) achieves the lowest effective rank while maintaining comparable accuracy.}
+    \label{fig:ablation}
+\end{figure}
+
+We also replicated these experiments on Fashion-MNIST (\cref{tab:fashion_ablation}), observing consistent trends: weight decay produces the lowest effective rank across both datasets.
+
+\begin{table}[h]
+    \caption{Fashion-MNIST ablation study (mean $\pm$ std over 5 seeds)}
+    \label{tab:fashion_ablation}
+    \centering
+    \begin{tabular}{lcccc}
+        \toprule
+        Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
+        \midrule
+        None & -- & -- & $88.50 \pm 0.25$ & $47.2 \pm 2.8$ \\
+        Noise only & 0.4 & -- & $87.62 \pm 0.30$ & $80.5 \pm 4.1$ \\
+        WD only & -- & 0.5 & $87.74 \pm 0.22$ & $19.6 \pm 1.5$ \\
+        Full & 0.4 & 0.5 & $87.18 \pm 0.28$ & $33.2 \pm 2.3$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \subsubsection{Comparison with Paper}
 
-% TODO: Uncomment after experiments
-% \begin{table}[h]
-%     \caption{Vision results: Comparison with original paper (Section 4)}
-%     \label{tab:vision_comparison}
-%     \centering
-%     \begin{tabular}{lccc}
-%         \toprule
-%         Metric & Paper & Ours & Match? \\
-%         \midrule
-%         Accuracy (no reg) & $\sim$97--98\% & XX.X\% & \checkmark / $\times$ \\
-%         Accuracy (full reg) & $\sim$94--95\% & XX.X\% & \checkmark / $\times$ \\
-%         Eff. Rank (no reg) & $\sim$150--200 & XXX & \checkmark / $\times$ \\
-%         Eff. Rank (full reg) & $\sim$20--40 & XX & \checkmark / $\times$ \\
-%         \bottomrule
-%     \end{tabular}
-% \end{table}
+\begin{table}[h]
+    \caption{Vision results: Comparison with original paper (Section 4)}
+    \label{tab:vision_comparison}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Metric & Paper & Ours & Match? \\
+        \midrule
+        Accuracy (no reg) & $\sim$97--98\% & 97.5\% & \checkmark \\
+        Accuracy (full reg) & $\sim$94--95\% & 98.3\% & $\sim$ \\
+        Eff. Rank (no reg) & $\sim$150--200 & 38.5 & $\times$ \\
+        Eff. Rank (full reg) & $\sim$20--40 & 36.3 & \checkmark \\
+        Rank Ratio (WD/none) & $<$0.5 & 0.56 & $\sim$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\textit{[Table to be added: Quantitative comparison with paper values]}
+Our effective rank for unregularized models is significantly lower than reported in the paper ($\sim$38 vs $\sim$150--200).
+This may be due to differences in initialization, training dynamics, or our use of the ratio-based effective rank formula.
+However, the qualitative trend holds: regularization reduces effective rank.
+
+\subsubsection{Accuracy vs Interpretability Trade-off}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{figures/accuracy_vs_effrank_mnist.pdf}
+    \caption{Accuracy vs effective rank trade-off on MNIST.
+    Lower effective rank indicates more interpretable (low-rank) representations.
+    Weight decay achieves the best interpretability (lowest rank) with minimal accuracy loss.
+    Each point represents one seed; colors indicate configuration.}
+    \label{fig:tradeoff}
+\end{figure}
+
+\subsubsection{Cross-Dataset Comparison}
+
+To assess generalization of our findings, we compare MNIST and Fashion-MNIST results.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/cross_dataset_effrank.pdf}
+        \caption{Effective rank comparison}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/cross_dataset_accuracy.pdf}
+        \caption{Accuracy comparison}
+    \end{subfigure}
+    \caption{Cross-dataset comparison between MNIST and Fashion-MNIST.
+    Both datasets show consistent trends: weight decay produces the lowest effective rank, while noise augmentation increases it.
+    Fashion-MNIST has lower overall accuracy but similar relative patterns across configurations.}
+    \label{fig:cross_dataset}
+\end{figure}
+
+The consistent behavior across datasets suggests that the relationship between regularization and spectral properties is not dataset-specific, supporting the generality of the paper's claims about bilinear MLP interpretability.
 
 %==============================================================================
 \subsection{Language Results (Paper Section 5)}
@@ -179,23 +256,21 @@ For each negation feature, we compute and eigendecompose the interaction matrix 
 \subsection{Summary}
 %==============================================================================
 
-\textit{[To be completed after experiments]}
-
 \textbf{Vision (Section 4):}
 \begin{itemize}
-    \item Claim V1 (Low-Rank Emergence): [Supported / Not Supported]
-    \item Claim V2 (Interpretable Eigenvectors): [Supported / Not Supported]
-    \item Claim V3 (Overfitting Without Reg): [Supported / Not Supported]
-    \item Claim V4 (Noise Importance): [Supported / Not Supported]
-    \item Claim V5 (Cross-Seed Consistency): [Supported / Not Supported]
-    \item Claim V6 (Adversarial Generation): [Supported / Not Supported]
+    \item Claim V1 (Low-Rank Emergence): \textbf{Partially Supported} -- Weight decay reduces effective rank (38.5 $\to$ 21.4), but our baseline ranks are lower than reported in the paper.
+    \item Claim V2 (Interpretable Eigenvectors): \textbf{Partially Supported} -- Regularized eigenvectors show more structure, but visual interpretation remains subjective.
+    \item Claim V3 (Overfitting Without Reg): \textbf{Not Supported} -- Unregularized models achieve high test accuracy (97.5\%) with no overfitting observed.
+    \item Claim V4 (Noise Importance): \textbf{Nuanced} -- Noise improves accuracy but \emph{increases} effective rank, contrary to intuition.
+    \item Claim V5 (Cross-Seed Consistency): \textbf{Supported} -- Low variance across 5 seeds for all metrics.
+    \item Claim V6 (Adversarial Generation): Not tested in this reproduction.
 \end{itemize}
 
 \textbf{Language (Section 5):}
 \begin{itemize}
-    \item Claim L1 (SAE Feature Discovery): [Supported / Not Supported]
-    \item Claim L2 (Negation Features): [Supported / Not Supported]
-    \item Claim L3 (Low-Rank Interactions): [Supported / Not Supported]
-    \item Claim L4 (Sparse Interaction Matrices): [Supported / Not Supported]
-    \item Claim L5 (Cross-Model Generalization): [Supported / Not Supported]
+    \item Claim L1 (SAE Feature Discovery): In progress
+    \item Claim L2 (Negation Features): In progress
+    \item Claim L3 (Low-Rank Interactions): In progress
+    \item Claim L4 (Sparse Interaction Matrices): In progress
+    \item Claim L5 (Cross-Model Generalization): In progress
 \end{itemize}

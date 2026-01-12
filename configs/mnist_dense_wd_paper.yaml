@@ -1,0 +1,20 @@
+name: mnist_dense_wd_paper
+experiment_id: P1.3_paper
+
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+# Paper Table 1 weight decay value
+regularization:
+  noise_std: 0.0
+  weight_decay: 1.0  # Paper: 1.0 (code default: 0.5)
+
+data:
+  dataset: mnist
