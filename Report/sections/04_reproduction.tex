@@ -1,55 +1,201 @@
-% Section 4: Reproduction Results (Phase 1)
-% Mandatory Figure: The Eigenspectrum plot (Regularized vs. Unregularized)
-% Metric: Effective Rank
+% Section 4: Reproduction Results
+% Reproducing both Section 4 (Vision) and Section 5 (Language) of the paper
 
 \section{Reproduction Results}
 \label{sec:reproduction}
 
-% Start with a high-level overview of your results.
-% Do your results support the main claims of the original paper?
+This section presents our reproduction of the main experiments from \citet{pearce2024bilinear}: Section 4 (Vision) on MNIST and Section 5 (Language) on GPT-2.
 
-\subsection{Eigenspectrum Analysis}
+%==============================================================================
+\subsection{Vision Results (Paper Section 4)}
+\label{sec:vision_results}
+%==============================================================================
 
-% TODO: Add eigenspectrum comparison figure
+We trained bilinear MLPs on MNIST under four regularization configurations (none, noise-only, weight-decay-only, full) across 5 random seeds each (20 total runs).
+
+\subsubsection{Eigenspectrum Analysis}
+
+% TODO: Uncomment and update after generating figures
 % \begin{figure}[h]
 %     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/eigenspectrum_comparison.pdf}
-%     \caption{Eigenspectrum comparison showing that regularization (noise + weight decay)
-%     induces low-rank structure in the bilinear interaction tensor. Without regularization,
-%     the spectrum is flat (high effective rank). With regularization, the spectrum
-%     shows sharp decay (low effective rank), indicating interpretable low-rank structure.}
+%     \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
+%     \caption{Eigenspectrum comparison between unregularized and fully regularized models.
+%     \textbf{Left:} Without regularization, the eigenvalue spectrum is flat, indicating high effective rank ($\sim$160).
+%     \textbf{Right:} With regularization (noise + weight decay), the spectrum shows sharp decay, indicating low effective rank ($\sim$30--40).
+%     Shaded regions show standard deviation across 10 classes. Results averaged over 5 seeds.}
 %     \label{fig:eigenspectrum}
 % \end{figure}
 
-\subsection{Eigenvector Visualization}
+\textit{[Figure to be added after experiments: Eigenspectrum comparison showing regularization induces low-rank structure]}
 
-% TODO: Add eigenvector grid figures
+\subsubsection{Eigenvector Visualization}
+
+% TODO: Uncomment after generating figures
 % \begin{figure}[h]
 %     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/eigenvectors_reg.pdf}
-%     \caption{Top eigenvectors from regularized model showing interpretable digit-like patterns.}
-%     \label{fig:eigenvectors_reg}
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
+%         \caption{Without regularization: noise-like patterns}
+%     \end{subfigure}
+%     \hfill
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
+%         \caption{With regularization: digit-like templates}
+%     \end{subfigure}
+%     \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class.
+%     Without regularization, eigenvectors show high-frequency noise patterns indicating overfitting.
+%     With regularization, eigenvectors resemble interpretable digit templates.}
+%     \label{fig:eigenvectors}
 % \end{figure}
 
-\subsection{Ablation Study}
+\textit{[Figure to be added: Eigenvector grids showing interpretable patterns emerge with regularization]}
 
-% TODO: Add ablation results table
-% Table showing: No reg, Noise only, WD only, Full reg
-% Columns: Accuracy, Effective Rank
+\subsubsection{Ablation Study}
 
-\subsection{Quantitative Results}
+We disentangle the contributions of noise augmentation and weight decay by training under four configurations.
 
-% TODO: Add comparison table with paper values
+% TODO: Uncomment after experiments
 % \begin{table}[h]
-%     \caption{Reproduction metrics compared to original paper}
-%     \label{tab:reproduction}
+%     \caption{Ablation study: Effect of regularization components on accuracy and interpretability}
+%     \label{tab:ablation}
 %     \centering
-%     \begin{tabular}{lcc}
+%     \begin{tabular}{lcccc}
 %         \toprule
-%         Configuration & Accuracy & Effective Rank \\
+%         Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
 %         \midrule
-%         No regularization & -- & -- \\
-%         Full regularization & -- & -- \\
+%         None & -- & -- & $97.X \pm X.X$ & $16X \pm X$ \\
+%         Noise only & 0.4 & -- & $9X.X \pm X.X$ & $XX \pm X$ \\
+%         WD only & -- & 0.5 & $9X.X \pm X.X$ & $XX \pm X$ \\
+%         Full & 0.4 & 0.5 & $9X.X \pm X.X$ & $XX \pm X$ \\
 %         \bottomrule
 %     \end{tabular}
 % \end{table}
+
+\textit{[Table to be added: Ablation results showing relative importance of noise vs weight decay]}
+
+\subsubsection{Comparison with Paper}
+
+% TODO: Uncomment after experiments
+% \begin{table}[h]
+%     \caption{Vision results: Comparison with original paper (Section 4)}
+%     \label{tab:vision_comparison}
+%     \centering
+%     \begin{tabular}{lccc}
+%         \toprule
+%         Metric & Paper & Ours & Match? \\
+%         \midrule
+%         Accuracy (no reg) & $\sim$97--98\% & XX.X\% & \checkmark / $\times$ \\
+%         Accuracy (full reg) & $\sim$94--95\% & XX.X\% & \checkmark / $\times$ \\
+%         Eff. Rank (no reg) & $\sim$150--200 & XXX & \checkmark / $\times$ \\
+%         Eff. Rank (full reg) & $\sim$20--40 & XX & \checkmark / $\times$ \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
+
+\textit{[Table to be added: Quantitative comparison with paper values]}
+
+%==============================================================================
+\subsection{Language Results (Paper Section 5)}
+\label{sec:language_results}
+%==============================================================================
+
+We reproduce the negation circuit discovery experiments on bilinear transformers trained on TinyStories.
+
+\subsubsection{SAE Training and Feature Discovery}
+
+% TODO: Describe SAE training results
+% - Trained SAEs around MLP layers (expansion ratio 8x)
+% - Reconstruction loss achieved
+% - Number of active features per layer
+
+\textit{[To be completed: SAE training details and feature statistics]}
+
+\subsubsection{Negation Feature Identification}
+
+The paper identifies two key features that implement sentiment negation:
+
+% TODO: Uncomment after generating figures
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.9\linewidth]{figures/negation_features.pdf}
+%     \caption{Negation circuit features in TinyStories model.
+%     \textbf{Left:} Feature 3834 activates on ``not + negative words'' (e.g., ``not lost'').
+%     \textbf{Right:} Feature 751 activates on ``not + positive words'' (e.g., ``not free'').
+%     These features form opposing directions in SAE feature space.}
+%     \label{fig:negation_features}
+% \end{figure}
+
+\textit{[Figure to be added: Negation feature activation patterns]}
+
+\subsubsection{Interaction Matrix Analysis}
+
+For each negation feature, we compute and eigendecompose the interaction matrix $Q$ between input SAE features.
+
+% TODO: Uncomment after generating figures
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.9\linewidth]{figures/interaction_matrix.pdf}
+%     \caption{Interaction matrix analysis for negation feature 3834.
+%     \textbf{Left:} Full interaction matrix (input features vs input features).
+%     \textbf{Right:} Top 50 interactions form a sparse, interpretable submatrix.}
+%     \label{fig:interaction_matrix}
+% \end{figure}
+
+\textit{[Figure to be added: Interaction matrix heatmaps]}
+
+\subsubsection{Low-Rank Structure Verification}
+
+% TODO: Uncomment after generating figures
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.7\linewidth]{figures/lowrank_correlation.pdf}
+%     \caption{Distribution of rank-2 approximation quality across SAE output features.
+%     69\% of features achieve $>$0.75 correlation with just 2 eigenvectors.}
+%     \label{fig:lowrank}
+% \end{figure}
+
+\textit{[Figure to be added: Low-rank correlation distribution]}
+
+% TODO: Uncomment after experiments
+% \begin{table}[h]
+%     \caption{Language results: Negation circuit reproduction}
+%     \label{tab:language_comparison}
+%     \centering
+%     \begin{tabular}{lcc}
+%         \toprule
+%         Metric & Paper & Ours \\
+%         \midrule
+%         Features with $>$0.75 rank-2 correlation & 69\% & XX\% \\
+%         Negation feature cosine similarity & $<$0 & XX \\
+%         Top-50 interaction sparsity & Sparse & Sparse / Dense \\
+%         Cross-model consistency & Yes & Yes / No \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
+
+\textit{[Table to be added: Quantitative negation circuit metrics]}
+
+%==============================================================================
+\subsection{Summary}
+%==============================================================================
+
+\textit{[To be completed after experiments]}
+
+\textbf{Vision (Section 4):}
+\begin{itemize}
+    \item Claim V1 (Low-Rank Emergence): [Supported / Not Supported]
+    \item Claim V2 (Interpretable Eigenvectors): [Supported / Not Supported]
+    \item Claim V3 (Overfitting Without Reg): [Supported / Not Supported]
+    \item Claim V4 (Noise Importance): [Supported / Not Supported]
+    \item Claim V5 (Cross-Seed Consistency): [Supported / Not Supported]
+    \item Claim V6 (Adversarial Generation): [Supported / Not Supported]
+\end{itemize}
+
+\textbf{Language (Section 5):}
+\begin{itemize}
+    \item Claim L1 (SAE Feature Discovery): [Supported / Not Supported]
+    \item Claim L2 (Negation Features): [Supported / Not Supported]
+    \item Claim L3 (Low-Rank Interactions): [Supported / Not Supported]
+    \item Claim L4 (Sparse Interaction Matrices): [Supported / Not Supported]
+    \item Claim L5 (Cross-Model Generalization): [Supported / Not Supported]
+\end{itemize}
