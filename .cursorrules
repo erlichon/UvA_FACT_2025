@@ -23,7 +23,7 @@
 | ID | Extension | Goal |
 |----|-----------|------|
 | RQ1 | Regularization vs. Interpretability | How does training regularization (none vs. noise vs. weight decay) affect eigenvalue spectrum rank and eigenvector interpretability? Does regularization lead to cleaner, more interpretable features? |
-| RQ2 | Cross-Dataset Robustness | Do learned eigenvectors generalize beyond the training distribution (Rotated MNIST, EMNIST)? Do perturbations remain class-targeted, or do eigenvectors reflect dataset artifacts? |
+| RQ2 | Cross-Dataset Structural Robustness | Prove that regularized Bilinear MLPs learn universal geometric shapes (e.g., 'circularity') rather than dataset-specific pixel artifacts. This involves a three-step validation: USPS transfer, EMNIST semantic confusion, and eigenvector subspace geometry. Visualization via `plot_utils.extension2` module. |
 | RQ3 | Forced Low-Rank (CP Factorization) | Does forcing low-rank structure via CP decomposition improve interpretability compared to emergent low-rank behavior? Is low rank necessary or merely sufficient for interpretability? |
 | RQ4 | Regularization vs. Structural Rank | How do emergent low-rank (from regularization) and explicit rank constraints (CP) compare in terms of performance, robustness, and interpretability trade-offs? |
 | RQ5 | Architectural Scalability (Conceptual) | How could bilinear interaction constraints scale to larger vision models (Tucker-factorized layers)? What are the parameter scaling and interpretability trade-offs? |
@@ -96,7 +96,8 @@ UvA_FACT_2025/
 │   │   ├── style.py              # Publication style, colors
 │   │   ├── eigenspectrum.py      # Eigenvalue plots
 │   │   ├── eigenvectors.py       # Eigenvector visualizations
-│   │   └── ablation.py           # Ablation study plots
+│   │   ├── ablation.py           # Ablation study plots
+│   │   └── extension2.py         # Extension 2 robustness plots
 │   ├── language/                 # Section 5 wrappers
 │   ├── train.py                  # Vision training
 │   └── utils.py                  # Shared utilities
@@ -159,6 +160,12 @@ from src.plot_utils.style import set_publication_style, COLORS
 from src.plot_utils.eigenspectrum import plot_eigenspectrum_comparison
 from src.plot_utils.eigenvectors import plot_eigenvectors_grid
 from src.plot_utils.ablation import plot_ablation_bars
+from src.plot_utils.extension2 import (
+    plot_usps_transfer_comparison,
+    plot_semantic_confusion_distributions,
+    plot_subspace_overlap_comparison,
+    plot_eigenspectra_side_by_side,
+)
 
 set_publication_style()  # Call once at start
 ```
@@ -168,6 +175,10 @@ set_publication_style()  # Call once at start
 - `plot_eigenvectors_grid(eigenvectors, eigenvalues, ...)` - 10x5 grid
 - `plot_ablation_bars(df, metrics, ...)` - Grouped bar chart
 - `plot_accuracy_vs_effective_rank(df, ...)` - Trade-off scatter
+- `plot_usps_transfer_comparison(usps_results, ...)` - Extension 2: USPS transfer
+- `plot_semantic_confusion_distributions(semantic_results, ...)` - Extension 2: EMNIST letters
+- `plot_subspace_overlap_comparison(subspace_results, ...)` - Extension 2: Eigenvector similarity
+- `plot_eigenspectra_side_by_side(vals_baseline, vals_reg, ...)` - Extension 2: Spectra comparison
 
 ### Notebooks
 - Use project root discovery pattern at top of notebook

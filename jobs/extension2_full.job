@@ -1,0 +1,36 @@
+#!/bin/bash
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=ext2_full
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/extension2_full_%j.out
+
+# Extension 2: Cross-Dataset Structural Robustness
+# Full pipeline: trains 3 models (baseline, regularized MNIST, regularized EMNIST)
+# and runs both validation tests
+
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+cd "$HOME/fact-project" || exit 1
+source activate fact
+
+echo "=============================================="
+echo "EXTENSION 2: CROSS-DATASET STRUCTURAL ROBUSTNESS"
+echo "=============================================="
+echo "Started at: $(date)"
+echo ""
+
+# Run full pipeline
+python src/evaluate_extension2.py \
+    --full-pipeline \
+    --output-dir results/extension2 \
+    --epochs 100 \
+    --seed 42
+
+echo ""
+echo "Completed at: $(date)"
+echo "=============================================="
