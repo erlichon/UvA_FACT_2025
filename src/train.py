@@ -10,8 +10,6 @@ import sys
 from pathlib import Path
 import argparse
 import torch
-import kornia
-from einops import einsum
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -29,54 +27,10 @@ from src.utils import (
     init_wandb,
     finish_wandb,
     get_history_column,
-    setup_mps_fallbacks,
-    is_mps_device,
 )
+from src.training import train_model
 from src.analysis.spectral import effective_rank, spectral_summary, top_k_coverage
 import wandb
-
-
-def decompose_model_mps_safe(model) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Decompose model into eigenvalues and eigenvectors with MPS compatibility.
-
-    This is a reimplementation of model.decompose() that handles MPS devices
-    by moving tensors to CPU for eigendecomposition.
-
-    Args:
-        model: Trained bilinear Model instance
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors)
-    """
-    device = next(model.parameters()).device
-
-    # Get model weights
-    w_u = model.w_u  # [cls, out]
-    w_lr = model.w_lr[0]  # [2, out, hidden]
-    w_e = model.w_e  # [hidden, input]
-
-    l, r = w_lr.unbind(0)  # Each: [out, hidden]
-
-    # Compute third-order tensor: b[cls, in1, in2]
-    b = einsum(w_u, l, r, "cls out, out in1, out in2 -> cls in1 in2")
-
-    # Symmetrize
-    b = 0.5 * (b + b.mT)
-
-    # Eigendecomposition - move to CPU for MPS compatibility
-    if device.type == "mps":
-        b_cpu = b.cpu()
-        vals, vecs = torch.linalg.eigh(b_cpu)
-        vals = vals.to(device)
-        vecs = vecs.to(device)
-    else:
-        vals, vecs = torch.linalg.eigh(b)
-
-    # Project eigenvectors back to input space
-    vecs = einsum(vecs, w_e, "cls emb comp, emb inp -> cls comp inp")
-
-    return vals, vecs
 
 
 def train_vision_model(config: dict, seed: int, device: str, epochs: int):
@@ -92,13 +46,6 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     Returns:
         Tuple of (model, history, eigenvalues, eigenvectors)
     """
-    set_seed(seed)
-
-    # Setup MPS fallbacks if needed
-    if is_mps_device(device):
-        setup_mps_fallbacks()
-        print("MPS device detected - using CPU fallback for eigendecomposition")
-
     # Load dataset
     dataset_name = config.get('data', {}).get('dataset', 'mnist')
     if dataset_name == 'mnist':
@@ -122,21 +69,20 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     )
     model = Model(model_config).to(device)
 
-    # Create transform (noise augmentation)
+    # Train using shared training logic
+    variance_corrected = config.get('model', {}).get('variance_corrected_init', True)
     noise_std = config['regularization']['noise_std']
-    transform = None
-    if noise_std > 0:
-        transform = kornia.augmentation.RandomGaussianNoise(
-            mean=0.0, std=noise_std, p=1.0
-        )
-
-    # Train
-    print(f"Training for {epochs} epochs...")
-    history = model.fit(train_data, test_data, transform=transform)
-
-    # Compute eigendecomposition (MPS-safe version)
-    print("Computing eigendecomposition...")
-    eigenvalues, eigenvectors = decompose_model_mps_safe(model)
+    
+    eigenvalues, eigenvectors, history = train_model(
+        model=model,
+        train_data=train_data,
+        test_data=test_data,
+        device=device,
+        seed=seed,
+        epochs=epochs,
+        noise_std=noise_std,
+        variance_corrected_init=variance_corrected,
+    )
 
     return model, history, eigenvalues, eigenvectors
 
@@ -172,6 +118,7 @@ def save_checkpoint(
             'noise_std': config['regularization']['noise_std'],
             'weight_decay': config['regularization']['weight_decay'],
             'dataset': dataset_name,
+            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', True),
         },
         'model_state_dict': model.state_dict(),
         'metrics': {
