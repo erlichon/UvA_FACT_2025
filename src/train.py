@@ -79,6 +79,41 @@ def decompose_model_mps_safe(model) -> tuple[torch.Tensor, torch.Tensor]:
     return vals, vecs
 
 
+def apply_variance_corrected_init(model, enabled: bool = True):
+    """
+    Apply variance-corrected initialization to push model into Rich Training regime.
+
+    Computes per-layer scaling based on input dimension: scale = d_in^0.25
+    This prevents the "Lazy Training" pathology where the baseline collapses to low rank.
+
+    Similar to how nn.Linear uses fan_in for Kaiming initialization, but adapted
+    for bilinear layers where output variance ~ input_variance^2.
+
+    Args:
+        model: Model instance with w_lr (bilinear weights) and w_e (embedding)
+        enabled: If False, skip scaling (equivalent to init_scale=1.0)
+    """
+    if not enabled:
+        return
+
+    with torch.no_grad():
+        # Scale embedding layer: w_e has shape [d_hidden, d_input]
+        # d_input = 784 for MNIST/Fashion-MNIST
+        if hasattr(model, 'w_e') and model.w_e is not None:
+            d_in = model.w_e.shape[-1]  # Input dimension (784)
+            scale = d_in ** 0.25
+            model.w_e.data *= scale
+            print(f"  w_e: d_in={d_in}, scale={scale:.2f}")
+
+        # Scale bilinear layer: w_lr has shape [n_layers, 2, d_hidden, d_hidden]
+        # The bilinear layer input is d_hidden (after embedding)
+        if hasattr(model, 'w_lr') and model.w_lr is not None:
+            d_in = model.w_lr.shape[-1]  # Input dimension (256)
+            scale = d_in ** 0.25
+            model.w_lr.data *= scale
+            print(f"  w_lr: d_in={d_in}, scale={scale:.2f}")
+
+
 def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     """
     Train a bilinear vision model.
@@ -121,6 +156,15 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
         seed=seed,
     )
     model = Model(model_config).to(device)
+
+    # Apply variance-corrected initialization for Rich Training regime
+    # This cures the "Lazy Training" pathology where the baseline "No Reg" model
+    # would collapse to rank ~38 instead of ~150
+    # Set variance_corrected_init: false in config to disable
+    variance_corrected = config.get('model', {}).get('variance_corrected_init', True)
+    if variance_corrected:
+        print("Applying variance-corrected initialization (Rich Training regime):")
+        apply_variance_corrected_init(model, enabled=True)
 
     # Create transform (noise augmentation)
     noise_std = config['regularization']['noise_std']
@@ -172,6 +216,7 @@ def save_checkpoint(
             'noise_std': config['regularization']['noise_std'],
             'weight_decay': config['regularization']['weight_decay'],
             'dataset': dataset_name,
+            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', True),
         },
         'model_state_dict': model.state_dict(),
         'metrics': {

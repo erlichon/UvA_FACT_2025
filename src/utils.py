@@ -59,79 +59,27 @@ def is_mps_device(device: str) -> bool:
     return device == "mps" or (isinstance(device, torch.device) and device.type == "mps")
 
 
-def safe_eigh(tensor: torch.Tensor, top_k: int = None) -> tuple[torch.Tensor, torch.Tensor]:
+def safe_eigh(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Perform eigendecomposition with MPS compatibility and large matrix handling.
+    Perform eigendecomposition with MPS compatibility.
 
-    For large matrices (>4096), uses SVD which is more numerically stable.
-    For symmetric matrices, eigenvalues can be recovered from singular values.
+    torch.linalg.eigh has limited MPS support, so we move to CPU if needed.
 
     Args:
         tensor: Symmetric matrix to decompose
-        top_k: If specified, only return top-k eigenvalues/vectors (by absolute value)
 
     Returns:
         Tuple of (eigenvalues, eigenvectors)
     """
     original_device = tensor.device
-    tensor_cpu = tensor.cpu() if original_device.type in ("mps", "cuda") else tensor
 
-    n = tensor_cpu.shape[0]
-
-    # For large matrices (>2048), use SVD as it's more numerically stable
-    # LAPACK's SSYEVD can fail with "illegal value" errors on matrices > ~3000 on some systems
-    if n > 2048:
-        try:
-            # SVD is more stable for large matrices
-            # For symmetric A, eigenvalues have magnitude = singular values
-            # Sign of eigenvalue = sign of corresponding diagonal in U @ S @ V^T reconstruction
-            U, S, Vt = torch.linalg.svd(tensor_cpu, full_matrices=False)
-
-            # For symmetric matrices, U ≈ V, and eigenvalues = singular values with sign
-            # Determine sign by checking if U[:,i] and V[:,i] point in same direction
-            signs = torch.sign(torch.sum(U * Vt.T, dim=0))
-            signs = torch.where(signs == 0, torch.ones_like(signs), signs)
-            eigenvalues = S * signs
-            eigenvectors = U
-
-            # Sort by absolute value (descending) then by value for consistency
-            order = eigenvalues.abs().argsort(descending=True)
-            eigenvalues = eigenvalues[order]
-            eigenvectors = eigenvectors[:, order]
-
-            if top_k is not None and top_k < n:
-                eigenvalues = eigenvalues[:top_k]
-                eigenvectors = eigenvectors[:, :top_k]
-
-            return eigenvalues.to(original_device), eigenvectors.to(original_device)
-        except Exception:
-            pass  # Fall through to regular eigh
-
-    # Standard eigendecomposition for smaller matrices
-    try:
+    # MPS doesn't fully support eigh - move to CPU
+    if original_device.type == "mps":
+        tensor_cpu = tensor.cpu()
         eigenvalues, eigenvectors = torch.linalg.eigh(tensor_cpu)
-
-        if top_k is not None and top_k < n:
-            # eigh returns in ascending order, take last top_k
-            eigenvalues = eigenvalues[-top_k:]
-            eigenvectors = eigenvectors[:, -top_k:]
-
         return eigenvalues.to(original_device), eigenvectors.to(original_device)
-    except RuntimeError as e:
-        # Last resort: use scipy if available
-        try:
-            import scipy.linalg
-            eigenvalues_np, eigenvectors_np = scipy.linalg.eigh(tensor_cpu.numpy())
-            eigenvalues = torch.from_numpy(eigenvalues_np).to(tensor.dtype)
-            eigenvectors = torch.from_numpy(eigenvectors_np).to(tensor.dtype)
 
-            if top_k is not None and top_k < n:
-                eigenvalues = eigenvalues[-top_k:]
-                eigenvectors = eigenvectors[:, -top_k:]
-
-            return eigenvalues.to(original_device), eigenvectors.to(original_device)
-        except ImportError:
-            raise e
+    return torch.linalg.eigh(tensor)
 
 
 def setup_mps_fallbacks():

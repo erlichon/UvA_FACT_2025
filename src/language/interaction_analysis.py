@@ -162,17 +162,9 @@ def analyze_single_feature_manual(tracer: Tracer, feat_idx: int, rank_k: int = 2
     Q_sym = 0.5 * (Q + Q.T)
 
     # Compute metrics
-    # For large projected matrices (>4096), skip expensive eigendecomposition metrics
-    # The key metric is rank-k correlation, which uses SVD-based eigendecomposition
     corr = rank_k_approximation_correlation(Q, k=rank_k)
-
-    if Q_sym.shape[0] <= 2048:
-        eff_rank = compute_effective_rank(Q_sym.unsqueeze(0)).item()
-        trunc_eig = compute_truncated_eigenvalues(Q_sym.unsqueeze(0), k=rank_k).item()
-    else:
-        # Skip for large matrices - effective rank not needed for paper's 69% claim
-        eff_rank = float('nan')
-        trunc_eig = float('nan')
+    eff_rank = compute_effective_rank(Q_sym.unsqueeze(0)).item()
+    trunc_eig = compute_truncated_eigenvalues(Q_sym.unsqueeze(0), k=rank_k).item()
 
     del Q, Q_sym
 
