@@ -45,58 +45,43 @@ from src.utils import (
 )
 
 
-def rank_k_approximation_correlation(Q: torch.Tensor, k: int = 2) -> float:
+def rank_k_variance_explained(Q: torch.Tensor, k: int = 2) -> float:
     """
-    Compute correlation between Q and its rank-k approximation.
+    Compute fraction of eigenvalue mass captured by top-k eigenvalues.
 
-    Q_hat_k = sum_{i=1}^k lambda_i * v_i * v_i^T
+    variance_explained = sum(|lambda_1|, ..., |lambda_k|) / sum(|lambda_i|)
 
-    Paper claims 69% of features have >0.75 correlation with k=2.
+    Paper claims 69% of features have >0.75 with k=2.
     """
-    # Symmetrize Q
+    # Symmetrize Q for eigendecomposition
     Q_sym = 0.5 * (Q + Q.T)
 
     # Eigendecompose (MPS-safe)
     try:
-        eigenvalues, eigenvectors = safe_eigh(Q_sym)
+        eigenvalues, _ = safe_eigh(Q_sym)
     except Exception:
         return float('nan')
 
-    # Sort by absolute magnitude (descending)
-    order = eigenvalues.abs().argsort(descending=True)
-    eigenvalues = eigenvalues[order]
-    eigenvectors = eigenvectors[:, order]
+    # Compute variance explained by top-k eigenvalues
+    abs_eigenvalues = eigenvalues.abs()
+    total_mass = abs_eigenvalues.sum()
 
-    # Rank-k approximation
-    Q_hat = torch.zeros_like(Q)
-    for i in range(min(k, len(eigenvalues))):
-        v = eigenvectors[:, i:i+1]
-        Q_hat = Q_hat + eigenvalues[i] * (v @ v.T)
-
-    # Pearson correlation
-    Q_flat = Q_sym.flatten()
-    Q_hat_flat = Q_hat.flatten()
-
-    Q_centered = Q_flat - Q_flat.mean()
-    Q_hat_centered = Q_hat_flat - Q_hat_flat.mean()
-
-    numerator = (Q_centered * Q_hat_centered).sum()
-    denominator = torch.sqrt((Q_centered ** 2).sum() * (Q_hat_centered ** 2).sum())
-
-    if denominator < 1e-10:
+    if total_mass < 1e-10:
         return float('nan')
 
-    return (numerator / denominator).item()
+    top_k_mass = abs_eigenvalues.topk(min(k, len(abs_eigenvalues))).values.sum()
+    return (top_k_mass / total_mass).item()
 
 
-def analyze_single_feature_original(tracer: Tracer, feat_idx: int, rank_k: int = 2, project: bool = False) -> dict:
+def analyze_single_feature_original(tracer: Tracer, feat_idx: int, rank_k: int = 2) -> dict:
     """
     Analyze a single feature using the original tracer.q() implementation.
 
+    Always projects onto SAE latents (project=True) for interpretability.
     Processes one feature at a time to manage memory.
     """
-    # Use original tracer.q() - returns Q on the model's device
-    Q = tracer.q(feat_idx, project=project)
+    # Use original tracer.q() with projection - returns Q on the model's device
+    Q = tracer.q(feat_idx, project=True)
 
     # Move to CPU immediately
     Q_cpu = Q.float().cpu()
@@ -110,24 +95,24 @@ def analyze_single_feature_original(tracer: Tracer, feat_idx: int, rank_k: int =
     Q_sym = 0.5 * (Q_cpu + Q_cpu.T)
 
     # Compute metrics
-    corr = rank_k_approximation_correlation(Q_cpu, k=rank_k)
+    var_explained = rank_k_variance_explained(Q_cpu, k=rank_k)
     eff_rank = compute_effective_rank(Q_sym.unsqueeze(0)).item()
     trunc_eig = compute_truncated_eigenvalues(Q_sym.unsqueeze(0), k=rank_k).item()
 
     del Q_cpu, Q_sym
 
     return {
-        "correlation": corr,
+        "variance_explained": var_explained,
         "effective_rank": eff_rank,
         "truncated_eigenvalue": trunc_eig,
     }
 
 
-def analyze_single_feature_manual(tracer: Tracer, feat_idx: int, rank_k: int = 2, project: bool = False) -> dict:
+def analyze_single_feature_manual(tracer: Tracer, feat_idx: int, rank_k: int = 2) -> dict:
     """
     Analyze a single feature's interaction matrix using manual einsum decomposition.
 
-    Memory-efficient CPU-based implementation.
+    Memory-efficient CPU-based implementation. Always projects onto SAE latents.
     """
     model, layer = tracer.model, tracer.layer
     out_latent = tracer.out_latents[feat_idx]  # Single feature vector
@@ -152,56 +137,46 @@ def analyze_single_feature_manual(tracer: Tracer, feat_idx: int, rank_k: int = 2
     # Clean up intermediates
     del w_l, w_r, w_p, out_vec, proj, scaled_l
 
-    if project:
-        inp_latents = tracer.inp_latents.float().cpu()
-        Q = inp_latents.T @ Q @ inp_latents
-        Q = 0.5 * (Q + Q.T)
-        del inp_latents
-
-    # Symmetrize for eigendecomposition
-    Q_sym = 0.5 * (Q + Q.T)
+    # Always project onto SAE latents for interpretability
+    inp_latents = tracer.inp_latents.float().cpu()
+    Q = inp_latents.T @ Q @ inp_latents
+    Q = 0.5 * (Q + Q.T)  # Symmetrize
+    del inp_latents
 
     # Compute metrics
-    corr = rank_k_approximation_correlation(Q, k=rank_k)
-    eff_rank = compute_effective_rank(Q_sym.unsqueeze(0)).item()
-    trunc_eig = compute_truncated_eigenvalues(Q_sym.unsqueeze(0), k=rank_k).item()
+    var_explained = rank_k_variance_explained(Q, k=rank_k)
+    eff_rank = compute_effective_rank(Q.unsqueeze(0)).item()
+    trunc_eig = compute_truncated_eigenvalues(Q.unsqueeze(0), k=rank_k).item()
 
-    del Q, Q_sym
+    del Q
 
     return {
-        "correlation": corr,
+        "variance_explained": var_explained,
         "effective_rank": eff_rank,
         "truncated_eigenvalue": trunc_eig,
     }
 
 
-# Use the original implementation for project=False, manual for project=True
-def analyze_single_feature(tracer: Tracer, feat_idx: int, rank_k: int = 2, project: bool = False) -> dict:
+def analyze_single_feature(tracer: Tracer, feat_idx: int, rank_k: int = 2) -> dict:
     """
-    Wrapper that selects the appropriate implementation.
+    Analyze a single feature's interaction matrix.
 
-    For project=False: uses original tracer.q() for correctness
-    For project=True: uses manual implementation to avoid OOM from einsum
-        The original einsum "il,jk,...ij->...lk" creates a ~281TB intermediate tensor
-        when inp_latents is [1024, 8192]. Manual implementation uses matrix multiplication
-        (inp_latents.T @ Q @ inp_latents) which is memory-efficient.
+    Always uses manual implementation with projection onto SAE latents.
+    The original tracer.q(project=True) einsum creates a ~281TB intermediate tensor
+    when inp_latents is [1024, 8192]. Manual implementation uses matrix multiplication
+    (inp_latents.T @ Q @ inp_latents) which is memory-efficient.
     """
-    if project:
-        # Use manual implementation to avoid OOM from original einsum
-        return analyze_single_feature_manual(tracer, feat_idx, rank_k, project)
-    else:
-        return analyze_single_feature_original(tracer, feat_idx, rank_k, project)
+    return analyze_single_feature_manual(tracer, feat_idx, rank_k)
 
 
-def analyze_interactions_batch(tracer: Tracer, feature_indices: list, rank_k: int = 2, project: bool = False, device: str = "cuda", memory_efficient: bool = True):
+def analyze_interactions_batch(tracer: Tracer, feature_indices: list, rank_k: int = 2, device: str = "cuda"):
     """
     Analyze interaction matrices for multiple output features.
 
-    Uses Tracer.q() to compute Q matrices (from original paper code).
-    Memory-efficient mode: computes on CPU to avoid GPU OOM.
+    Always projects onto SAE latents and uses memory-efficient CPU computation.
     """
     results = {
-        "correlations": [],
+        "variance_explained": [],
         "effective_ranks": [],
         "truncated_eigenvalues": [],
         "feature_indices": [],
@@ -211,42 +186,14 @@ def analyze_interactions_batch(tracer: Tracer, feature_indices: list, rank_k: in
 
     for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
         try:
-            if memory_efficient:
-                # CPU-based analysis to avoid GPU OOM
-                metrics = analyze_single_feature(tracer, feat_idx, rank_k=rank_k, project=project)
-                corr = metrics["correlation"]
-                eff_rank = metrics["effective_rank"]
-                trunc_eig = metrics["truncated_eigenvalue"]
-            else:
-                # Original GPU-based analysis
-                Q = tracer.q(feat_idx, project=project)
+            # CPU-based analysis with projection (memory-efficient)
+            metrics = analyze_single_feature(tracer, feat_idx, rank_k=rank_k)
+            var_explained = metrics["variance_explained"]
+            eff_rank = metrics["effective_rank"]
+            trunc_eig = metrics["truncated_eigenvalue"]
 
-                if Q is None or Q.numel() == 0:
-                    continue
-
-                # Move to CPU immediately to free GPU memory
-                Q_cpu = Q.cpu()
-                del Q  # Explicitly delete GPU tensor
-
-                # Clear GPU cache
-                if is_cuda:
-                    torch.cuda.empty_cache()
-
-                # Compute rank-k correlation
-                corr = rank_k_approximation_correlation(Q_cpu, k=rank_k)
-
-                # Compute effective rank using original paper's function
-                Q_sym = 0.5 * (Q_cpu + Q_cpu.T)
-                eff_rank = compute_effective_rank(Q_sym.unsqueeze(0)).item()
-
-                # Compute truncated eigenvalues
-                trunc_eig = compute_truncated_eigenvalues(Q_sym.unsqueeze(0), k=rank_k).item()
-
-                # Clean up CPU tensors
-                del Q_cpu, Q_sym
-
-            if not np.isnan(corr):
-                results["correlations"].append(corr)
+            if not np.isnan(var_explained):
+                results["variance_explained"].append(var_explained)
                 results["effective_ranks"].append(eff_rank)
                 results["truncated_eigenvalues"].append(trunc_eig)
                 results["feature_indices"].append(feat_idx)
@@ -267,14 +214,6 @@ def main():
     parser.add_argument("--output", type=str, default="results/language/interaction_analysis.json")
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
-    parser.add_argument("--memory-efficient", action="store_true", default=True,
-                        help="Use memory-efficient CPU-based computation (default: True)")
-    parser.add_argument("--no-memory-efficient", action="store_false", dest="memory_efficient",
-                        help="Use original GPU-based computation (may OOM on large models)")
-    parser.add_argument("--project", action="store_true", default=None,
-                        help="Project Q onto SAE latents (overrides config)")
-    parser.add_argument("--no-project", action="store_false", dest="project",
-                        help="Do not project Q onto SAE latents (overrides config)")
     args = parser.parse_args()
 
     # Auto-detect device (includes MPS support)
@@ -339,12 +278,6 @@ def main():
         n_features = analysis_config.get("n_features", 500)
         rank_k = analysis_config.get("rank_k", 2)
 
-        # Use command line override if provided, otherwise use config
-        if args.project is not None:
-            project = args.project
-        else:
-            project = analysis_config.get("project", False)
-
         # Get number of output features
         n_out_features = tracer.out.d_features
         print(f"\nTotal output features: {n_out_features}")
@@ -352,78 +285,50 @@ def main():
         # Select features to analyze
         feature_indices = list(range(min(n_features, n_out_features)))
         print(f"Analyzing {len(feature_indices)} features...")
-        print(f"Project onto SAE latents: {project}")
-        print(f"Memory-efficient mode: {args.memory_efficient}")
+        print(f"Always projecting onto SAE latents (memory-efficient)")
 
         # Debug: analyze first feature and print Q matrix info
         print(f"\n--- Diagnostic: First feature (idx=0) ---")
-        # Always compute Q without projection first (to avoid OOM from original einsum)
-        Q_test = tracer.q(0, project=False)
-        print(f"Q matrix (unprojected) shape: {Q_test.shape}")
-        print(f"Q matrix dtype: {Q_test.dtype}")
-        print(f"Q matrix stats: min={Q_test.min():.6f}, max={Q_test.max():.6f}, mean={Q_test.mean():.6f}")
-
-        Q_test_cpu = Q_test.float().cpu()
-        del Q_test
-
-        # Apply projection manually if requested (memory-efficient)
-        if project:
-            inp_latents = tracer.inp_latents.float().cpu()
-            Q_test_cpu = inp_latents.T @ Q_test_cpu @ inp_latents
-            Q_test_cpu = 0.5 * (Q_test_cpu + Q_test_cpu.T)
-            del inp_latents
-            print(f"Q matrix (projected) shape: {Q_test_cpu.shape}")
-
-        Q_test_sym = 0.5 * (Q_test_cpu + Q_test_cpu.T)
-        test_corr = rank_k_approximation_correlation(Q_test_cpu, k=rank_k)
-        # Skip effective rank for large projected matrices (8192x8192 causes numerical issues)
-        if Q_test_sym.shape[0] <= 2048:
-            test_eff_rank = compute_effective_rank(Q_test_sym.unsqueeze(0)).item()
-            print(f"Rank-{rank_k} correlation: {test_corr:.6f}")
-            print(f"Effective rank: {test_eff_rank:.2f}")
-        else:
-            print(f"Rank-{rank_k} correlation: {test_corr:.6f}")
-            print(f"Effective rank: SKIPPED (matrix too large: {Q_test_sym.shape})")
-        del Q_test_cpu, Q_test_sym
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # Use analyze_single_feature which always projects (memory-efficient)
+        test_metrics = analyze_single_feature(tracer, 0, rank_k=rank_k)
+        print(f"Rank-{rank_k} variance explained: {test_metrics['variance_explained']:.6f}")
+        print(f"Effective rank: {test_metrics['effective_rank']:.2f}")
+        print(f"Truncated eigenvalue sum: {test_metrics['truncated_eigenvalue']:.6f}")
         print(f"--- End diagnostic ---\n")
 
         # Run analysis
         results = analyze_interactions_batch(
-            tracer, feature_indices, rank_k=rank_k, project=project,
-            device=device, memory_efficient=args.memory_efficient
+            tracer, feature_indices, rank_k=rank_k, device=device
         )
 
     # Compute summary statistics
-    correlations = np.array(results["correlations"])
+    variance_explained = np.array(results["variance_explained"])
     effective_ranks = np.array(results["effective_ranks"])
 
-    if len(correlations) == 0:
+    if len(variance_explained) == 0:
         print("ERROR: No features successfully analyzed")
         if wandb_enabled:
             finish_wandb(tracker.result, extra_summary={"error": "no_features_analyzed"})
         return
 
-    fraction_above_075 = (correlations > 0.75).mean()
-    fraction_above_050 = (correlations > 0.50).mean()
+    fraction_above_075 = (variance_explained > 0.75).mean()
+    fraction_above_050 = (variance_explained > 0.50).mean()
 
     summary = {
-        "n_analyzed": len(correlations),
+        "n_analyzed": len(variance_explained),
         "n_total_features": n_out_features,
         "rank_k": rank_k,
-        "project_onto_sae_latents": project,
         "model_name": model_name,
         "layer": layer,
         "fraction_above_075": float(fraction_above_075),
         "fraction_above_050": float(fraction_above_050),
-        "mean_correlation": float(correlations.mean()),
-        "std_correlation": float(correlations.std()),
-        "median_correlation": float(np.median(correlations)),
+        "mean_variance_explained": float(variance_explained.mean()),
+        "std_variance_explained": float(variance_explained.std()),
+        "median_variance_explained": float(np.median(variance_explained)),
         "mean_effective_rank": float(effective_ranks.mean()),
         "std_effective_rank": float(effective_ranks.std()),
-        "paper_claim": "69% of features have >0.75 rank-2 correlation",
-        "our_result": f"{fraction_above_075*100:.1f}% of features have >0.75 rank-{rank_k} correlation",
+        "paper_claim": "69% of features have >0.75 rank-2 variance explained",
+        "our_result": f"{fraction_above_075*100:.1f}% of features have >0.75 rank-{rank_k} variance explained",
         "claim_supported": bool(fraction_above_075 > 0.60),  # Allow 9% margin
         "wall_time_seconds": tracker.result.wall_time_seconds,
         "co2_kg": tracker.result.emissions_kg,
@@ -433,11 +338,10 @@ def main():
     print(f"INTERACTION ANALYSIS RESULTS")
     print(f"{'='*60}")
     print(f"Model: {model_name}, Layer: {layer}")
-    print(f"Project onto SAE latents: {project}")
     print(f"Features analyzed: {summary['n_analyzed']}")
-    print(f"Fraction with >0.75 correlation: {summary['fraction_above_075']*100:.1f}%")
-    print(f"Fraction with >0.50 correlation: {summary['fraction_above_050']*100:.1f}%")
-    print(f"Mean correlation: {summary['mean_correlation']:.4f}")
+    print(f"Fraction with >0.75 variance explained: {summary['fraction_above_075']*100:.1f}%")
+    print(f"Fraction with >0.50 variance explained: {summary['fraction_above_050']*100:.1f}%")
+    print(f"Mean variance explained: {summary['mean_variance_explained']:.4f}")
     print(f"Mean effective rank: {summary['mean_effective_rank']:.2f}")
     print(f"\nPaper claim: {summary['paper_claim']}")
     print(f"Our result: {summary['our_result']}")
@@ -450,7 +354,7 @@ def main():
             "n_features": n_features,
             "fraction_above_075": fraction_above_075,
             "fraction_above_050": fraction_above_050,
-            "mean_correlation": summary["mean_correlation"],
+            "mean_variance_explained": summary["mean_variance_explained"],
             "mean_effective_rank": summary["mean_effective_rank"],
             "claim_supported": summary["claim_supported"],
         })
@@ -464,8 +368,9 @@ def main():
         "summary": summary,
         "per_feature": {
             "feature_indices": [int(x) for x in results["feature_indices"]],
-            "correlations": [float(x) for x in results["correlations"]],
+            "variance_explained": [float(x) for x in results["variance_explained"]],
             "effective_ranks": [float(x) for x in results["effective_ranks"]],
+            "truncated_eigenvalues": [float(x) for x in results["truncated_eigenvalues"]],
         },
         "config": config,
     }
