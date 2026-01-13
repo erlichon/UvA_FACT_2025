@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=lang_interaction
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=logs/language_interaction_%j.out
+#SBATCH --error=logs/language_interaction_%j.err
+
+# Language Interaction Analysis (Section 5)
+# Tests paper claim: 69% of features have >0.75 rank-2 variance explained
+
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+cd "$HOME/UvA_FACT_2025" || exit 1
+source activate fact
+
+echo "========================================"
+echo "Interaction Matrix Analysis (Section 5)"
+echo "Date: $(date)"
+echo "Host: $(hostname)"
+echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader)"
+echo "========================================"
+
+mkdir -p logs results/language
+
+echo "Running interaction analysis..."
+echo "Q matrices projected onto SAE latent space (8192x8192)"
+
+python src/language/interaction_analysis.py \
+    --config configs/language_interaction.yaml \
+    --output results/language/interaction_analysis.json \
+    --device cuda
+
+echo "========================================"
+echo "Interaction analysis complete: $(date)"
+echo "========================================"
+
+# Print summary
+if [ -f results/language/interaction_analysis.json ]; then
+    echo ""
+    echo "Results summary:"
+    python -c "
+import json
+with open('results/language/interaction_analysis.json') as f:
+    results = json.load(f)
+summary = results.get('summary', results)
+print(f\"  Features analyzed: {summary.get('n_analyzed', 'N/A')}\")
+print(f\"  Mean variance explained: {summary.get('mean_variance_explained', 'N/A'):.4f}\")
+print(f\"  % above 0.75: {summary.get('fraction_above_075', 'N/A')*100:.1f}%\")
+print(f\"  Target: 69% above 0.75\")
+"
+fi
