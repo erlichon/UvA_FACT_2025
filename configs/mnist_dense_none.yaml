@@ -5,7 +5,7 @@ model:
   mode: dense
   d_hidden: 256
   n_layer: 1
-  variance_corrected_init: true  # Push into Rich Training regime
+  variance_corrected_init: false  # Push into Rich Training regime
 
 training:
   epochs: 100

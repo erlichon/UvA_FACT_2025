@@ -15,242 +15,247 @@ We trained bilinear MLPs on MNIST under four regularization configurations (none
 
 \subsubsection{Eigenspectrum Analysis}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
-    \caption{Eigenspectrum comparison across regularization configurations on MNIST.
-    Weight decay (WD) produces the sharpest spectral decay with effective rank $\sim$21, while noise augmentation alone increases effective rank to $\sim$75.
-    The combination (Full) achieves a moderate effective rank of $\sim$36.
-    All curves show top-100 eigenvalues on log scale, averaged over 5 seeds per configuration.}
-    \label{fig:eigenspectrum}
-\end{figure}
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
+%     \caption{Eigenspectrum comparison across regularization configurations on MNIST.
+%     Weight decay (WD) produces the sharpest spectral decay, while noise augmentation alone increases effective rank.
+%     All curves show top-100 eigenvalues on log scale, averaged over 5 seeds per configuration.}
+%     \label{fig:eigenspectrum}
+% \end{figure}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.85\linewidth]{figures/eigenvalue_decay.pdf}
-    \caption{Normalized eigenvalue decay for top-30 eigenvalues.
-    Values are normalized by the maximum eigenvalue per configuration.
-    Weight decay shows the steepest decay, indicating concentration of variance in few eigenvectors.}
-    \label{fig:eigenvalue_decay}
-\end{figure}
+\textit{[Figure to be added after experiments complete]}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_per_class.pdf}
-    \caption{Per-class eigenspectrum for the fully regularized MNIST model.
-    Each line represents a digit class (0--9).
-    All classes show similar low-rank structure with approximately 10--15 significant eigenvalues, consistent with the paper's claims about class-specific interpretability.}
-    \label{fig:eigenspectrum_per_class}
-\end{figure}
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.85\linewidth]{figures/eigenvalue_decay.pdf}
+%     \caption{Normalized eigenvalue decay for top-30 eigenvalues.
+%     Values are normalized by the maximum eigenvalue per configuration.
+%     Weight decay shows the steepest decay, indicating concentration of variance in few eigenvectors.}
+%     \label{fig:eigenvalue_decay}
+% \end{figure}
+%
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_per_class.pdf}
+%     \caption{Per-class eigenspectrum for the fully regularized MNIST model.
+%     Each line represents a digit class (0--9).
+%     All classes show similar low-rank structure, consistent with the paper's claims about class-specific interpretability.}
+%     \label{fig:eigenspectrum_per_class}
+% \end{figure}
 
 \subsubsection{Eigenvector Visualization}
 
-\begin{figure}[h]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
-        \caption{Without regularization: noise-like patterns}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
-        \caption{With full regularization: more structured patterns}
-    \end{subfigure}
-    \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class (0--9).
-    Without regularization, eigenvectors show diffuse patterns.
-    With regularization, eigenvectors show more localized structure, though interpretation remains challenging.
-    Each row corresponds to a digit class; columns show the top 5 eigenvectors ranked by eigenvalue magnitude.}
-    \label{fig:eigenvectors}
-\end{figure}
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
+%         \caption{Without noise: memorized outlying pixels}
+%     \end{subfigure}
+%     \hfill
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
+%         \caption{With noise: recognizable digit patterns}
+%     \end{subfigure}
+%     \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class (0--9).
+%     Without noise augmentation, the model memorizes specific outlying pixel patterns that rarely occur, resulting in diffuse, uninterpretable eigenvectors.
+%     With noise augmentation, the model learns generalizable features, producing eigenvectors that resemble recognizable digit strokes.
+%     Each row corresponds to a digit class; columns show the top 5 eigenvectors ranked by eigenvalue magnitude.}
+%     \label{fig:eigenvectors}
+% \end{figure}
+
+\textit{[Figure to be added after experiments complete]}
 
 \subsubsection{Ablation Study}
 
 We disentangle the contributions of noise augmentation and weight decay by training under four configurations.
+Following the paper's hyperparameters (Appendix G.1), we use noise std $= 0.5$ and weight decay $= 1.0$.
 
-\begin{table}[h]
-    \caption{Ablation study: Effect of regularization components on accuracy and interpretability (MNIST, mean $\pm$ std over 5 seeds)}
-    \label{tab:ablation}
-    \centering
-    \begin{tabular}{lcccc}
-        \toprule
-        Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
-        \midrule
-        None & -- & -- & $97.49 \pm 0.12$ & $38.5 \pm 2.1$ \\
-        Noise only & 0.4 & -- & $98.41 \pm 0.08$ & $74.8 \pm 3.2$ \\
-        WD only & -- & 0.5 & $97.50 \pm 0.15$ & $21.4 \pm 1.8$ \\
-        Full & 0.4 & 0.5 & $98.30 \pm 0.10$ & $36.3 \pm 2.5$ \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+% TODO: Uncomment and fill in after new experiments complete
+% \begin{table}[h]
+%     \caption{Ablation study: Effect of regularization components on accuracy and effective rank (MNIST, mean $\pm$ std over 5 seeds)}
+%     \label{tab:ablation}
+%     \centering
+%     \begin{tabular}{lcccc}
+%         \toprule
+%         Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
+%         \midrule
+%         None & -- & -- & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         Noise only & 0.5 & -- & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         WD only & -- & 1.0 & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         Full & 0.5 & 1.0 & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
 
-Weight decay alone achieves the lowest effective rank (21.4), producing the most low-rank representation.
-Noise augmentation improves accuracy but increases effective rank.
-The combination balances accuracy and effective rank.
+\textit{[Table to be added after experiments complete]}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/mnist_ablation.pdf}
-    \caption{Ablation study visualization for MNIST showing accuracy and effective rank across regularization configurations.
-    Weight decay (WD) achieves the lowest effective rank while maintaining comparable accuracy.}
-    \label{fig:ablation}
-\end{figure}
+\textbf{Expected finding:} Based on the paper's claims, we expect:
+\begin{itemize}
+    \item \textbf{Weight decay} to reduce effective rank by penalizing weight magnitude, forcing simpler representations.
+    \item \textbf{Noise augmentation} to improve feature interpretability by preventing overfitting to specific pixel patterns.
+\end{itemize}
 
-We also replicated these experiments on Fashion-MNIST (\cref{tab:fashion_ablation}), observing consistent trends: weight decay produces the lowest effective rank across both datasets.
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.9\linewidth]{figures/mnist_ablation.pdf}
+%     \caption{Ablation study visualization for MNIST showing accuracy and effective rank across regularization configurations.
+%     Weight decay (WD) achieves the lowest effective rank while maintaining comparable accuracy.}
+%     \label{fig:ablation}
+% \end{figure}
 
-\begin{table}[h]
-    \caption{Fashion-MNIST ablation study (mean $\pm$ std over 5 seeds)}
-    \label{tab:fashion_ablation}
-    \centering
-    \begin{tabular}{lcccc}
-        \toprule
-        Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
-        \midrule
-        None & -- & -- & $88.50 \pm 0.25$ & $47.2 \pm 2.8$ \\
-        Noise only & 0.4 & -- & $87.62 \pm 0.30$ & $80.5 \pm 4.1$ \\
-        WD only & -- & 0.5 & $87.74 \pm 0.22$ & $19.6 \pm 1.5$ \\
-        Full & 0.4 & 0.5 & $87.18 \pm 0.28$ & $33.2 \pm 2.3$ \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+We also replicate these experiments on Fashion-MNIST to test generalization across datasets.
+
+% TODO: Uncomment and fill in after new experiments complete
+% \begin{table}[h]
+%     \caption{Fashion-MNIST ablation study (mean $\pm$ std over 5 seeds)}
+%     \label{tab:fashion_ablation}
+%     \centering
+%     \begin{tabular}{lcccc}
+%         \toprule
+%         Configuration & Noise & WD & Accuracy (\%) & Eff. Rank \\
+%         \midrule
+%         None & -- & -- & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         Noise only & 0.5 & -- & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         WD only & -- & 1.0 & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         Full & 0.5 & 1.0 & $XX.XX \pm X.XX$ & $XX.X \pm X.X$ \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
+
+\textit{[Table to be added after experiments complete]}
 
 \subsubsection{Comparison with Paper}
 
-\begin{table}[h]
-    \caption{Vision results: Comparison with original paper (Section 4)}
-    \label{tab:vision_comparison}
-    \centering
-    \begin{tabular}{lccc}
-        \toprule
-        Metric & Paper & Ours & Match? \\
-        \midrule
-        Accuracy (no reg) & $\sim$97--98\% & 97.5\% & \checkmark \\
-        Accuracy (full reg) & $\sim$94--95\% & 98.3\% & $\sim$ \\
-        Eff. Rank (no reg) & $\sim$150--200 & 38.5 & $\times$ \\
-        Eff. Rank (full reg) & $\sim$20--40 & 36.3 & \checkmark \\
-        Rank Ratio (WD/none) & $<$0.5 & 0.56 & $\sim$ \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+% TODO: Uncomment and fill in after new experiments complete
+% \begin{table}[h]
+%     \caption{Vision results: Comparison with original paper (Section 4)}
+%     \label{tab:vision_comparison}
+%     \centering
+%     \begin{tabular}{lccc}
+%         \toprule
+%         Metric & Paper & Ours & Match? \\
+%         \midrule
+%         Accuracy (no reg) & $\sim$97--98\% & XX.X\% & ? \\
+%         Accuracy (full reg) & $\sim$94--95\% & XX.X\% & ? \\
+%         Eff. Rank (no reg) & $\sim$150--200 & XX.X & ? \\
+%         Eff. Rank (full reg) & $\sim$20--40 & XX.X & ? \\
+%         Rank Ratio (full/none) & $<$0.5 & X.XX & ? \\
+%         \bottomrule
+%     \end{tabular}
+% \end{table}
 
-Our effective rank for unregularized models is significantly lower than reported in the paper ($\sim$38 vs $\sim$150--200).
-This may be due to differences in initialization, training dynamics, or our use of the ratio-based effective rank formula.
-However, the qualitative trend holds: regularization reduces effective rank.
+\textit{[Table to be added after experiments complete]}
 
 \subsubsection{Accuracy vs Interpretability Trade-off}
 
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figures/accuracy_vs_effrank_mnist.pdf}
-    \caption{Accuracy vs effective rank trade-off on MNIST.
-    Lower effective rank indicates more interpretable (low-rank) representations.
-    Weight decay achieves the best interpretability (lowest rank) with minimal accuracy loss.
-    Each point represents one seed; colors indicate configuration.}
-    \label{fig:tradeoff}
-\end{figure}
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.8\linewidth]{figures/accuracy_vs_effrank_mnist.pdf}
+%     \caption{Accuracy vs effective rank trade-off on MNIST.
+%     Lower effective rank indicates more interpretable (low-rank) representations.
+%     Each point represents one seed; colors indicate configuration.}
+%     \label{fig:tradeoff}
+% \end{figure}
+
+\textit{[Figure to be added after experiments complete]}
 
 \subsubsection{Cross-Dataset Comparison}
 
 To assess generalization of our findings, we compare MNIST and Fashion-MNIST results.
 
-\begin{figure}[h]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/cross_dataset_effrank.pdf}
-        \caption{Effective rank comparison}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/cross_dataset_accuracy.pdf}
-        \caption{Accuracy comparison}
-    \end{subfigure}
-    \caption{Cross-dataset comparison between MNIST and Fashion-MNIST.
-    Both datasets show consistent trends: weight decay produces the lowest effective rank, while noise augmentation increases it.
-    Fashion-MNIST has lower overall accuracy but similar relative patterns across configurations.}
-    \label{fig:cross_dataset}
-\end{figure}
+% TODO: Uncomment after new experiments complete
+% \begin{figure}[h]
+%     \centering
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/cross_dataset_effrank.pdf}
+%         \caption{Effective rank comparison}
+%     \end{subfigure}
+%     \hfill
+%     \begin{subfigure}{0.48\textwidth}
+%         \includegraphics[width=\linewidth]{figures/cross_dataset_accuracy.pdf}
+%         \caption{Accuracy comparison}
+%     \end{subfigure}
+%     \caption{Cross-dataset comparison between MNIST and Fashion-MNIST.
+%     Both datasets show consistent trends across regularization configurations.}
+%     \label{fig:cross_dataset}
+% \end{figure}
 
-The consistent behavior across datasets suggests that the relationship between regularization and spectral properties is not dataset-specific, supporting the generality of the paper's claims about bilinear MLP interpretability.
+\textit{[Figure to be added after experiments complete]}
 
 %==============================================================================
 \subsection{Language Results (Paper Section 5)}
 \label{sec:language_results}
 %==============================================================================
 
-We reproduce the negation circuit discovery experiments on bilinear transformers trained on TinyStories.
-
-\subsubsection{SAE Training and Feature Discovery}
-
-% TODO: Describe SAE training results
-% - Trained SAEs around MLP layers (expansion ratio 8x)
-% - Reconstruction loss achieved
-% - Number of active features per layer
-
-\textit{[To be completed: SAE training details and feature statistics]}
+We reproduce the negation circuit discovery experiments on bilinear transformers.
+Following the paper, we use the \texttt{fw-medium} model (335M parameters, trained on FineWeb-EDU) with pretrained SAEs at MLP layer 7 (expansion ratio 8$\times$, TopK sparsity with $k=30$).
 
 \subsubsection{Negation Feature Identification}
 
-The paper identifies two key features that implement sentiment negation:
+The paper identifies SAE features that implement sentiment negation: one activating on ``not + negative words'' (double negation $\to$ positive) and another on ``not + positive words'' (negation $\to$ negative).
+These features should form \emph{opposing directions} in SAE feature space, indicated by negative cosine similarity between their decoder weight vectors.
 
-% TODO: Uncomment after generating figures
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.9\linewidth]{figures/negation_features.pdf}
-%     \caption{Negation circuit features in TinyStories model.
-%     \textbf{Left:} Feature 3834 activates on ``not + negative words'' (e.g., ``not lost'').
-%     \textbf{Right:} Feature 751 activates on ``not + positive words'' (e.g., ``not free'').
-%     These features form opposing directions in SAE feature space.}
-%     \label{fig:negation_features}
-% \end{figure}
+Our analysis identifies:
+\begin{itemize}
+    \item \textbf{Feature 5158}: Top activator on ``not + positive words'' patterns
+    \item \textbf{Feature 3223}: Top activator on ``not + negative words'' patterns
+    \item \textbf{Cosine similarity}: $-0.161$ (opposing directions confirmed)
+\end{itemize}
 
-\textit{[Figure to be added: Negation feature activation patterns]}
+The negative cosine similarity confirms that these features encode opposite sentiment transformations, consistent with the paper's claim about negation circuit structure.
+
+\textbf{Note:} Our identified feature indices (5158, 3223) differ from the paper's (751, 3834) due to using a different model variant (\texttt{fw-medium} vs \texttt{ts-medium}) and potentially different SAE training runs.
+The key finding---that negation features form opposing directions---is reproduced.
 
 \subsubsection{Interaction Matrix Analysis}
 
-For each negation feature, we compute and eigendecompose the interaction matrix $Q$ between input SAE features.
+For each SAE output feature $o$, we compute the interaction matrix $Q^{(o)}$ between input SAE features and measure low-rank structure via correlation with a rank-2 approximation.
+The paper claims that 69\% of features achieve $>$0.75 correlation with just 2 eigenvectors.
 
-% TODO: Uncomment after generating figures
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.9\linewidth]{figures/interaction_matrix.pdf}
-%     \caption{Interaction matrix analysis for negation feature 3834.
-%     \textbf{Left:} Full interaction matrix (input features vs input features).
-%     \textbf{Right:} Top 50 interactions form a sparse, interpretable submatrix.}
-%     \label{fig:interaction_matrix}
-% \end{figure}
+\begin{table}[h]
+    \caption{Language results: Interaction matrix analysis (500 features analyzed)}
+    \label{tab:language_comparison}
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        Metric & Paper & Ours \\
+        \midrule
+        Features with $>$0.75 rank-2 correlation & 69\% & 0\% \\
+        Features with $>$0.50 rank-2 correlation & -- & 0\% \\
+        Mean rank-2 correlation & -- & 0.14 \\
+        Mean effective rank & Low & 630 \\
+        Negation feature cosine similarity & $<$0 & $-0.16$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-\textit{[Figure to be added: Interaction matrix heatmaps]}
+\textbf{Key finding:} We do \emph{not} reproduce the low-rank interaction structure claimed by the paper.
+Our interaction matrices have mean effective rank $\sim$630 (out of maximum 6144 SAE features), with no features achieving the $>$0.75 rank-2 correlation threshold.
 
-\subsubsection{Low-Rank Structure Verification}
+\subsubsection{Possible Explanations for Discrepancy}
 
-% TODO: Uncomment after generating figures
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.7\linewidth]{figures/lowrank_correlation.pdf}
-%     \caption{Distribution of rank-2 approximation quality across SAE output features.
-%     69\% of features achieve $>$0.75 correlation with just 2 eigenvectors.}
-%     \label{fig:lowrank}
-% \end{figure}
+Several factors may explain the difference in interaction matrix results:
 
-\textit{[Figure to be added: Low-rank correlation distribution]}
+\begin{enumerate}
+    \item \textbf{Model variant}: We use \texttt{fw-medium} (FineWeb-EDU trained) while the paper primarily reports results on \texttt{ts-medium} (TinyStories trained).
+    Different training data may affect the learned feature structure.
 
-% TODO: Uncomment after experiments
-% \begin{table}[h]
-%     \caption{Language results: Negation circuit reproduction}
-%     \label{tab:language_comparison}
-%     \centering
-%     \begin{tabular}{lcc}
-%         \toprule
-%         Metric & Paper & Ours \\
-%         \midrule
-%         Features with $>$0.75 rank-2 correlation & 69\% & XX\% \\
-%         Negation feature cosine similarity & $<$0 & XX \\
-%         Top-50 interaction sparsity & Sparse & Sparse / Dense \\
-%         Cross-model consistency & Yes & Yes / No \\
-%         \bottomrule
-%     \end{tabular}
-% \end{table}
+    \item \textbf{Interaction matrix computation}: The paper computes $Q_{ij}^{(o)} = \sum_{\text{samples}} z_i^{\text{in}} \cdot z_j^{\text{in}} \cdot z_o^{\text{out}}$ using SAE activations on text samples.
+    Differences in sample selection or activation thresholding could affect results.
 
-\textit{[Table to be added: Quantitative negation circuit metrics]}
+    \item \textbf{SAE configuration}: While we match the paper's expansion (8$\times$) and layer (7), subtle differences in TopK ($k=30$ vs $k=32$) or other hyperparameters may matter.
+
+    \item \textbf{Rank-2 correlation metric}: The paper does not fully specify how correlation is computed between the full matrix and its rank-2 approximation.
+    We use Frobenius-norm-based correlation after eigendecomposition.
+\end{enumerate}
+
+Despite the discrepancy in low-rank structure, the negation circuit discovery (opposing feature directions) is successfully reproduced.
 
 %==============================================================================
 \subsection{Summary}
@@ -258,19 +263,17 @@ For each negation feature, we compute and eigendecompose the interaction matrix 
 
 \textbf{Vision (Section 4):}
 \begin{itemize}
-    \item Claim V1 (Low-Rank Emergence): \textbf{Partially Supported} -- Weight decay reduces effective rank (38.5 $\to$ 21.4), but our baseline ranks are lower than reported in the paper.
-    \item Claim V2 (Interpretable Eigenvectors): \textbf{Partially Supported} -- Regularized eigenvectors show more structure, but visual interpretation remains subjective.
-    \item Claim V3 (Overfitting Without Reg): \textbf{Not Supported} -- Unregularized models achieve high test accuracy (97.5\%) with no overfitting observed.
-    \item Claim V4 (Noise Importance): \textbf{Nuanced} -- Noise improves accuracy but \emph{increases} effective rank, contrary to intuition.
-    \item Claim V5 (Cross-Seed Consistency): \textbf{Supported} -- Low variance across 5 seeds for all metrics.
-    \item Claim V6 (Adversarial Generation): Not tested in this reproduction.
+    \item \textbf{Claim V1 (Low-Rank via Weight Decay):} \textit{[To be evaluated after experiments]}
+    \item \textbf{Claim V2 (Interpretable Eigenvectors):} \textit{[To be evaluated after experiments]}
+    \item \textbf{Claim V3 (Noise Prevents Overfitting):} \textit{[To be evaluated after experiments]}
+    \item \textbf{Claim V4 (Cross-Seed Consistency):} \textit{[To be evaluated after experiments]}
 \end{itemize}
 
 \textbf{Language (Section 5):}
 \begin{itemize}
-    \item Claim L1 (SAE Feature Discovery): In progress
-    \item Claim L2 (Negation Features): In progress
-    \item Claim L3 (Low-Rank Interactions): In progress
-    \item Claim L4 (Sparse Interaction Matrices): In progress
-    \item Claim L5 (Cross-Model Generalization): In progress
+    \item \textbf{Claim L1 (Negation Features Exist): Supported} -- We identify SAE features 5158 and 3223 that differentially activate on ``not + positive'' and ``not + negative'' patterns respectively.
+    \item \textbf{Claim L2 (Opposing Directions): Supported} -- The negation features have cosine similarity $-0.16$, confirming they encode opposite sentiment transformations.
+    \item \textbf{Claim L3 (Low-Rank Interactions): Not Supported} -- The paper claims 69\% of features have $>$0.75 rank-2 correlation; we find 0\%.
+    Our interaction matrices have high effective rank ($\sim$630), indicating the low-rank structure does not generalize to our setup.
+    \item \textbf{Claim L4 (Cross-Model Generalization): Partial} -- The negation circuit structure (opposing features) generalizes to \texttt{fw-medium}, but the low-rank interaction property does not.
 \end{itemize}
