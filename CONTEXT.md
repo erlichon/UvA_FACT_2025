@@ -4,9 +4,9 @@
 
 ---
 
-## 0. Current State (Updated: 2026-01-12)
+## 0. Current State (Updated: 2026-01-13)
 
-### Section 4 (Vision) COMPLETE + ANALYZED, Section 5 (Language) ~80% Complete
+### Section 4 (Vision) ~97% COMPLETE, Section 5 (Language) ~97% COMPLETE
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
@@ -17,7 +17,13 @@
 | D | CP Rank Sweep (E3) | Waiting | Needs CP implementation |
 | E | Synthesis + ViT (E4+E5) | Waiting | Needs E1 + E3 results |
 | F | CP Implementation (E2) | Ready | Can start (BilinearCP skeleton exists) |
-| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Negation discovery needs re-run with fw-medium |
+| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Interaction analysis running on Snellius (8h job) |
+
+**Recent Updates (2026-01-13)**:
+- Added visualization modules for Vision (sample explanations, interactive plots)
+- Added visualization modules for Language (feature visualization, interaction heatmaps)
+- Consolidated job files: 3 language jobs (interaction, negation, full_pipeline)
+- Updated Snellius job time limit to 8 hours (was timing out at 4h)
 
 **Vision Experiments COMPLETE** (40/40 runs finished + analyzed):
 - **MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
@@ -88,18 +94,22 @@ UvA_FACT_2025/
 │   │   └── bilinear_layer.py     # BilinearDense + BilinearCP [COMPLETE]
 │   ├── analysis/
 │   │   ├── __init__.py
-│   │   └── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints [COMPLETE]
-│   ├── plot_utils/               # Reusable plotting functions [NEW]
+│   │   └── spectral.py           # effective_rank, top_k_coverage, kurtosis [COMPLETE]
+│   ├── plot_utils/               # Reusable plotting functions [COMPLETE]
 │   │   ├── __init__.py
 │   │   ├── style.py              # Publication style, colors, constants
 │   │   ├── eigenspectrum.py      # Eigenspectrum visualization
 │   │   ├── eigenvectors.py       # Eigenvector image visualization
-│   │   └── ablation.py           # Ablation and trade-off plots
+│   │   ├── ablation.py           # Ablation and trade-off plots
+│   │   ├── explanation.py        # Sample explanation (eigenvector contributions) [NEW]
+│   │   └── interactive.py        # Plotly interactive versions [NEW]
 │   ├── language/
 │   │   ├── __init__.py
 │   │   ├── run_sae_training.py   # SAE training wrapper [COMPLETE]
 │   │   ├── negation_discovery.py # Negation circuit analysis [COMPLETE]
-│   │   └── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
+│   │   ├── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
+│   │   ├── visualizer.py         # FeatureVisualizer class [NEW]
+│   │   └── interaction_viz.py    # Q matrix heatmaps, variance histograms [NEW]
 │   └── train.py                  # Vision training script [COMPLETE]
 ├── configs/
 │   ├── mnist_dense_{none,noise,wd,full}.yaml    # MNIST vision configs
@@ -111,10 +121,10 @@ UvA_FACT_2025/
 │   ├── run_overnight_mps.sh      # Full overnight run (vision + language)
 │   ├── test_mps_quick.sh         # Quick vision test
 │   ├── test_mps_language.sh      # Quick language test
-│   └── generate_figures.py       # Generate all vision figures [NEW]
-├── jobs/
-│   ├── train_array.job           # MNIST 20 runs (Snellius)
-│   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
+│   └── generate_figures.py       # Generate all vision figures
+├── jobs/                         # SLURM job scripts (consolidated)
+│   ├── language_interaction.job  # Interaction analysis (8h, fw-medium)
+│   ├── language_negation.job     # Negation discovery (fw-medium)
 │   └── language_full_pipeline.job # Full Section 5 pipeline
 ├── docs/
 │   └── WANDB_GUIDE.md            # wandb usage guide
@@ -122,14 +132,14 @@ UvA_FACT_2025/
 ├── results/
 │   ├── phase1/
 │   │   ├── checkpoints/          # MNIST vision checkpoints (20 files)
-│   │   └── figures/              # Generated figures (11 PDFs + 2 CSVs) [NEW]
+│   │   └── figures/              # Generated figures (11 PDFs + 2 CSVs)
 │   ├── phase1_fashion/checkpoints/ # Fashion-MNIST checkpoints (20 files)
 │   └── language/                 # Language results (JSON + checkpoints)
 ├── logs/                         # Experiment logs
 ├── notebooks/
-│   └── 01_reproduction.ipynb     # Vision analysis notebook [NEW]
+│   └── 01_reproduction.ipynb     # Vision analysis notebook
 ├── Report/
-│   └── figures/                  # Publication figures (9 PDFs) [NEW]
+│   └── figures/                  # Publication figures (9 PDFs)
 ├── environment.yml               # Snellius GPU environment
 └── environment_cpu.yml           # Local CPU/MPS environment
 ```
@@ -139,21 +149,33 @@ UvA_FACT_2025/
 *Section 4 (Vision) - COMPLETE*:
 1. `src/models/bilinear_layer.py` - BilinearDense (wraps original) + BilinearCP (extension)
 2. `src/train.py` - Vision training with wandb + codecarbon tracking
-3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
-4. `src/plot_utils/` - Reusable plotting module (style, eigenspectrum, eigenvectors, ablation)
+3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, kurtosis, spectral_summary, load_all_checkpoints
+4. `src/plot_utils/` - Reusable plotting module:
+   - `style.py` - Publication style, colors, constants
+   - `eigenspectrum.py` - Eigenspectrum visualization
+   - `eigenvectors.py` - Eigenvector image visualization
+   - `ablation.py` - Ablation and trade-off plots
+   - `explanation.py` - Sample explanation (eigenvector contributions) [NEW 2026-01-13]
+   - `interactive.py` - Plotly interactive versions [NEW 2026-01-13]
 5. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
 6. 8 vision config files (4 MNIST + 4 Fashion-MNIST)
-7. SLURM job scripts for Snellius
-8. `scripts/generate_figures.py` - Standalone figure generation script
-9. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
-10. **11 publication figures** in `Report/figures/` (eigenspectrum, eigenvectors, ablation, trade-off)
+7. `scripts/generate_figures.py` - Standalone figure generation script
+8. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
+9. **11 publication figures** in `Report/figures/` (eigenspectrum, eigenvectors, ablation, trade-off)
 
-*Section 5 (Language)*:
-11. `src/language/run_sae_training.py` - SAE training wrapper
-12. `src/language/negation_discovery.py` - Negation circuit discovery
-13. `src/language/interaction_analysis.py` - Interaction matrix analysis
-14. 3 language config files
-15. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
+*Section 5 (Language) - ~97% COMPLETE*:
+10. `src/language/run_sae_training.py` - SAE training wrapper
+11. `src/language/negation_discovery.py` - Negation circuit discovery
+12. `src/language/interaction_analysis.py` - Interaction matrix analysis
+13. `src/language/visualizer.py` - FeatureVisualizer class for token highlighting [NEW 2026-01-13]
+14. `src/language/interaction_viz.py` - Q matrix heatmaps, variance explained histograms [NEW 2026-01-13]
+15. 3 language config files
+16. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
+
+*Job Files (Consolidated 2026-01-13)*:
+17. `jobs/language_interaction.job` - Interaction analysis (8h time limit)
+18. `jobs/language_negation.job` - Negation discovery
+19. `jobs/language_full_pipeline.job` - Full Section 5 pipeline
 
 *Testing & Tracking*:
 16. 82 unit tests in `tests/`

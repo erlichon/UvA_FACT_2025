@@ -113,6 +113,61 @@ def eigenvalue_decay_rate(eigenvalues: Float[Tensor, "... n"]) -> Float[Tensor, 
     return sorted_vals[..., 1] / sorted_vals[..., 0].clamp(min=1e-10)
 
 
+def kurtosis(eigenvalues: Float[Tensor, "... n"]) -> Float[Tensor, "..."]:
+    """
+    Compute excess kurtosis of the eigenvalue distribution.
+
+    Kurtosis measures the "tailedness" of the distribution.
+    Higher kurtosis indicates more outlier eigenvalues.
+
+    Formula: E[(X - mu)^4] / sigma^4 - 3 (excess kurtosis)
+
+    This matches the original paper implementation in sae/functions.py.
+
+    Args:
+        eigenvalues: Eigenvalue tensor of shape [..., n]
+
+    Returns:
+        Excess kurtosis tensor of shape [...]
+    """
+    # Use absolute values for consistency with other metrics
+    vals = eigenvalues.abs()
+
+    # Compute mean and std
+    mean = vals.mean(dim=-1, keepdim=True)
+    std = vals.std(dim=-1, keepdim=True).clamp(min=1e-10)
+
+    # Standardize
+    standardized = (vals - mean) / std
+
+    # Fourth moment
+    fourth_moment = standardized.pow(4).mean(dim=-1)
+
+    # Excess kurtosis (subtract 3 for normal distribution baseline)
+    return fourth_moment - 3
+
+
+def truncated_eigenvalue_sum(
+    eigenvalues: Float[Tensor, "... n"],
+    k: int = 2
+) -> Float[Tensor, "..."]:
+    """
+    Compute sum of top-k eigenvalues by magnitude.
+
+    This is used to measure the "concentration" of eigenvalue mass.
+
+    Args:
+        eigenvalues: Eigenvalue tensor of shape [..., n]
+        k: Number of top eigenvalues to sum
+
+    Returns:
+        Sum of top-k absolute eigenvalues
+    """
+    abs_vals = eigenvalues.abs()
+    sorted_vals, _ = abs_vals.sort(dim=-1, descending=True)
+    return sorted_vals[..., :k].sum(dim=-1)
+
+
 def spectral_summary(eigenvalues: Float[Tensor, "classes n"]) -> dict:
     """
     Compute a summary of spectral metrics across all classes.
