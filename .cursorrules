@@ -159,15 +159,24 @@ from src.plot_utils.style import set_publication_style, COLORS
 from src.plot_utils.eigenspectrum import plot_eigenspectrum_comparison
 from src.plot_utils.eigenvectors import plot_eigenvectors_grid
 from src.plot_utils.ablation import plot_ablation_bars
+from src.plot_utils.explanation import plot_sample_explanation, plot_sample_explanation_interactive
+from src.plot_utils.interactive import plot_eigenspectrum_interactive, plot_accuracy_vs_rank_interactive
 
 set_publication_style()  # Call once at start
 ```
 
-**Key functions**:
+**Key functions (matplotlib)**:
 - `plot_eigenspectrum_comparison(eigenvalues_dict, ...)` - Compare configs
 - `plot_eigenvectors_grid(eigenvectors, eigenvalues, ...)` - 10x5 grid
 - `plot_ablation_bars(df, metrics, ...)` - Grouped bar chart
 - `plot_accuracy_vs_effective_rank(df, ...)` - Trade-off scatter
+- `plot_sample_explanation(sample, eigenvalues, eigenvectors, ...)` - Eigenvector contributions
+
+**Key functions (Plotly interactive)**:
+- `plot_eigenspectrum_interactive(eigenvalues_dict, ...)` - Interactive spectrum
+- `plot_eigenspectrum_per_class_interactive(eigenvalues, ...)` - Per-class interactive
+- `plot_accuracy_vs_rank_interactive(data, ...)` - Interactive scatter
+- `plot_sample_explanation_interactive(sample, eigenvalues, eigenvectors, ...)` - Interactive explanation
 
 ### Notebooks
 - Use project root discovery pattern at top of notebook
@@ -183,10 +192,11 @@ set_publication_style()  # Call once at start
 - All figures generated in `Report/figures/`
 - Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
 
-**Phase 2 (Language)**: IN PROGRESS
-- SAE training complete
-- Negation discovery needs validation
-- Interaction analysis in progress
+**Phase 2 (Language)**: ~97% COMPLETE
+- SAE training skipped (using pretrained)
+- Negation discovery complete
+- Interaction analysis running on Snellius (8h job)
+- Visualization modules implemented (visualizer.py, interaction_viz.py)
 
 ---
 
@@ -334,6 +344,28 @@ data:
 - **Negation features**: 3834 (not+negative), 751 (not+positive)
 - **Opposing directions**: Cosine similarity < 0
 - **Low-rank interactions**: >69% features with >0.75 rank-2 correlation
+
+### Language Visualization Utilities
+Use `src/language/` for language model visualization:
+```python
+from src.language.visualizer import FeatureVisualizer
+from src.language.interaction_viz import (
+    plot_interaction_matrix,
+    plot_variance_explained_histogram,
+    plot_effective_rank_distribution
+)
+
+# Token highlighting for SAE features
+visualizer = FeatureVisualizer(model, sae, tokenizer, device)
+html = visualizer.color_tokens_html(text, feature_idx)  # HTML output
+terminal = visualizer.color_tokens_terminal(text, feature_idx)  # ANSI colors
+
+# Q matrix visualization
+plot_interaction_matrix(Q, feature_idx=0, top_k=50, save_path="q_matrix.pdf")
+
+# Verify 69% claim
+plot_variance_explained_histogram(variance_explained, threshold=0.75, target_fraction=0.69)
+```
 
 ---
 
