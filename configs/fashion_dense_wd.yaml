@@ -5,7 +5,7 @@ model:
   mode: dense
   d_hidden: 256
   n_layer: 1
-  variance_corrected_init: true  # Push into Rich Training regime
+  variance_corrected_init: false  # Push into Rich Training regime
 
 training:
   epochs: 100
@@ -14,7 +14,7 @@ training:
 
 regularization:
   noise_std: 0.0
-  weight_decay: 0.5
+  weight_decay: 1.0
 
 data:
   dataset: fashion_mnist
