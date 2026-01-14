@@ -61,9 +61,7 @@ def is_mps_device(device: str) -> bool:
 
 def safe_eigh(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Perform eigendecomposition with MPS compatibility.
-
-    torch.linalg.eigh has limited MPS support, so we move to CPU if needed.
+    MPS-safe eigendecomposition.
 
     Args:
         tensor: Symmetric matrix to decompose
@@ -71,15 +69,19 @@ def safe_eigh(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     Returns:
         Tuple of (eigenvalues, eigenvectors)
     """
-    original_device = tensor.device
-
-    # MPS doesn't fully support eigh - move to CPU
-    if original_device.type == "mps":
-        tensor_cpu = tensor.cpu()
-        eigenvalues, eigenvectors = torch.linalg.eigh(tensor_cpu)
-        return eigenvalues.to(original_device), eigenvectors.to(original_device)
-
+    device = tensor.device
+    if device.type == "mps":
+        vals, vecs = torch.linalg.eigh(tensor.cpu())
+        return vals.to(device), vecs.to(device)
     return torch.linalg.eigh(tensor)
+
+
+def safe_eigvalsh(tensor: torch.Tensor) -> torch.Tensor:
+    """MPS-safe eigenvalue computation (eigenvalues only)."""
+    device = tensor.device
+    if device.type == "mps":
+        return torch.linalg.eigvalsh(tensor.cpu()).to(device)
+    return torch.linalg.eigvalsh(tensor)
 
 
 def setup_mps_fallbacks():

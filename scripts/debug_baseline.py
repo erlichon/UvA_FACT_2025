@@ -25,7 +25,7 @@ from image.datasets import MNIST
 from torch.optim import AdamW
 from einops import einsum
 
-from src.utils import load_config, set_seed
+from src.utils import load_config, set_seed, safe_eigh
 from src.analysis.spectral import effective_rank
 
 
@@ -50,8 +50,8 @@ def compute_bilinear_tensor_rank(model, device="cpu"):
     # Symmetrize
     b_sym = 0.5 * (b + b.mT)
 
-    # Eigendecomposition
-    vals, vecs = torch.linalg.eigh(b_sym)
+    # Eigendecomposition (MPS-safe)
+    vals, vecs = safe_eigh(b_sym)
 
     return vals, effective_rank(vals)
 

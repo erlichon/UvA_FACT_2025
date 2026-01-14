@@ -11,7 +11,6 @@ from pathlib import Path
 import argparse
 import torch
 import kornia
-from einops import einsum
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -34,49 +33,6 @@ from src.utils import (
 )
 from src.analysis.spectral import effective_rank, spectral_summary, top_k_coverage
 import wandb
-
-
-def decompose_model_mps_safe(model) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Decompose model into eigenvalues and eigenvectors with MPS compatibility.
-
-    This is a reimplementation of model.decompose() that handles MPS devices
-    by moving tensors to CPU for eigendecomposition.
-
-    Args:
-        model: Trained bilinear Model instance
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors)
-    """
-    device = next(model.parameters()).device
-
-    # Get model weights
-    w_u = model.w_u  # [cls, out]
-    w_lr = model.w_lr[0]  # [2, out, hidden]
-    w_e = model.w_e  # [hidden, input]
-
-    l, r = w_lr.unbind(0)  # Each: [out, hidden]
-
-    # Compute third-order tensor: b[cls, in1, in2]
-    b = einsum(w_u, l, r, "cls out, out in1, out in2 -> cls in1 in2")
-
-    # Symmetrize
-    b = 0.5 * (b + b.mT)
-
-    # Eigendecomposition - move to CPU for MPS compatibility
-    if device.type == "mps":
-        b_cpu = b.cpu()
-        vals, vecs = torch.linalg.eigh(b_cpu)
-        vals = vals.to(device)
-        vecs = vecs.to(device)
-    else:
-        vals, vecs = torch.linalg.eigh(b)
-
-    # Project eigenvectors back to input space
-    vecs = einsum(vecs, w_e, "cls emb comp, emb inp -> cls comp inp")
-
-    return vals, vecs
 
 
 def apply_variance_corrected_init(model, enabled: bool = True):
@@ -178,9 +134,9 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     print(f"Training for {epochs} epochs...")
     history = model.fit(train_data, test_data, transform=transform)
 
-    # Compute eigendecomposition (MPS-safe version)
+    # Compute eigendecomposition (original code is now MPS-safe)
     print("Computing eigendecomposition...")
-    eigenvalues, eigenvectors = decompose_model_mps_safe(model)
+    eigenvalues, eigenvectors = model.decompose()
 
     return model, history, eigenvalues, eigenvectors
 
