@@ -72,10 +72,9 @@ python scripts/recompute_effective_rank.py  # Recompute ranks after formula fix
 ```bash
 ssh scur0075@Snellius  # Case-sensitive hostname
 
-# Language experiments (consolidated job files)
-sbatch jobs/language_interaction.job   # Interaction analysis (8h, fw-medium)
-sbatch jobs/language_negation.job      # Negation discovery (fw-medium)
-sbatch jobs/language_full_pipeline.job # Full Section 5 pipeline
+sbatch jobs/train_array.job           # 20 MNIST runs (4 configs x 5 seeds)
+sbatch jobs/train_fashion_array.job   # 20 Fashion-MNIST runs
+sbatch jobs/language_full_pipeline.job  # Full Section 5
 
 squeue -u scur0075  # Monitor jobs
 ```
@@ -94,14 +93,10 @@ squeue -u scur0075  # Monitor jobs
 | Module | Purpose |
 |--------|---------|
 | `src/models/bilinear_layer.py` | `BilinearDense` (wraps original), `BilinearCP` (extension) |
-| `src/analysis/spectral.py` | `effective_rank()`, `top_k_coverage()`, `kurtosis()`, `load_checkpoint_eigenvalues()` |
+| `src/analysis/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py` |
-| `src/plot_utils/explanation.py` | Sample explanation plots showing eigenvector contributions |
-| `src/plot_utils/interactive.py` | Plotly interactive versions of all plots |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
 | `src/language/` | SAE training, negation discovery, interaction analysis |
-| `src/language/visualizer.py` | `FeatureVisualizer` class for token activation highlighting |
-| `src/language/interaction_viz.py` | Q matrix heatmaps, variance explained histograms |
 
 ### Original Paper Code
 

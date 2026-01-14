@@ -37,8 +37,6 @@ from src.utils import (
     get_device,
     load_config,
     track_emissions,
-    setup_mps_fallbacks,
-    is_mps_device,
     safe_eigh,
     init_wandb,
     finish_wandb,
@@ -217,14 +215,9 @@ def main():
     args = parser.parse_args()
 
     # Auto-detect device (includes MPS support)
+    # Tracer is now MPS-safe - einsum operations run on CPU internally
     device = get_device(args.device)
-
-    # Force CPU for interaction analysis - MPS has bugs with einsum operations
-    if is_mps_device(device):
-        print(f"MPS detected but forcing CPU for interaction analysis (MPS einsum bugs)")
-        device = "cpu"
-    else:
-        print(f"Using device: {device}")
+    print(f"Using device: {device}")
 
     # Load config
     config = load_config(args.config)

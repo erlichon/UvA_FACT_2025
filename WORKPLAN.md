@@ -288,14 +288,12 @@ Figure 5: Structure vs. Regularization Trade-off
 | L5.2 | Negation Discovery (ts-medium) | COMPLETE | `results/language/negation_analysis.json` | Same feature for both (small model) |
 | L5.2b | Negation Discovery (fw-medium) | **READY** | `results/language/negation_analysis_fwmedium.json` | Configs updated |
 | L5.3 | Interaction Analysis (ts-medium) | COMPLETE | `results/language/interaction_analysis.json` | 0% >0.75 (small model) |
-| L5.3b | Interaction Analysis (fw-medium) | **RUNNING** | `results/language/interaction_analysis_fwmedium.json` | 8h job on Snellius |
-| L5.4 | Visualization Modules | **COMPLETE** | `src/language/visualizer.py`, `interaction_viz.py` | Token highlighting, Q matrix heatmaps |
+| L5.3b | Interaction Analysis (fw-medium) | **READY** | `results/language/interaction_analysis_fwmedium.json` | Configs updated |
 
 **Language Notes**:
 - ts-medium results kept as "smaller model comparison" (30M params, layer 2/5, expansion=4)
 - fw-medium configs updated to match paper (335M params, layer 7, expansion=8, k=30)
-- Job files consolidated: `jobs/language_interaction.job` (8h), `jobs/language_negation.job`
-- Run overnight: `./scripts/run_overnight_mps.sh` or on GPU: `sbatch jobs/language_interaction.job`
+- Run overnight: `./scripts/run_overnight_mps.sh` or on GPU: `sbatch jobs/language_fwmedium.job`
 
 **Phase 1 Required Figures**:
 - [x] `eigenspectrum_comparison.pdf` - P1.1 vs P1.4 overlay **COMPLETE**
@@ -365,19 +363,7 @@ Figure 5: Structure vs. Regularization Trade-off
 src/
 ├── models/bilinear_layer.py   # Unified Dense + CP implementation
 ├── models/image_model.py      # MNIST classifier
-├── analysis/spectral.py       # Effective rank, kurtosis, eigenvalue analysis
-├── plot_utils/                # Visualization module [COMPLETE]
-│   ├── style.py               # Publication style, colors
-│   ├── eigenspectrum.py       # Eigenspectrum plots
-│   ├── eigenvectors.py        # Eigenvector visualization
-│   ├── ablation.py            # Ablation study plots
-│   ├── explanation.py         # Sample explanation (eigenvector contributions)
-│   └── interactive.py         # Plotly interactive versions
-├── language/                  # Section 5 wrappers [COMPLETE]
-│   ├── negation_discovery.py  # Negation circuit discovery
-│   ├── interaction_analysis.py # Interaction matrix analysis
-│   ├── visualizer.py          # FeatureVisualizer class
-│   └── interaction_viz.py     # Q matrix heatmaps, variance histograms
+├── analysis/spectral.py       # Effective rank, eigenvalue analysis
 ├── train.py                   # Main training script
 └── evaluate.py                # Evaluation and figure generation
 ```
