@@ -116,8 +116,8 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     # Apply variance-corrected initialization for Rich Training regime
     # This cures the "Lazy Training" pathology where the baseline "No Reg" model
     # would collapse to rank ~38 instead of ~150
-    # Set variance_corrected_init: false in config to disable
-    variance_corrected = config.get('model', {}).get('variance_corrected_init', True)
+    # Set variance_corrected_init: true in config to enable (disabled by default for paper reproduction)
+    variance_corrected = config.get('model', {}).get('variance_corrected_init', False)
     if variance_corrected:
         print("Applying variance-corrected initialization (Rich Training regime):")
         apply_variance_corrected_init(model, enabled=True)
@@ -172,7 +172,7 @@ def save_checkpoint(
             'noise_std': config['regularization']['noise_std'],
             'weight_decay': config['regularization']['weight_decay'],
             'dataset': dataset_name,
-            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', True),
+            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
         },
         'model_state_dict': model.state_dict(),
         'metrics': {

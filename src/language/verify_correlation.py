@@ -144,9 +144,46 @@ def pearson_correlation(x: torch.Tensor, y: torch.Tensor) -> float:
     return (numerator / denominator).item()
 
 
-def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32):
+def get_validation_dataset(model_name: str, n_samples: int = 2000):
     """
-    Create a DataLoader for validation data from TinyStories dataset.
+    Load appropriate validation dataset based on model type.
+    
+    TinyStories models (ts-*) use TinyStories dataset.
+    FineWeb models (fw-*) use FineWeb-EDU dataset.
+    
+    Args:
+        model_name: Model name (e.g., "tdooms/ts-tiny", "tdooms/fw-medium")
+        n_samples: Number of samples to load
+        
+    Returns:
+        HuggingFace dataset
+    """
+    if "ts-" in model_name:
+        print("Loading TinyStories validation data...")
+        try:
+            dataset = load_dataset("roneneldan/TinyStories", split="validation")
+        except Exception:
+            dataset = load_dataset("roneneldan/TinyStories", split="train")
+    else:
+        print("Loading FineWeb-EDU validation data...")
+        # Use the sample-10BT subset to avoid downloading full 10TB dataset
+        try:
+            dataset = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train")
+        except Exception:
+            # Fallback to TinyStories if FineWeb unavailable
+            print("  FineWeb-EDU unavailable, falling back to TinyStories...")
+            dataset = load_dataset("roneneldan/TinyStories", split="validation")
+    
+    # Sample if dataset is larger than needed
+    if len(dataset) > n_samples:
+        dataset = dataset.select(range(n_samples))
+    
+    return dataset
+
+
+def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32, model_name: str = None):
+    """
+    Create a DataLoader for validation data.
     
     Args:
         tokenizer: Model tokenizer
@@ -154,21 +191,16 @@ def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples
         device: Device to use
         n_samples: Number of samples to load
         batch_size: Batch size for DataLoader
+        model_name: Model name for dataset selection (e.g., "tdooms/fw-medium")
     
     Returns:
         DataLoader yielding batches with input_ids and attention_mask
     """
-    print("Loading TinyStories validation data...")
+    # Determine model name for dataset selection
+    if model_name is None:
+        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
     
-    # Load dataset (use validation split if available, else sample from train)
-    try:
-        dataset = load_dataset("roneneldan/TinyStories", split="validation")
-    except Exception:
-        dataset = load_dataset("roneneldan/TinyStories", split="train")
-    
-    # Sample if dataset is larger than needed
-    if len(dataset) > n_samples:
-        dataset = dataset.select(range(n_samples))
+    dataset = get_validation_dataset(model_name, n_samples)
     
     n_ctx = config.get("sae", {}).get("n_ctx", 256)
     
@@ -389,6 +421,18 @@ def main():
     parser.add_argument("--config", type=str, required=True, help="Path to config YAML")
     parser.add_argument("--output", type=str, default="results/language/correlation_analysis.json")
     parser.add_argument("--device", type=str, default=None)
+    
+    # Model/SAE overrides (for multi-model sweep)
+    parser.add_argument("--model", type=str, default=None, 
+                        help="Override model name (e.g., tdooms/ts-tiny, tdooms/fw-medium)")
+    parser.add_argument("--layer", type=int, default=None, 
+                        help="Override layer index (e.g., 4 for ts-tiny, 11 for fw-medium)")
+    parser.add_argument("--expansion", type=int, default=None,
+                        help="Override SAE expansion factor (e.g., 4 for ts-tiny, 8 for fw-*)")
+    parser.add_argument("--k", type=int, default=None,
+                        help="Override SAE top-k sparsity (default: 30)")
+    
+    # Analysis parameters
     parser.add_argument("--n-features", type=int, default=50, help="Number of features to analyze")
     parser.add_argument("--ranks", type=str, default="1,2,4,8,16", help="Ranks to evaluate (comma-separated)")
     parser.add_argument("--n-samples", type=int, default=2000, help="Number of validation samples")
@@ -426,8 +470,8 @@ def main():
     
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model
-        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
+        # Load model (CLI override takes precedence)
+        model_name = args.model or config.get("model", {}).get("pretrained", "tdooms/fw-medium")
         print(f"\nLoading model: {model_name}")
         model = Transformer.from_pretrained(model_name, device=device)
         
@@ -436,21 +480,25 @@ def main():
         print(f"  d_hidden: {model.config.d_hidden}")
         print(f"  n_layer: {model.config.n_layer}")
         
-        # Load output SAE
+        # Load output SAE (CLI overrides take precedence)
         sae_config = config.get("sae", {})
-        layer = sae_config.get("layer", 2)
-        out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 4, "k": 30})
+        out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 8, "k": 30})
+        
+        # Apply CLI overrides
+        layer = args.layer if args.layer is not None else sae_config.get("layer", 7)
+        expansion = args.expansion if args.expansion is not None else out_config.get("expansion", 8)
+        k = args.k if args.k is not None else out_config.get("k", 30)
         
         repo = f"{model.config.repo}-scope"
         print(f"\nLoading output SAE from {repo}...")
-        print(f"  Point: ({out_config['name']}, {layer})")
-        print(f"  Expansion: {out_config['expansion']}, k: {out_config['k']}")
+        print(f"  Point: (mlp-out, {layer})")
+        print(f"  Expansion: {expansion}, k: {k}")
         
         sae_out = SAE.from_pretrained(
             repo,
-            point=(out_config["name"], layer),
-            expansion=out_config["expansion"],
-            k=out_config["k"],
+            point=("mlp-out", layer),
+            expansion=expansion,
+            k=k,
         ).to(device)
         
         print(f"  SAE d_model: {sae_out.d_model}")
@@ -461,6 +509,7 @@ def main():
             model.tokenizer, config, device, 
             n_samples=args.n_samples,
             batch_size=args.batch_size,
+            model_name=model_name,
         )
         
         # Select features to analyze
@@ -486,6 +535,8 @@ def main():
     summary = {
         "model_name": model_name,
         "layer": layer,
+        "expansion": expansion,
+        "k": k,
         "n_features_requested": args.n_features,
         "n_features_analyzed": len(feature_results),
         "ranks": ranks,
