@@ -32,6 +32,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from datasets import load_dataset
+import matplotlib.pyplot as plt
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -55,6 +56,59 @@ from src.language.interaction_utils import (
     get_interaction_eigenpairs,
     predict_activation_from_eigenpairs,
 )
+
+
+def plot_correlation_vs_rank(summary: dict, output_path: str):
+    """
+    Generate a plot of Average Correlation vs Rank.
+    
+    Args:
+        summary: Summary dict containing correlation_by_rank
+        output_path: Path to save the PNG plot
+    """
+    ranks = []
+    means = []
+    stds = []
+    
+    for rank_str, stats in sorted(summary["correlation_by_rank"].items(), key=lambda x: int(x[0])):
+        ranks.append(int(rank_str))
+        means.append(stats["mean"])
+        stds.append(stats["std"])
+    
+    ranks = np.array(ranks)
+    means = np.array(means)
+    stds = np.array(stds)
+    
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # Plot with error bars
+    ax.errorbar(ranks, means, yerr=stds, fmt='o-', capsize=5, capthick=2, 
+                linewidth=2, markersize=8, color='#2E86AB', ecolor='#A23B72')
+    
+    # Reference line at 0.75 (paper claim)
+    ax.axhline(y=0.75, color='#F18F01', linestyle='--', linewidth=1.5, 
+               label='Paper claim (75%)')
+    
+    ax.set_xlabel('Rank (k)', fontsize=12)
+    ax.set_ylabel('Pearson Correlation', fontsize=12)
+    ax.set_title('Weight-Based Prediction vs True SAE Activation\n(Figure 9 Reproduction)', fontsize=14)
+    ax.set_xticks(ranks)
+    ax.set_ylim(0, 1)
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='lower right')
+    
+    # Add annotation for rank-2
+    if 2 in ranks:
+        idx = list(ranks).index(2)
+        ax.annotate(f'Rank-2: {means[idx]:.3f}', 
+                    xy=(2, means[idx]), xytext=(2.5, means[idx] - 0.15),
+                    fontsize=10, ha='left',
+                    arrowprops=dict(arrowstyle='->', color='gray'))
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    print(f"\nPlot saved to: {output_path}")
 
 
 def pearson_correlation(x: torch.Tensor, y: torch.Tensor) -> float:
@@ -90,18 +144,19 @@ def pearson_correlation(x: torch.Tensor, y: torch.Tensor) -> float:
     return (numerator / denominator).item()
 
 
-def create_validation_batch(tokenizer, config: dict, device: str, n_samples: int = 1000):
+def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32):
     """
-    Create a validation batch from TinyStories dataset.
+    Create a DataLoader for validation data from TinyStories dataset.
     
     Args:
         tokenizer: Model tokenizer
         config: Experiment config
         device: Device to use
         n_samples: Number of samples to load
+        batch_size: Batch size for DataLoader
     
     Returns:
-        Dict with input_ids and attention_mask tensors
+        DataLoader yielding batches with input_ids and attention_mask
     """
     print("Loading TinyStories validation data...")
     
@@ -130,14 +185,16 @@ def create_validation_batch(tokenizer, config: dict, device: str, n_samples: int
     dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
     dataset.set_format("torch")
     
-    # Create batch
-    batch_size = min(32, len(dataset))
-    batch = {
-        "input_ids": dataset["input_ids"][:batch_size].to(device),
-        "attention_mask": dataset["attention_mask"][:batch_size].to(device),
-    }
+    # Create DataLoader
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+    )
     
-    return batch
+    print(f"  Created DataLoader with {len(dataset)} samples, batch_size={batch_size}")
+    
+    return dataloader
 
 
 def find_active_features(sae_activations: torch.Tensor, min_active: int = 10) -> list:
@@ -164,15 +221,20 @@ def verify_correlation(
     model,
     sae_out: SAE,
     layer: int,
-    val_batch: dict,
+    dataloader,
     feature_indices: list,
     ranks: list,
     device: str,
-    min_active: int = 10,
+    min_active_per_feature: int = 50,
+    target_samples_per_feature: int = 500,
+    max_batches: int = 50,
     max_features: int = 50,
 ):
     """
     Compute correlation between weight-based predictions and actual SAE activations.
+    
+    CRITICAL FIX: Accumulates samples across multiple batches to ensure statistical
+    significance. The correlation is computed on the full accumulated data, not per-batch.
     
     The key equation being verified:
         z_c(x) ≈ sum_{j=1}^k lambda_j * (v_j^T x)^2
@@ -181,11 +243,13 @@ def verify_correlation(
         model: Transformer model
         sae_out: Output SAE (for encoding mlp_out)
         layer: Layer index
-        val_batch: Validation batch dict
+        dataloader: DataLoader yielding validation batches
         feature_indices: List of feature indices to analyze (or None for auto-detect)
         ranks: List of ranks to evaluate [1, 2, 4, 8, 16]
         device: Device for computation
-        min_active: Minimum active positions for a feature to be analyzed
+        min_active_per_feature: Minimum active samples required per feature
+        target_samples_per_feature: Target number of active samples before computing correlation
+        max_batches: Maximum number of batches to process
         max_features: Maximum number of features to analyze
     
     Returns:
@@ -195,53 +259,63 @@ def verify_correlation(
     feature_results = []
     
     sight = Sight(model)
+    sae_out_device = sae_out.to(device)
     
-    print(f"\nCapturing activations for layer {layer}...")
+    print(f"\nAccumulating activations for layer {layer} across batches...")
+    print(f"  Target: {target_samples_per_feature} active samples per feature")
+    print(f"  Max batches: {max_batches}")
+    
+    # Accumulate mlp_in and SAE activations across batches
+    all_mlp_in = []
+    all_z_true = []
+    total_tokens = 0
     
     with torch.no_grad():
-        # Forward pass to capture mlp_in and mlp_out
-        with sight.trace(val_batch, validate=False, scan=False):
-            # mlp_in: input to bilinear layer (after LayerNorm n2)
-            # This is in residual stream space [batch, seq, d_model]
-            mlp_in = sight["mlp-in", layer].save()
+        for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches", total=min(max_batches, len(dataloader)))):
+            if batch_idx >= max_batches:
+                break
             
-            # mlp_out: output of bilinear layer [batch, seq, d_model]
-            mlp_out = sight["mlp-out", layer].save()
+            # Move batch to device
+            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+            
+            # Forward pass to capture mlp_in and mlp_out
+            with sight.trace(batch, validate=False, scan=False):
+                mlp_in = sight["mlp-in", layer].save()
+                mlp_out = sight["mlp-out", layer].save()
+            
+            # Flatten batch and sequence: [batch*seq, d_model]
+            mlp_in_flat = mlp_in.flatten(0, 1).float()
+            mlp_out_flat = mlp_out.flatten(0, 1).float()
+            
+            # Compute SAE activations
+            z_true = sae_out_device.encode(mlp_out_flat)  # [batch*seq, d_features]
+            
+            # Move to CPU and accumulate
+            all_mlp_in.append(mlp_in_flat.cpu())
+            all_z_true.append(z_true.cpu())
+            total_tokens += mlp_in_flat.shape[0]
         
-        print(f"  mlp_in shape: {mlp_in.shape}")
-        print(f"  mlp_out shape: {mlp_out.shape}")
+        # Concatenate all accumulated data
+        print(f"\nConcatenating {len(all_mlp_in)} batches ({total_tokens} tokens)...")
+        mlp_in_all = torch.cat(all_mlp_in, dim=0)  # [total_tokens, d_model]
+        z_true_all = torch.cat(all_z_true, dim=0)  # [total_tokens, d_features]
         
-        # Flatten batch and sequence dimensions: [batch*seq, d_model]
-        mlp_in_flat = mlp_in.flatten(0, 1).float()
-        mlp_out_flat = mlp_out.flatten(0, 1).float()
+        del all_mlp_in, all_z_true
         
-        # Move SAE to same device and compute activations
-        sae_out_device = sae_out.to(device)
-        
-        # Compute true SAE activations for all features
-        print("Computing true SAE activations...")
-        z_true_all = sae_out_device.encode(mlp_out_flat)  # [batch*seq, d_features]
-        
-        # Move to CPU for analysis
-        z_true_all = z_true_all.cpu()
-        mlp_in_flat = mlp_in_flat.cpu()
-        
+        print(f"  mlp_in_all shape: {mlp_in_all.shape}")
         print(f"  z_true_all shape: {z_true_all.shape}")
         print(f"  z_true_all nonzero: {(z_true_all > 0).sum().item()}")
         
         # Find features with sufficient activations
         print("Finding active features...")
-        all_active_features = find_active_features(z_true_all, min_active=min_active)
-        print(f"  Found {len(all_active_features)} features with >= {min_active} active positions")
+        all_active_features = find_active_features(z_true_all, min_active=min_active_per_feature)
+        print(f"  Found {len(all_active_features)} features with >= {min_active_per_feature} active positions")
         
-        # If specific features requested, filter to only those that are active
-        # Otherwise use the active features found
+        # Select features to analyze
         if feature_indices:
-            # Filter requested features to only those that are active
             active_set = set(all_active_features)
             feature_indices = [f for f in feature_indices if f in active_set]
             if len(feature_indices) == 0:
-                # Fall back to using active features
                 print(f"  Warning: None of requested features are active, using auto-detected features")
                 feature_indices = all_active_features
         else:
@@ -252,12 +326,10 @@ def verify_correlation(
             feature_indices = feature_indices[:max_features]
         
         n_features = len(feature_indices)
-        
         print(f"\nAnalyzing {n_features} features across ranks {ranks}...")
         
         for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
             # Get decoder direction for this feature
-            # w_dec.weight is [d_model, d_features], so column feat_idx gives [d_model]
             out_direction = sae_out_device.w_dec.weight[:, feat_idx].cpu()
             
             # Get eigenpairs from weights (unprojected Q in residual stream space)
@@ -269,25 +341,24 @@ def verify_correlation(
                 device="cpu",
             )
             
-            # True activation for this feature
-            z_true = z_true_all[:, feat_idx]  # [batch*seq]
+            # True activation for this feature across ALL accumulated tokens
+            z_true_feat = z_true_all[:, feat_idx]  # [total_tokens]
             
-            # Filter for active positions (z > 0) 
-            # We need sufficient active samples for meaningful correlation
-            active_mask = z_true > 0
+            # Filter for active positions (z > 0)
+            active_mask = z_true_feat > 0
             n_active = active_mask.sum().item()
             
-            if n_active < min_active:
+            # Skip features with insufficient active samples
+            if n_active < min_active_per_feature:
                 continue
             
-            x_active = mlp_in_flat[active_mask]  # [n_active, d_model]
-            z_active = z_true[active_mask]       # [n_active]
+            x_active = mlp_in_all[active_mask]   # [n_active, d_model]
+            z_active = z_true_feat[active_mask]  # [n_active]
             
             feature_corrs = {}
             
             # Compute correlation for each rank
             for k in ranks:
-                # Get top-k eigenpairs
                 k_actual = min(k, len(eigenpairs.eigenvalues))
                 eigenvalues_k = eigenpairs.eigenvalues[:k_actual]
                 eigenvectors_k = eigenpairs.eigenvectors[:, :k_actual]
@@ -297,7 +368,7 @@ def verify_correlation(
                     x_active, eigenvalues_k, eigenvectors_k
                 )
                 
-                # Pearson correlation
+                # Pearson correlation on FULL accumulated data
                 corr = pearson_correlation(z_active, z_pred)
                 
                 if not np.isnan(corr):
@@ -320,9 +391,13 @@ def main():
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--n-features", type=int, default=50, help="Number of features to analyze")
     parser.add_argument("--ranks", type=str, default="1,2,4,8,16", help="Ranks to evaluate (comma-separated)")
-    parser.add_argument("--n-samples", type=int, default=1000, help="Number of validation samples")
-    parser.add_argument("--min-active", type=int, default=10, help="Minimum active positions per feature")
+    parser.add_argument("--n-samples", type=int, default=2000, help="Number of validation samples")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for DataLoader")
+    parser.add_argument("--max-batches", type=int, default=50, help="Maximum batches to process")
+    parser.add_argument("--min-active", type=int, default=50, help="Minimum active samples per feature")
+    parser.add_argument("--target-samples", type=int, default=500, help="Target active samples per feature")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
+    parser.add_argument("--plot", type=str, default=None, help="Path to save correlation plot (PNG)")
     args = parser.parse_args()
     
     # Parse ranks
@@ -381,26 +456,29 @@ def main():
         print(f"  SAE d_model: {sae_out.d_model}")
         print(f"  SAE d_features: {sae_out.d_features}")
         
-        # Create validation batch
-        val_batch = create_validation_batch(
-            model.tokenizer, config, device, n_samples=args.n_samples
+        # Create validation DataLoader (multiple batches for accumulation)
+        dataloader = create_validation_dataloader(
+            model.tokenizer, config, device, 
+            n_samples=args.n_samples,
+            batch_size=args.batch_size,
         )
-        print(f"  Validation batch size: {val_batch['input_ids'].shape[0]}")
         
         # Select features to analyze
         # Pass None to find active features dynamically, then limit to n_features
         feature_indices = None  # Will be populated by find_active_features in verify_correlation
         
-        # Run correlation analysis
+        # Run correlation analysis with batch accumulation
         results, feature_results = verify_correlation(
             model=model,
             sae_out=sae_out,
             layer=layer,
-            val_batch=val_batch,
+            dataloader=dataloader,
             feature_indices=feature_indices,
             ranks=ranks,
             device=device,
-            min_active=args.min_active,
+            min_active_per_feature=args.min_active,
+            target_samples_per_feature=args.target_samples,
+            max_batches=args.max_batches,
             max_features=args.n_features,
         )
     
@@ -477,6 +555,12 @@ def main():
         json.dump(full_results, f, indent=2)
     
     print(f"\nResults saved to: {output_path}")
+    
+    # Generate plot if requested
+    if args.plot and len(summary["correlation_by_rank"]) > 0:
+        plot_path = Path(args.plot)
+        plot_path.parent.mkdir(parents=True, exist_ok=True)
+        plot_correlation_vs_rank(summary, str(plot_path))
 
 
 if __name__ == "__main__":
