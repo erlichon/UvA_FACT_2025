@@ -4,9 +4,9 @@
 
 ---
 
-## 0. Current State (Updated: 2026-01-12)
+## 0. Current State (Updated: 2026-01-14)
 
-### Section 4 (Vision) COMPLETE + ANALYZED, Section 5 (Language) ~80% Complete
+### Section 4 (Vision) COMPLETE + ANALYZED, Section 5 (Language) ~90% Complete
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
@@ -17,7 +17,7 @@
 | D | CP Rank Sweep (E3) | Waiting | Needs CP implementation |
 | E | Synthesis + ViT (E4+E5) | Waiting | Needs E1 + E3 results |
 | F | CP Implementation (E2) | Ready | Can start (BilinearCP skeleton exists) |
-| G | Language Infrastructure (Section 5) | **IN PROGRESS** | Negation discovery needs re-run with fw-medium |
+| G | Language Infrastructure (Section 5) | **COMPLETE** | Run sweep to generate Figure 9 |
 
 **Vision Experiments COMPLETE** (40/40 runs finished + analyzed):
 - **MNIST**: 20 runs (4 configs x 5 seeds) - ALL COMPLETE
@@ -48,29 +48,70 @@
 
 ### Section 5 Status
 
-| Experiment | Status | Result |
-|------------|--------|--------|
-| SAE Training | SKIPPED | Using pretrained SAEs from HuggingFace |
-| Interaction Analysis (ts-medium) | COMPLETE | 0% >0.75 corr - smaller model comparison |
-| Interaction Analysis (fw-medium) | READY | Configs updated, run overnight or GPU |
-| Negation Discovery (ts-medium) | COMPLETE | Found same feature for both patterns |
-| Negation Discovery (fw-medium) | READY | Configs updated, run overnight or GPU |
+**IMPORTANT CLARIFICATION (2026-01-14)**: The paper's Section 5 experiments use **fw-medium** as the primary model!
 
-**Configuration Fix (2026-01-12)**:
-- **Previous**: ts-medium model, layer 2/5, expansion=4, k=30
-- **Updated**: fw-medium model, layer 7, expansion=8, k=30
-- The k=30 vs k=32 difference is minor (pretrained SAEs only have k=30)
+#### What the Paper Actually Does (Reality)
+
+From `tutorials/2_language.ipynb`:
+```python
+model = Transformer.from_pretrained("tdooms/fw-medium")  # 16 layers, ~300M params
+tracer = Tracer(model, layer=7, inp=dict(expansion=8), out=dict(expansion=8))
+out_vis(3834, 751, dark=True)  # THE negation features
+```
+
+The paper states: *"What I find fascinating is that we also found this subspace (using the same technique) in a completely different model trained on TinyStories."* — This means TinyStories is **secondary validation**, not the primary experiment.
+
+#### Section 5.1: Negation Circuit Discovery (PRIMARY: fw-medium)
+- **Model**: `tdooms/fw-medium` (16 layers, ~300M params, FineWeb-EDU)
+- **SAE Layer**: 7 (middle of 16-layer model)
+- **Expansion**: 8
+- **Features**: 3834 (not+negative: "not lost", "no interference"), 751 (not+positive: "not free", "little relief")
+- **Claim**: Features form opposing directions (cosine similarity < 0)
+- **Config**: `configs/language_negation_fw.yaml`
+
+#### Section 5.2: Low-Rank Correlation (Figure 9)
+- **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 7)
+- **Expansion**: 4 for ts-medium/fw-small, 8 for fw-medium
+- **Claim**: 69% of features have >0.75 rank-2 correlation
+- **Config**: `configs/language_correlation_fw.yaml`
+
+| Experiment | Status | Config | Notes |
+|------------|--------|--------|-------|
+| SAE Training | SKIPPED | - | Using pretrained SAEs from HuggingFace |
+| Negation (fw-medium, L7) | **RUNNING** | `language_negation_fw.yaml` | Paper's primary model |
+| Negation (ts-medium, L4) | COMPLETE | `language_negation_ts.yaml` | Secondary validation (same feature for both - model too small) |
+| Correlation (fw-medium, L7) | **RUNNING** | `language_correlation_fw.yaml` | Figure 9 primary |
+| Correlation Sweep (all 3) | READY | `scripts/run_language_sweep.sh` | Full Figure 9 |
+
+**Model Configuration (CORRECTED 2026-01-14)**:
+| Model | Layers | SAE Layer | Expansion | Dataset | Paper Use |
+|-------|--------|-----------|-----------|---------|-----------|
+| fw-medium | 16 | 7 | 8 | FineWeb-EDU | **PRIMARY** (negation + Figure 9) |
+| fw-small | 12 | 8 | 4 | FineWeb-EDU | Figure 9 |
+| ts-medium | 6 | 4 | 4 | TinyStories | Secondary validation |
+
+**Notes**:
+- Paper refers to "ts-tiny" but HuggingFace model is `tdooms/ts-medium`
+- Feature indices 3834/751 are specific to fw-medium SAE training
+- ts-medium is too small to develop distinct sentiment-specific negation features
+- All pretrained SAEs use k=30 (paper uses k=32, difference is minor)
+
+**Commands**:
+- Run fw-medium negation (Section 5.1 PRIMARY): `python src/language/negation_discovery.py --config configs/language_negation_fw.yaml --use-pretrained`
+- Run fw-medium correlation (Figure 9): `python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml`
+- Run correlation sweep (all 3 models): `./scripts/run_language_sweep.sh [mps|cuda|cpu]`
+- Generate Figure 9: `python scripts/generate_language_figures.py`
+- Run overnight (all experiments): `./scripts/run_overnight_mps.sh`
 - Run on GPU: `sbatch jobs/language_fwmedium.job`
-- Run locally overnight: `./scripts/run_overnight_mps.sh`
-
-**ts-medium Results** (smaller model comparison):
-- Results differ significantly from paper due to model/layer differences
-- Keep as comparison point for "different model" ablation
 
 **Section 5 (Language) Components** (IMPLEMENTED):
 - `src/language/run_sae_training.py` - SAE training wrapper (uses original paper code)
 - `src/language/negation_discovery.py` - Negation circuit discovery
 - `src/language/interaction_analysis.py` - Interaction matrix analysis
+- `src/language/verify_correlation.py` - Correlation verification (CLI: `--model`, `--layer`, `--expansion`, `--k`)
+- `src/plot_utils/language.py` - Centralized plotting for Figure 9 (progression, histogram, scatters)
+- `scripts/run_language_sweep.sh` - Run correlation sweep across ts-medium, fw-small, fw-medium
+- `scripts/generate_language_figures.py` - Generate all language figures from results
 - `configs/language_sae.yaml` - SAE training config
 - `configs/language_negation.yaml` - Negation discovery config
 - `configs/language_interaction.yaml` - Interaction analysis config
@@ -89,29 +130,33 @@ UvA_FACT_2025/
 │   ├── analysis/
 │   │   ├── __init__.py
 │   │   └── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints [COMPLETE]
-│   ├── plot_utils/               # Reusable plotting functions [NEW]
+│   ├── plot_utils/               # Reusable plotting functions [COMPLETE]
 │   │   ├── __init__.py
 │   │   ├── style.py              # Publication style, colors, constants
 │   │   ├── eigenspectrum.py      # Eigenspectrum visualization
 │   │   ├── eigenvectors.py       # Eigenvector image visualization
-│   │   └── ablation.py           # Ablation and trade-off plots
+│   │   ├── ablation.py           # Ablation and trade-off plots
+│   │   └── language.py           # Language Figure 9 plots [NEW]
 │   ├── language/
 │   │   ├── __init__.py
 │   │   ├── run_sae_training.py   # SAE training wrapper [COMPLETE]
 │   │   ├── negation_discovery.py # Negation circuit analysis [COMPLETE]
-│   │   └── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
+│   │   ├── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
+│   │   └── verify_correlation.py # Correlation verification [COMPLETE]
 │   └── train.py                  # Vision training script [COMPLETE]
 ├── configs/
 │   ├── mnist_dense_{none,noise,wd,full}.yaml    # MNIST vision configs
 │   ├── fashion_dense_{none,noise,wd,full}.yaml  # Fashion-MNIST configs
-│   ├── language_sae.yaml         # SAE training config
+│   ├── language_sae.yaml         # SAE training config (supports model/layer overrides)
 │   ├── language_negation.yaml    # Negation discovery config
 │   └── language_interaction.yaml # Interaction analysis config
 ├── scripts/
 │   ├── run_overnight_mps.sh      # Full overnight run (vision + language)
+│   ├── run_language_sweep.sh     # Correlation sweep for 3 models [NEW]
+│   ├── generate_figures.py       # Generate all vision figures
+│   ├── generate_language_figures.py # Generate language Figure 9 [NEW]
 │   ├── test_mps_quick.sh         # Quick vision test
-│   ├── test_mps_language.sh      # Quick language test
-│   └── generate_figures.py       # Generate all vision figures [NEW]
+│   └── test_mps_language.sh      # Quick language test
 ├── jobs/
 │   ├── train_array.job           # MNIST 20 runs (Snellius)
 │   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
@@ -122,14 +167,16 @@ UvA_FACT_2025/
 ├── results/
 │   ├── phase1/
 │   │   ├── checkpoints/          # MNIST vision checkpoints (20 files)
-│   │   └── figures/              # Generated figures (11 PDFs + 2 CSVs) [NEW]
+│   │   └── figures/              # Generated figures (11 PDFs + 2 CSVs)
 │   ├── phase1_fashion/checkpoints/ # Fashion-MNIST checkpoints (20 files)
-│   └── language/                 # Language results (JSON + checkpoints)
+│   └── language/                 # Language results (JSON + figures)
+│       ├── correlation_{ts-medium,fw-small,fw-medium}.json  # Sweep results
+│       └── figures/              # Language figures (Figure 9A, 9B, etc.)
 ├── logs/                         # Experiment logs
 ├── notebooks/
-│   └── 01_reproduction.ipynb     # Vision analysis notebook [NEW]
+│   └── 01_reproduction.ipynb     # Vision analysis notebook
 ├── Report/
-│   └── figures/                  # Publication figures (9 PDFs) [NEW]
+│   └── figures/                  # Publication figures
 ├── environment.yml               # Snellius GPU environment
 └── environment_cpu.yml           # Local CPU/MPS environment
 ```
@@ -152,14 +199,18 @@ UvA_FACT_2025/
 11. `src/language/run_sae_training.py` - SAE training wrapper
 12. `src/language/negation_discovery.py` - Negation circuit discovery
 13. `src/language/interaction_analysis.py` - Interaction matrix analysis
-14. 3 language config files
-15. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
+14. `src/language/verify_correlation.py` - Correlation verification with CLI overrides
+15. `src/plot_utils/language.py` - Centralized plotting for Figure 9 (DRY architecture)
+16. `scripts/run_language_sweep.sh` - Correlation sweep across 3 models
+17. `scripts/generate_language_figures.py` - Generate all language figures
+18. 3 language config files (supports model/layer/expansion overrides)
+19. `scripts/run_overnight_mps.sh` - Complete overnight pipeline
 
 *Testing & Tracking*:
-16. 82 unit tests in `tests/`
-17. wandb integration with single project: `itayerlich96-student/fact-bilinear`
-18. CO2 tracking via codecarbon for all experiments
-19. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
+20. 82 unit tests in `tests/`
+21. wandb integration with single project: `itayerlich96-student/fact-bilinear`
+22. CO2 tracking via codecarbon for all experiments
+23. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
 
 **Critical Agreements Standardized**:
 1. **CP Factor Names**: A=[d_in,rank], B=[d_in,rank], C=[d_out,rank]
@@ -172,10 +223,13 @@ UvA_FACT_2025/
 **Next Actions**:
 1. ~~Person B: Create visualization code and notebook~~ **DONE**
 2. ~~Generate figures for report from checkpoints~~ **DONE** (11 figures in Report/figures/)
-3. Run fw-medium language experiments (negation + interaction analysis)
-4. Update Report LaTeX with actual figures and tables
-5. Start Phase 2 extensions (CP implementation, robustness testing)
-6. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear
+3. ~~Language correlation sweep infrastructure~~ **DONE** (scripts/run_language_sweep.sh + src/plot_utils/language.py)
+4. **Run language correlation sweep**: `./scripts/run_language_sweep.sh` (ts-medium, fw-small, fw-medium)
+5. **Generate language figures**: `python scripts/generate_language_figures.py`
+6. Run fw-medium interaction + negation experiments
+7. Update Report LaTeX with actual figures and tables
+8. Start Phase 2 extensions (CP implementation, robustness testing)
+9. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear
 
 ---
 

@@ -1,0 +1,30 @@
+name: language_negation_ts
+experiment_id: L5.1
+
+# Paper Section 5.1: Sentiment Negation Circuit
+# "...for a 6-layer bilinear transformer trained on TinyStories"
+# "...two opposing output features in layer 4 (index 1882 and 1179)"
+
+model:
+  # TinyStories bilinear transformer (paper's model for Section 5.1)
+  # Note: Paper calls this "ts-tiny" but HuggingFace repo is "tdooms/ts-medium"
+  pretrained: "tdooms/ts-medium"
+
+sae:
+  # Use pretrained SAEs from HuggingFace (tdooms/ts-medium-scope)
+  # Paper Section 5.1 uses layer 4 of 6-layer model
+  # Paper Table 3: expansion=4, k=30 for TinyStories experiments
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 4
+  expansion: 4
+  k: 30
+
+analysis:
+  # Number of samples to analyze for negation patterns
+  n_samples: 50000
+  # Number of top features to report
+  top_k: 20
+  # Paper's expected features: 1882 (not-good), 1179 (not-bad)
+  # Note: Our discovered features may have different indices but should
+  # exhibit the same properties (opposing directions, sentiment patterns)

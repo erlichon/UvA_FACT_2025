@@ -96,20 +96,27 @@ UvA_FACT_2025/
 │   │   ├── style.py              # Publication style, colors
 │   │   ├── eigenspectrum.py      # Eigenvalue plots
 │   │   ├── eigenvectors.py       # Eigenvector visualizations
-│   │   └── ablation.py           # Ablation study plots
+│   │   ├── ablation.py           # Ablation study plots
+│   │   └── language.py           # Figure 9 plots (correlation progression, histogram, scatters)
 │   ├── language/                 # Section 5 wrappers
+│   │   ├── verify_correlation.py # Correlation verification (CLI: --model, --layer, --expansion, --k)
+│   │   └── ...                   # Other language modules
 │   ├── train.py                  # Vision training
 │   └── utils.py                  # Shared utilities
 ├── configs/                      # YAML experiment configs
 ├── jobs/                         # SLURM scripts
 ├── scripts/                      # Standalone scripts
-│   └── generate_figures.py       # Generate all figures
+│   ├── generate_figures.py       # Generate vision figures
+│   ├── run_language_sweep.sh     # Correlation sweep (ts-medium, fw-small, fw-medium)
+│   └── generate_language_figures.py  # Generate Figure 9 from sweep results
 ├── results/
 │   ├── phase1/
 │   │   ├── checkpoints/          # MNIST checkpoints (40 files)
 │   │   └── figures/              # Generated PDF figures
 │   ├── phase1_fashion/checkpoints/
-│   └── language/                 # Language results (JSON + checkpoints)
+│   └── language/                 # Language results (JSON + figures)
+│       ├── correlation_{model}.json  # Sweep results per model
+│       └── figures/              # Language figures
 ├── notebooks/                    # Analysis notebooks
 │   └── 01_reproduction.ipynb     # Vision reproduction analysis
 ├── Report/
@@ -159,6 +166,11 @@ from src.plot_utils.style import set_publication_style, COLORS
 from src.plot_utils.eigenspectrum import plot_eigenspectrum_comparison
 from src.plot_utils.eigenvectors import plot_eigenvectors_grid
 from src.plot_utils.ablation import plot_ablation_bars
+from src.plot_utils.language import (
+    plot_correlation_progression,
+    plot_correlation_histogram,
+    load_correlation_results,
+)
 
 set_publication_style()  # Call once at start
 ```
@@ -168,6 +180,9 @@ set_publication_style()  # Call once at start
 - `plot_eigenvectors_grid(eigenvectors, eigenvalues, ...)` - 10x5 grid
 - `plot_ablation_bars(df, metrics, ...)` - Grouped bar chart
 - `plot_accuracy_vs_effective_rank(df, ...)` - Trade-off scatter
+- `plot_correlation_progression(results_dict, ...)` - Figure 9A (line plot)
+- `plot_correlation_histogram(results_dict, rank=2, ...)` - Figure 9B (histogram)
+- `load_correlation_results(results_dir)` - Load sweep JSON files
 
 ### Notebooks
 - Use project root discovery pattern at top of notebook
@@ -183,10 +198,11 @@ set_publication_style()  # Call once at start
 - All figures generated in `Report/figures/`
 - Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
 
-**Phase 2 (Language)**: IN PROGRESS
-- SAE training complete
-- Negation discovery needs validation
-- Interaction analysis in progress
+**Phase 2 (Language)**: ~90% COMPLETE
+- Correlation sweep infrastructure complete (`scripts/run_language_sweep.sh`)
+- Centralized plotting module (`src/plot_utils/language.py`) for Figure 9
+- Ready to run sweep for ts-medium, fw-small, fw-medium
+- Figure generation: `python scripts/generate_language_figures.py`
 
 ---
 
@@ -214,6 +230,17 @@ python src/train.py --config configs/mnist_dense_full.yaml --seed 42
 
 ### Language Experiments (Section 5)
 ```bash
+# Run correlation sweep for Figure 9 (ts-medium, fw-small, fw-medium)
+./scripts/run_language_sweep.sh           # Default: MPS device
+./scripts/run_language_sweep.sh cuda      # Use CUDA
+
+# Generate Figure 9 from sweep results
+python scripts/generate_language_figures.py
+
+# Single model correlation verification
+python src/language/verify_correlation.py --config configs/language_sae.yaml \
+    --model tdooms/fw-medium --layer 10 --expansion 8 --k 30
+
 # Negation discovery (uses pretrained SAEs)
 python src/language/negation_discovery.py --config configs/language_negation.yaml --use-pretrained
 
@@ -334,6 +361,8 @@ data:
 - **Negation features**: 3834 (not+negative), 751 (not+positive)
 - **Opposing directions**: Cosine similarity < 0
 - **Low-rank interactions**: >69% features with >0.75 rank-2 correlation
+- **Models for Figure 9**: ts-medium (6L, layer 4), fw-small (12L, layer 8), fw-medium (16L, layer 10)
+- **Note**: Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
 
 ---
 
@@ -418,3 +447,5 @@ ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
 4. **Handle both** `train_acc` and `train/acc` column formats
 5. **Language experiments** are slow on MPS (~4-6 hours)
 6. **Use pretrained SAEs** from HuggingFace when available
+7. **Model name mismatch** - Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
+8. **SAE expansion** - fw-small-scope only has expansion=4 available (not 8)

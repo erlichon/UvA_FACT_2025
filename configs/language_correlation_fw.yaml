@@ -1,0 +1,42 @@
+name: language_correlation_fw
+experiment_id: L5.2
+
+# Paper Section 5.2: Low-rank approximations of output feature activations
+# Figure 9: Activation correlations with low-rank approximations
+# "We evaluate this on three bilinear transformers at approximately 2/3 depth:
+#  a 6-layer TinyStories ('ts-tiny') and two FineWeb models with 12 and 16 layers
+#  ('fw-small' and 'fw-medium')."
+
+model:
+  # FineWeb-EDU bilinear transformer (335M params, 16 layers)
+  # Paper uses layer 7 (approximately 2/3 depth: 7/16 ≈ 0.44, but close to middle)
+  pretrained: "tdooms/fw-medium"
+
+sae:
+  # Paper Appendix D: SAE training with expansion 8 for larger models
+  # "quite narrow dictionaries (4x expansion) for simplicity" refers to ts-tiny
+  # fw-medium uses 8x expansion
+  layer: 7
+  input:
+    name: "mlp-in"
+    expansion: 8
+    k: 30
+  output:
+    name: "mlp-out"
+    expansion: 8
+    k: 30
+
+analysis:
+  # Number of output features to analyze
+  n_features: 500
+  # Rank for low-rank approximation (k=2 for paper's rank-2 analysis)
+  rank_k: 2
+  # Paper claim: 69% of features have >0.75 correlation with rank-2 approximation
+  target_correlation: 0.75
+
+# For verify_correlation.py script
+validation:
+  n_samples: 2000
+  batch_size: 32
+  max_batches: 50
+  ranks: [1, 2, 4, 8, 16]

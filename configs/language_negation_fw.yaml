@@ -1,0 +1,38 @@
+# Language Negation Discovery - FineWeb-Medium (Paper's Primary Model)
+# 
+# This is the correct configuration for reproducing Section 5.1 negation features.
+# The paper's features 3834 (not+negative) and 751 (not+positive) are from this model.
+#
+# From tutorials/2_language.ipynb:
+#   model = Transformer.from_pretrained("tdooms/fw-medium")
+#   tracer = Tracer(model, layer=7, inp=dict(expansion=8), out=dict(expansion=8))
+#   out_vis(3834, 751, dark=True)  # The negation features
+#
+# Paper claims: "The first feature fires on negative words that have recently been 
+# negated (not lost, no interference). The second feature does the inverse; it fires 
+# on positive words that were negated (not free, little relief)."
+
+name: language_negation_fw_medium
+experiment_id: L5.1_fw
+
+model:
+  pretrained: "tdooms/fw-medium"  # 16 layers, ~300M params, trained on FineWeb-EDU
+
+sae:
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 7           # Paper uses layer 7 (middle of 16-layer model)
+  expansion: 8       # Paper uses expansion 8
+  k: 30
+
+analysis:
+  n_samples: 50000   # Number of text samples to analyze
+  top_k: 20          # Number of top features to report
+  
+  # Paper's expected features (for verification)
+  expected_not_positive_feature: 751   # "not + positive words"
+  expected_not_negative_feature: 3834  # "not + negative words"
+
+# Paper claims these features should have:
+# - Negative cosine similarity (opposing directions)
+# - Form a linear subspace

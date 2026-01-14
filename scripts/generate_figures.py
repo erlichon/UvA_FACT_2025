@@ -3,11 +3,13 @@
 Generate all figures for Phase 1 (Vision) reproduction.
 
 Run from project root:
-    python scripts/generate_figures.py
+    python scripts/generate_figures.py              # All Phase 1 figures
+    python scripts/generate_figures.py --sweep-only # Only noise sweep (Figure 4)
 """
 
 import sys
 from pathlib import Path
+import argparse
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -27,6 +29,7 @@ from src.analysis.spectral import (
     aggregate_by_config,
     compute_rank_ratio,
     spectral_summary,
+    effective_rank,
 )
 
 # Plotting utilities
@@ -44,7 +47,161 @@ from src.plot_utils.ablation import (
 )
 
 
+def generate_figure_4_noise_sweep(figure_dir: Path, report_dir: Path):
+    """
+    Generate Figure 4: Effect of Input Noise on Eigenvectors.
+    
+    This reproduces the paper's Figure 4 showing top eigenvectors for models
+    trained with varying Gaussian input noise levels.
+    
+    Returns True if successful, False if checkpoints not found.
+    """
+    NOISE_CHECKPOINT_DIR = PROJECT_ROOT / "results/sweeps/noise_sweep/checkpoints"
+    NOISE_LEVELS = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    TARGET_DIGIT = 5  # Paper uses digit 5 for Figure 4
+    
+    print("\n" + "=" * 60)
+    print("FIGURE 4: Effect of Input Noise on Eigenvectors")
+    print("=" * 60)
+    
+    # Check if checkpoints exist
+    if not NOISE_CHECKPOINT_DIR.exists():
+        print(f"ERROR: Noise sweep checkpoints not found at {NOISE_CHECKPOINT_DIR}")
+        print("Run the noise sweep first:")
+        print("  ./scripts/run_mnist_noise_sweep.sh")
+        return False
+    
+    # Load all noise sweep checkpoints
+    results = []
+    eigenvectors_by_noise = {}
+    eigenvalues_by_noise = {}
+    
+    for noise in NOISE_LEVELS:
+        ckpt_path = NOISE_CHECKPOINT_DIR / f"mnist_noise_{noise}_seed42.pt"
+        if not ckpt_path.exists():
+            print(f"WARNING: Missing checkpoint for noise={noise}")
+            continue
+        
+        ckpt = torch.load(ckpt_path, map_location='cpu')
+        eigenvalues = ckpt['eigenvalues']
+        eigenvectors = ckpt['eigenvectors']
+        
+        # Compute effective rank
+        eff_rank = effective_rank(eigenvalues).mean().item()
+        val_acc = ckpt['metrics']['val_acc']
+        
+        results.append({
+            'noise_std': noise,
+            'effective_rank': eff_rank,
+            'val_acc': val_acc,
+        })
+        
+        eigenvalues_by_noise[noise] = eigenvalues
+        eigenvectors_by_noise[noise] = eigenvectors
+        
+        print(f"  noise={noise}: eff_rank={eff_rank:.1f}, val_acc={val_acc*100:.1f}%")
+    
+    if len(results) < 2:
+        print("ERROR: Need at least 2 checkpoints to generate Figure 4")
+        return False
+    
+    results_df = pd.DataFrame(results)
+    
+    # --- Figure 4a: Top Eigenvector vs Noise Level (like paper Figure 4) ---
+    print("\nGenerating eigenvector comparison across noise levels...")
+    
+    n_noise = len(eigenvectors_by_noise)
+    fig, axes = plt.subplots(1, n_noise, figsize=(2.5 * n_noise, 3))
+    if n_noise == 1:
+        axes = [axes]
+    
+    for idx, (noise, vecs) in enumerate(sorted(eigenvectors_by_noise.items())):
+        ax = axes[idx]
+        
+        # Get top eigenvector for target digit
+        eigenvals = eigenvalues_by_noise[noise][TARGET_DIGIT]
+        top_idx = eigenvals.abs().argmax()
+        top_vec = vecs[TARGET_DIGIT, top_idx].numpy()
+        
+        # Reshape to 28x28
+        img = top_vec.reshape(28, 28)
+        
+        # Plot with red-blue colormap (like paper)
+        vmax = np.abs(img).max()
+        im = ax.imshow(img, cmap='RdBu_r', vmin=-vmax, vmax=vmax)
+        
+        # Add accuracy as title
+        acc = results_df[results_df['noise_std'] == noise]['val_acc'].values[0]
+        ax.set_title(f'noise={noise}\nacc={acc*100:.1f}%', fontsize=10)
+        ax.axis('off')
+    
+    plt.suptitle(f'Top Eigenvector for Digit {TARGET_DIGIT} vs Input Noise', fontsize=12)
+    plt.tight_layout()
+    
+    save_path = figure_dir / "figure_4_noise_eigenvectors.pdf"
+    fig.savefig(save_path, bbox_inches='tight', dpi=150)
+    fig.savefig(report_dir / "figure_4_noise_eigenvectors.pdf", bbox_inches='tight', dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {save_path}")
+    
+    # --- Figure 4b: Effective Rank vs Noise Level ---
+    print("Generating effective rank vs noise level plot...")
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(results_df['noise_std'], results_df['effective_rank'], 
+            'o-', markersize=8, linewidth=2, color=COLORS.get('full', '#2ecc71'))
+    ax.set_xlabel('Input Noise (std)', fontsize=12)
+    ax.set_ylabel('Effective Rank', fontsize=12)
+    ax.set_title('Effect of Input Noise on Effective Rank', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    
+    # Add annotations
+    for _, row in results_df.iterrows():
+        ax.annotate(f'{row["effective_rank"]:.0f}', 
+                   (row['noise_std'], row['effective_rank']),
+                   textcoords="offset points", xytext=(0, 10), ha='center', fontsize=9)
+    
+    plt.tight_layout()
+    save_path = figure_dir / "figure_4_noise_vs_rank.pdf"
+    fig.savefig(save_path, bbox_inches='tight', dpi=150)
+    fig.savefig(report_dir / "figure_4_noise_vs_rank.pdf", bbox_inches='tight', dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {save_path}")
+    
+    # --- Figure 4c: Accuracy vs Noise Level ---
+    print("Generating accuracy vs noise level plot...")
+    
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(results_df['noise_std'], results_df['val_acc'] * 100, 
+            's-', markersize=8, linewidth=2, color=COLORS.get('noise', '#3498db'))
+    ax.set_xlabel('Input Noise (std)', fontsize=12)
+    ax.set_ylabel('Validation Accuracy (%)', fontsize=12)
+    ax.set_title('Effect of Input Noise on Accuracy', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(90, 100)
+    
+    plt.tight_layout()
+    save_path = figure_dir / "figure_4_noise_vs_accuracy.pdf"
+    fig.savefig(save_path, bbox_inches='tight', dpi=150)
+    plt.close(fig)
+    print(f"  Saved: {save_path}")
+    
+    # --- Save results CSV ---
+    csv_path = figure_dir / "noise_sweep_results.csv"
+    results_df.to_csv(csv_path, index=False)
+    print(f"  Saved: {csv_path}")
+    
+    print("\nFigure 4 generation complete!")
+    return True
+
+
 def main():
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="Generate figures for reproduction")
+    parser.add_argument("--sweep-only", action="store_true", 
+                       help="Only generate noise sweep figures (Figure 4)")
+    args = parser.parse_args()
+    
     # Set publication style
     set_publication_style()
 
@@ -52,10 +209,21 @@ def main():
     MNIST_CHECKPOINT_DIR = PROJECT_ROOT / "results/phase1/checkpoints"
     FASHION_CHECKPOINT_DIR = PROJECT_ROOT / "results/phase1_fashion/checkpoints"
     FIGURE_DIR = PROJECT_ROOT / "results/phase1/figures"
+    SWEEP_FIGURE_DIR = PROJECT_ROOT / "results/sweeps/noise_sweep/figures"
     REPORT_FIGURE_DIR = PROJECT_ROOT / "Report/figures"
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+    SWEEP_FIGURE_DIR.mkdir(parents=True, exist_ok=True)
     REPORT_FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # If sweep-only mode, just generate Figure 4 and exit
+    if args.sweep_only:
+        success = generate_figure_4_noise_sweep(SWEEP_FIGURE_DIR, REPORT_FIGURE_DIR)
+        if success:
+            print("\nSweep figures saved to:")
+            print(f"  - {SWEEP_FIGURE_DIR}")
+            print(f"  - {REPORT_FIGURE_DIR}")
+        return
 
     print(f"MNIST checkpoints: {len(list(MNIST_CHECKPOINT_DIR.glob('*.pt')))} files")
     print(f"Fashion checkpoints: {len(list(FASHION_CHECKPOINT_DIR.glob('*.pt')))} files")
@@ -241,8 +409,14 @@ def main():
     print(f"       Noise rank: {noise_rank:.1f}")
 
     print("\n" + "=" * 60)
+    
+    # --- Figure 4: Noise Sweep (if checkpoints exist) ---
+    generate_figure_4_noise_sweep(SWEEP_FIGURE_DIR, REPORT_FIGURE_DIR)
+    
+    print("\n" + "=" * 60)
     print(f"\nFigures saved to:")
     print(f"  - {FIGURE_DIR}")
+    print(f"  - {SWEEP_FIGURE_DIR}")
     print(f"  - {REPORT_FIGURE_DIR}")
     print("\nDone!")
 

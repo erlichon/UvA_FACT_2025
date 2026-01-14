@@ -41,14 +41,26 @@ python src/train.py --config configs/mnist_dense_full.yaml --seed 42
 ### Language Experiments (Section 5)
 
 ```bash
-# Negation circuit discovery (uses pretrained SAEs by default)
-python src/language/negation_discovery.py --config configs/language_negation.yaml --use-pretrained
+# Section 5.1: Negation Discovery (fw-medium is the paper's PRIMARY model)
+python src/language/negation_discovery.py --config configs/language_negation_fw.yaml --use-pretrained
+# Expected: features 3834 (not+negative) and 751 (not+positive) with cosine sim < 0
+
+# Section 5.2: Correlation Sweep for Figure 9 (all 3 models)
+./scripts/run_language_sweep.sh           # Default: MPS device
+./scripts/run_language_sweep.sh cuda      # Use CUDA
+
+# Generate language figures from sweep results
+python scripts/generate_language_figures.py
+
+# Single model correlation verification (with CLI overrides)
+python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml \
+    --model tdooms/fw-medium --layer 7 --expansion 8 --k 30
 
 # Interaction matrix analysis
 python src/language/interaction_analysis.py --config configs/language_interaction.yaml
 
-# Train SAE from scratch (optional)
-python src/language/run_sae_training.py --config configs/language_sae.yaml --no-wandb
+# Run ALL experiments overnight (vision + language)
+./scripts/run_overnight_mps.sh
 ```
 
 ### Testing
@@ -63,8 +75,13 @@ python -m pytest tests/ --cov=src --cov-report=term-missing  # With coverage
 ### Analysis & Figures
 
 ```bash
-python scripts/generate_figures.py       # Generate all figures from checkpoints
+# Vision figures
+python scripts/generate_figures.py       # Generate all vision figures from checkpoints
 python scripts/recompute_effective_rank.py  # Recompute ranks after formula fix
+
+# Language figures (Figure 9)
+./scripts/run_language_sweep.sh          # Run correlation sweep first
+python scripts/generate_language_figures.py  # Generate Figure 9A, 9B from results
 ```
 
 ### Snellius HPC
@@ -94,9 +111,11 @@ squeue -u scur0075  # Monitor jobs
 |--------|---------|
 | `src/models/bilinear_layer.py` | `BilinearDense` (wraps original), `BilinearCP` (extension) |
 | `src/analysis/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
-| `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py` |
+| `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
+| `src/plot_utils/language.py` | Figure 9 plots: `plot_correlation_progression()`, `plot_correlation_histogram()`, `plot_correlation_scatters()` |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
-| `src/language/` | SAE training, negation discovery, interaction analysis |
+| `src/language/` | SAE training, negation discovery, interaction analysis, correlation verification |
+| `src/language/verify_correlation.py` | Correlation verification with CLI: `--model`, `--layer`, `--expansion`, `--k` |
 
 ### Original Paper Code
 
@@ -149,7 +168,22 @@ def effective_rank(eigenvalues):
 
 ### Language Model Configuration
 
-Configs use `fw-medium` model (335M params) with layer=7, expansion=8, k=30. The paper uses k=32 but pretrained SAEs only have k=30.
+**IMPORTANT**: Paper's Section 5 uses **fw-medium** as the primary model for both negation discovery AND Figure 9!
+
+**Model Configuration (from paper's tutorials/2_language.ipynb)**:
+| Model | Layers | SAE Layer | Expansion | SAE Repo | Paper Use |
+|-------|--------|-----------|-----------|----------|-----------|
+| fw-medium | 16 | **7** | 8 | `tdooms/fw-medium-scope` | **PRIMARY** (negation features 3834/751 + Figure 9) |
+| fw-small | 12 | 8 | 4 | `tdooms/fw-small-scope` | Figure 9 |
+| ts-medium | 6 | 4 | 4 | `tdooms/ts-medium-scope` | Secondary validation |
+
+**Notes**:
+- Paper refers to "ts-tiny" but HuggingFace model is `tdooms/ts-medium` (6 layers)
+- Negation features 3834/751 are from fw-medium layer 7, NOT ts-medium
+- ts-medium is too small (~30M params) to develop distinct sentiment-specific features
+- fw-small-scope only has expansion=4 SAEs available
+- All pretrained SAEs use k=30 (paper uses k=32, minor difference)
+- Use ~2/3 model depth for SAE layer selection
 
 ### Checkpoint Column Compatibility
 

@@ -39,6 +39,19 @@ from src.plot_utils.interactive import (
     plot_eigenvectors_interactive,
 )
 from src.plot_utils.style import set_publication_style, COLORS, MARKERS
+from src.plot_utils.language import (
+    plot_correlation_progression,
+    plot_correlation_histogram,
+    plot_correlation_scatters,
+    plot_interaction_submatrix,
+    plot_eigenvector_projections,
+    plot_activation_vs_approximation,
+    plot_correlation_training_progression,
+    load_correlation_results,
+    compute_fraction_above_threshold,
+    MODEL_COLORS,
+    MODEL_LABELS,
+)
 
 __all__ = [
     # Eigenspectrum plots (matplotlib)
@@ -66,4 +79,16 @@ __all__ = [
     "set_publication_style",
     "COLORS",
     "MARKERS",
+    # Language plots
+    "plot_correlation_progression",
+    "plot_correlation_histogram",
+    "plot_correlation_scatters",
+    "plot_interaction_submatrix",
+    "plot_eigenvector_projections",
+    "plot_activation_vs_approximation",
+    "plot_correlation_training_progression",
+    "load_correlation_results",
+    "compute_fraction_above_threshold",
+    "MODEL_COLORS",
+    "MODEL_LABELS",
 ]
