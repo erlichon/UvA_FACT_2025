@@ -50,7 +50,8 @@ We reproduce the main experiments from Pearce et al. (2024): Section 4 (Vision),
 Our ablation study disentangles the contributions of noise augmentation and weight decay to interpretability.
 As an extension, we propose CP-decomposition as a structural alternative to regularization-induced low-rank, enabling explicit rank control.
 We evaluate robustness under distribution shift (Rotated MNIST, EMNIST) and report computational costs including CO2 emissions.
-Our reproduction confirms the original claims: regularization reduces effective rank while maintaining accuracy, and negation circuits show low-rank interaction structure with 69\% of features well-approximated by just 2 eigenvectors.
+Our reproduction confirms the vision claims: regularization reduces effective rank (21.4 vs 38.5 for no regularization) while maintaining accuracy (98\%).
+For language, we confirm negation circuit discovery (opposing features with cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---mean rank-2 correlations (0.37--0.55) fall well below the paper's 69\% $>$0.75 threshold.
 \end{abstract}
 
 % Modular sections
