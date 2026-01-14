@@ -140,20 +140,21 @@ def get_interaction_eigenpairs(
     Q = compute_interaction_matrix(w_l, w_r, w_p, out_vec, symmetrize=True)
     
     # Eigendecomposition (MPS-safe via safe_eigh)
-    # Note: torch.linalg.eigh returns eigenvalues in ascending order
+    # Note: torch.linalg.eigh returns eigenvalues in ascending order (by value, not magnitude)
     eigenvalues, eigenvectors = safe_eigh(Q)
     
-    # Sort by descending magnitude for interpretability
-    # (largest magnitude eigenvalues correspond to strongest interactions)
-    order = eigenvalues.abs().argsort(descending=True)
-    eigenvalues_sorted = eigenvalues[order]
-    eigenvectors_sorted = eigenvectors[:, order]
+    # CRITICAL: Sort by MAGNITUDE (absolute value), not by signed value!
+    # The paper relies on cancellation between large positive and negative eigenvalues.
+    # The largest magnitude eigenvalues (regardless of sign) capture the strongest interactions.
+    sort_indices = torch.argsort(eigenvalues.abs(), descending=True)
+    eigenvalues_sorted = eigenvalues[sort_indices]
+    eigenvectors_sorted = eigenvectors[:, sort_indices]
     
     return InteractionEigenpairs(
         eigenvalues=eigenvalues_sorted,
         eigenvectors=eigenvectors_sorted,
         Q_matrix=Q,
-        sort_indices=order,
+        sort_indices=sort_indices,
     )
 
 
