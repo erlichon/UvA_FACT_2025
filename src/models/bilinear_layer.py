@@ -75,35 +75,33 @@ class BilinearCP(nn.Module):
         self.rank = rank
 
         # CP factors: A, B for input projections, C for output
-        # Use Xavier-style initialization: scale by 1/sqrt(fan_in)
-        # For bilinear: output variance ~ Var(x)^2 * Var(A) * Var(B) * Var(C) * rank
-        # To maintain unit variance: std = (d_in * rank)^(-1/4) for A, B and (rank)^(-1/2) for C
-        std_ab = (d_in * rank) ** (-0.25)
-        std_c = rank ** (-0.5)
-
-        self.A = nn.Parameter(torch.randn(d_in, rank) * std_ab)
-        self.B = nn.Parameter(torch.randn(d_in, rank) * std_ab)
-        self.C = nn.Parameter(torch.randn(d_out, rank) * std_c)
+        # Fixed small scale initialization (0.02) to prevent activation explosion
+        # from the Hadamard product in forward pass
+        self.A = nn.Parameter(torch.randn(d_in, rank) * 0.02)
+        self.B = nn.Parameter(torch.randn(d_in, rank) * 0.02)
+        self.C = nn.Parameter(torch.randn(d_out, rank) * 0.02)
+        
+        # Learnable scaling factors for interactions
         self.lambdas = nn.Parameter(torch.ones(rank))
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
-        # x: [..., d_in]
+        """
+        Forward pass using vectorized matrix multiplications.
+        
+        Args:
+            x: Input tensor [..., d_in]
+            
+        Returns:
+            Output tensor [..., d_out]
+            
+        Math:
+            y = ((x @ A) * (x @ B) * lambdas) @ C.T
+        """
+        # Vectorized operations - no loops over rank dimension
         left = x @ self.A          # [..., rank]
         right = x @ self.B         # [..., rank]
-        hidden = left * right * self.lambdas  # [..., rank]
+        hidden = left * right * self.lambdas  # [..., rank] (element-wise product)
         return hidden @ self.C.T   # [..., d_out]
-
-    @property
-    def w_l(self) -> Float[Tensor, "d_out d_in"]:
-        """Reconstruct W_l for compatibility with analysis code."""
-        # W_l[o, i] = sum_r lambda[r] * C[o,r] * A[i,r]
-        return (self.C * self.lambdas) @ self.A.T
-
-    @property
-    def w_r(self) -> Float[Tensor, "d_out d_in"]:
-        """Reconstruct W_r for compatibility with analysis code."""
-        # W_r[o, i] = sum_r C[o,r] * B[i,r]
-        return self.C @ self.B.T
 
 
 def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
