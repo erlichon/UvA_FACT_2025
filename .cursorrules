@@ -198,10 +198,11 @@ set_publication_style()  # Call once at start
 - All figures generated in `Report/figures/`
 - Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
 
-**Phase 2 (Language)**: ~90% COMPLETE
+**Phase 2 (Language)**: ~95% COMPLETE
 - Correlation sweep infrastructure complete (`scripts/run_language_sweep.sh`)
 - Centralized plotting module (`src/plot_utils/language.py`) for Figure 9
-- Ready to run sweep for ts-medium, fw-small, fw-medium
+- **CRITICAL**: Paper's negation features (3834/751) come from fw-medium, NOT ts-medium
+- Overnight script: `./scripts/run_overnight_mps.sh` (runs all experiments)
 - Figure generation: `python scripts/generate_language_figures.py`
 
 ---
@@ -358,10 +359,11 @@ data:
 - **~10 eigenvalues** per class capture digit structure
 
 ### Section 5 (Language)
+- **Primary Model**: `fw-medium` (16L, layer 7, expansion 8) - ALL main results!
 - **Negation features**: 3834 (not+negative), 751 (not+positive)
 - **Opposing directions**: Cosine similarity < 0
 - **Low-rank interactions**: >69% features with >0.75 rank-2 correlation
-- **Models for Figure 9**: ts-medium (6L, layer 4), fw-small (12L, layer 8), fw-medium (16L, layer 10)
+- **Models for Figure 9**: ts-medium (6L, layer 4), fw-small (12L, layer 8), fw-medium (16L, layer 7)
 - **Note**: Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
 
 ---
@@ -449,3 +451,4 @@ ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
 6. **Use pretrained SAEs** from HuggingFace when available
 7. **Model name mismatch** - Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
 8. **SAE expansion** - fw-small-scope only has expansion=4 available (not 8)
+9. **Negation model** - Paper's negation features (3834/751) are from **fw-medium**, NOT ts-medium!
