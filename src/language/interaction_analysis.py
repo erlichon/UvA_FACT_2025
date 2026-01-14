@@ -41,6 +41,10 @@ from src.utils import (
     init_wandb,
     finish_wandb,
 )
+from src.language.interaction_utils import (
+    get_interaction_eigenpairs_from_tracer,
+    compute_interaction_matrix,
+)
 
 
 def rank_k_variance_explained(Q: torch.Tensor, k: int = 2) -> float:
@@ -108,45 +112,42 @@ def analyze_single_feature_original(tracer: Tracer, feat_idx: int, rank_k: int =
 
 def analyze_single_feature_manual(tracer: Tracer, feat_idx: int, rank_k: int = 2) -> dict:
     """
-    Analyze a single feature's interaction matrix using manual einsum decomposition.
+    Analyze a single feature's interaction matrix using the interaction_utils module.
 
-    Memory-efficient CPU-based implementation. Always projects onto SAE latents.
+    Memory-efficient CPU-based implementation. Always projects onto SAE latents
+    for spectral statistics (effective rank, variance explained).
+    
+    The core Q computation is factored out into interaction_utils.py for reuse
+    by verify_correlation.py.
     """
     model, layer = tracer.model, tracer.layer
-    out_latent = tracer.out_latents[feat_idx]  # Single feature vector
+    out_latent = tracer.out_latents[feat_idx]  # Single feature vector [d_model]
 
-    # Compute Q matrix using manual decomposition
-    # Original: res = einsum("mi,mj,om,...o->ij", w_l, w_r, w_p, out_latent)
+    # Get weights for Q computation
+    w_l = model.w_l[layer].float().cpu()  # [d_hidden, d_model]
+    w_r = model.w_r[layer].float().cpu()  # [d_hidden, d_model]
+    w_p = model.w_p[layer].float().cpu()  # [d_model, d_hidden]
+    out_vec = out_latent.float().cpu()    # [d_model]
 
-    w_l = model.w_l[layer].float().cpu()  # [m, i]
-    w_r = model.w_r[layer].float().cpu()  # [m, j]
-    w_p = model.w_p[layer].float().cpu()  # [o, m]
-    out_vec = out_latent.float().cpu()    # [o]
+    # Compute unprojected Q using the utility function
+    Q_unprojected = compute_interaction_matrix(w_l, w_r, w_p, out_vec, symmetrize=True)
 
-    # Compute projection: [o] @ [o, m] -> [m]
-    proj = out_vec @ w_p  # [m]
+    # Clean up weight tensors
+    del w_l, w_r, w_p, out_vec
 
-    # Scale w_l by projection
-    scaled_l = proj.unsqueeze(1) * w_l  # [m, i]
-
-    # Q[i,j] = sum_m scaled_l[m,i] * w_r[m,j]
-    Q = scaled_l.T @ w_r  # [i, j]
-
-    # Clean up intermediates
-    del w_l, w_r, w_p, out_vec, proj, scaled_l
-
-    # Always project onto SAE latents for interpretability
+    # Project onto SAE latents for spectral statistics (preserves existing behavior)
+    # This is needed for interpretability metrics as per the paper
     inp_latents = tracer.inp_latents.float().cpu()
-    Q = inp_latents.T @ Q @ inp_latents
-    Q = 0.5 * (Q + Q.T)  # Symmetrize
-    del inp_latents
+    Q_projected = inp_latents.T @ Q_unprojected @ inp_latents
+    Q_projected = 0.5 * (Q_projected + Q_projected.T)  # Re-symmetrize after projection
+    del inp_latents, Q_unprojected
 
-    # Compute metrics
-    var_explained = rank_k_variance_explained(Q, k=rank_k)
-    eff_rank = compute_effective_rank(Q.unsqueeze(0)).item()
-    trunc_eig = compute_truncated_eigenvalues(Q.unsqueeze(0), k=rank_k).item()
+    # Compute metrics on projected Q
+    var_explained = rank_k_variance_explained(Q_projected, k=rank_k)
+    eff_rank = compute_effective_rank(Q_projected.unsqueeze(0)).item()
+    trunc_eig = compute_truncated_eigenvalues(Q_projected.unsqueeze(0), k=rank_k).item()
 
-    del Q
+    del Q_projected
 
     return {
         "variance_explained": var_explained,
