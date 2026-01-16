@@ -276,7 +276,7 @@ def semantic_similarity_score(
     Args:
         similarity_matrix: Pairwise similarity [10 digits, 26 letters]
         expected_pairs: Dict mapping letters to expected digits
-                        e.g., {'O': 0, 'I': 1, 'Z': 2, 'S': 5, 'B': 8}
+                        e.g., {'O': 0, 'I': 1, 'Z': 2, 'S': 5, 'B': 6}
     
     Returns:
         Dictionary with:
@@ -308,3 +308,48 @@ def semantic_similarity_score(
         'ratio': np.mean(expected_sims) / (random_sims.mean().item() + 1e-10),
         'per_pair': per_pair,
     }
+
+
+def sort_eigenvectors_by_magnitude(
+    eigenvalues: Float[Tensor, "n_classes n_components"],
+    eigenvectors: Float[Tensor, "n_classes n_components n_features"],
+) -> Float[Tensor, "n_classes n_components n_features"]:
+    """
+    Sort eigenvectors by their corresponding eigenvalue magnitude.
+    
+    For each class, sorts eigenvectors in descending order of eigenvalue
+    magnitude, so the first eigenvector has the largest eigenvalue.
+    
+    This function is used to ensure consistent eigenvector ordering when
+    comparing subspaces between different models, since eigendecomposition
+    can return eigenvectors in arbitrary order.
+    
+    Args:
+        eigenvalues: Eigenvalues tensor [n_classes, n_components]
+        eigenvectors: Eigenvectors tensor [n_classes, n_components, n_features]
+    
+    Returns:
+        Sorted eigenvectors tensor [n_classes, n_components, n_features]
+        where eigenvectors[:, i, :] corresponds to eigenvalues[:, i] in
+        descending order of magnitude.
+    
+    Example:
+        >>> vals = torch.tensor([[0.5, 0.8, 0.2], [0.3, 0.9, 0.1]])
+        >>> vecs = torch.randn(2, 3, 784)
+        >>> sorted_vecs = sort_eigenvectors_by_magnitude(vals, vecs)
+        >>> # sorted_vecs[0] now has vecs corresponding to [0.8, 0.5, 0.2]
+        >>> # sorted_vecs[1] now has vecs corresponding to [0.9, 0.3, 0.1]
+    
+    Note:
+        This function uses absolute value for sorting to handle potentially
+        negative eigenvalues correctly (magnitude is what matters for
+        importance, not sign).
+    """
+    n_classes = eigenvalues.shape[0]
+    sorted_vecs = []
+    
+    for c in range(n_classes):
+        _, indices = eigenvalues[c].abs().sort(descending=True)
+        sorted_vecs.append(eigenvectors[c, indices])
+    
+    return torch.stack(sorted_vecs)
