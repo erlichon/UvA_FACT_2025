@@ -14,10 +14,24 @@ from typing import Optional, Any
 from contextlib import contextmanager
 from dataclasses import dataclass
 import time
+import logging
+import warnings
+import os
 import yaml
 import torch
 import wandb
-from codecarbon import EmissionsTracker
+
+# Suppress codecarbon warnings about RAPL permissions (common on HPC systems)
+logging.getLogger("codecarbon").setLevel(logging.ERROR)
+warnings.filterwarnings("ignore", message=".*RAPL.*")
+warnings.filterwarnings("ignore", message=".*codecarbon.*")
+
+# Import codecarbon with fallback
+try:
+    from codecarbon import EmissionsTracker
+    CODECARBON_AVAILABLE = True
+except ImportError:
+    CODECARBON_AVAILABLE = False
 
 
 def get_device(requested: Optional[str] = None) -> str:
@@ -47,9 +61,7 @@ def is_mps_device(device: str) -> bool:
 
 def safe_eigh(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """
-    Perform eigendecomposition with MPS compatibility.
-
-    torch.linalg.eigh has limited MPS support, so we move to CPU if needed.
+    MPS-safe eigendecomposition.
 
     Args:
         tensor: Symmetric matrix to decompose
@@ -57,15 +69,19 @@ def safe_eigh(tensor: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     Returns:
         Tuple of (eigenvalues, eigenvectors)
     """
-    original_device = tensor.device
-
-    # MPS doesn't fully support eigh - move to CPU
-    if original_device.type == "mps":
-        tensor_cpu = tensor.cpu()
-        eigenvalues, eigenvectors = torch.linalg.eigh(tensor_cpu)
-        return eigenvalues.to(original_device), eigenvectors.to(original_device)
-
+    device = tensor.device
+    if device.type == "mps":
+        vals, vecs = torch.linalg.eigh(tensor.cpu())
+        return vals.to(device), vecs.to(device)
     return torch.linalg.eigh(tensor)
+
+
+def safe_eigvalsh(tensor: torch.Tensor) -> torch.Tensor:
+    """MPS-safe eigenvalue computation (eigenvalues only)."""
+    device = tensor.device
+    if device.type == "mps":
+        return torch.linalg.eigvalsh(tensor.cpu()).to(device)
+    return torch.linalg.eigvalsh(tensor)
 
 
 def setup_mps_fallbacks():
@@ -119,6 +135,9 @@ def track_emissions(project_name: str = "fact-bilinear"):
     """
     Context manager for tracking CO2 emissions and wall time.
 
+    Gracefully handles systems where codecarbon can't read power metrics
+    (e.g., HPC systems without RAPL permissions).
+
     Usage:
         with track_emissions("my-project") as tracker:
             # ... run experiment ...
@@ -132,19 +151,39 @@ def track_emissions(project_name: str = "fact-bilinear"):
             self.result: Optional[TrackingResult] = None
 
     tracker = Tracker()
-    emissions_tracker = EmissionsTracker(
-        project_name=project_name,
-        log_level="warning",
-        save_to_file=False,  # Don't create emissions.csv
-    )
-    emissions_tracker.start()
+    emissions_tracker = None
+    emissions_kg = 0.0
+
+    # Try to initialize codecarbon, but don't fail if it doesn't work
+    if CODECARBON_AVAILABLE:
+        try:
+            emissions_tracker = EmissionsTracker(
+                project_name=project_name,
+                log_level="error",  # Only show errors, not warnings
+                save_to_file=False,  # Don't create emissions.csv
+                tracking_mode="machine",  # More compatible with HPC
+            )
+            emissions_tracker.start()
+        except Exception as e:
+            # Codecarbon failed to start (e.g., permission issues)
+            # Continue without emissions tracking
+            emissions_tracker = None
+            print(f"Note: CO2 tracking disabled ({type(e).__name__})")
+
     start_time = time.time()
 
     try:
         yield tracker
     finally:
         end_time = time.time()
-        emissions_kg = emissions_tracker.stop()
+
+        # Try to stop emissions tracker if it was started
+        if emissions_tracker is not None:
+            try:
+                emissions_kg = emissions_tracker.stop() or 0.0
+            except Exception:
+                emissions_kg = 0.0
+
         wall_time_seconds = end_time - start_time
         wall_time_hours = wall_time_seconds / 3600
         gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
@@ -154,7 +193,7 @@ def track_emissions(project_name: str = "fact-bilinear"):
             wall_time_seconds=wall_time_seconds,
             wall_time_hours=wall_time_hours,
             gpu_hours=gpu_hours,
-            emissions_kg=emissions_kg if emissions_kg else 0.0,
+            emissions_kg=emissions_kg,
         )
 
 

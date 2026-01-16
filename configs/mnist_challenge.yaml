@@ -1,0 +1,27 @@
+name: mnist_challenge
+experiment_id: P1.6
+
+# Binary classification for similarity challenge
+# Label = True if cosine_sim(x, target) > threshold OR cosine_sim(x, 1-target) > threshold
+
+model:
+  mode: dense
+  d_hidden: 256
+  d_output: 2  # Binary classification
+  bias: true   # Important for learning threshold
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.0   # No noise for challenge task
+  weight_decay: 0.5
+
+challenge:
+  target_digit: 1
+  target_index: 0
+  threshold: 0.6

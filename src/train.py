@@ -11,7 +11,6 @@ from pathlib import Path
 import argparse
 import torch
 import kornia
-from einops import einsum
 
 # Add paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -36,47 +35,39 @@ from src.analysis.spectral import effective_rank, spectral_summary, top_k_covera
 import wandb
 
 
-def decompose_model_mps_safe(model) -> tuple[torch.Tensor, torch.Tensor]:
+def apply_variance_corrected_init(model, enabled: bool = True):
     """
-    Decompose model into eigenvalues and eigenvectors with MPS compatibility.
+    Apply variance-corrected initialization to push model into Rich Training regime.
 
-    This is a reimplementation of model.decompose() that handles MPS devices
-    by moving tensors to CPU for eigendecomposition.
+    Computes per-layer scaling based on input dimension: scale = d_in^0.25
+    This prevents the "Lazy Training" pathology where the baseline collapses to low rank.
+
+    Similar to how nn.Linear uses fan_in for Kaiming initialization, but adapted
+    for bilinear layers where output variance ~ input_variance^2.
 
     Args:
-        model: Trained bilinear Model instance
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors)
+        model: Model instance with w_lr (bilinear weights) and w_e (embedding)
+        enabled: If False, skip scaling (equivalent to init_scale=1.0)
     """
-    device = next(model.parameters()).device
+    if not enabled:
+        return
 
-    # Get model weights
-    w_u = model.w_u  # [cls, out]
-    w_lr = model.w_lr[0]  # [2, out, hidden]
-    w_e = model.w_e  # [hidden, input]
+    with torch.no_grad():
+        # Scale embedding layer: w_e has shape [d_hidden, d_input]
+        # d_input = 784 for MNIST/Fashion-MNIST
+        if hasattr(model, 'w_e') and model.w_e is not None:
+            d_in = model.w_e.shape[-1]  # Input dimension (784)
+            scale = d_in ** 0.25
+            model.w_e.data *= scale
+            print(f"  w_e: d_in={d_in}, scale={scale:.2f}")
 
-    l, r = w_lr.unbind(0)  # Each: [out, hidden]
-
-    # Compute third-order tensor: b[cls, in1, in2]
-    b = einsum(w_u, l, r, "cls out, out in1, out in2 -> cls in1 in2")
-
-    # Symmetrize
-    b = 0.5 * (b + b.mT)
-
-    # Eigendecomposition - move to CPU for MPS compatibility
-    if device.type == "mps":
-        b_cpu = b.cpu()
-        vals, vecs = torch.linalg.eigh(b_cpu)
-        vals = vals.to(device)
-        vecs = vecs.to(device)
-    else:
-        vals, vecs = torch.linalg.eigh(b)
-
-    # Project eigenvectors back to input space
-    vecs = einsum(vecs, w_e, "cls emb comp, emb inp -> cls comp inp")
-
-    return vals, vecs
+        # Scale bilinear layer: w_lr has shape [n_layers, 2, d_hidden, d_hidden]
+        # The bilinear layer input is d_hidden (after embedding)
+        if hasattr(model, 'w_lr') and model.w_lr is not None:
+            d_in = model.w_lr.shape[-1]  # Input dimension (256)
+            scale = d_in ** 0.25
+            model.w_lr.data *= scale
+            print(f"  w_lr: d_in={d_in}, scale={scale:.2f}")
 
 
 def train_vision_model(config: dict, seed: int, device: str, epochs: int):
@@ -122,6 +113,15 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     )
     model = Model(model_config).to(device)
 
+    # Apply variance-corrected initialization for Rich Training regime
+    # This cures the "Lazy Training" pathology where the baseline "No Reg" model
+    # would collapse to rank ~38 instead of ~150
+    # Set variance_corrected_init: true in config to enable (disabled by default for paper reproduction)
+    variance_corrected = config.get('model', {}).get('variance_corrected_init', False)
+    if variance_corrected:
+        print("Applying variance-corrected initialization (Rich Training regime):")
+        apply_variance_corrected_init(model, enabled=True)
+
     # Create transform (noise augmentation)
     noise_std = config['regularization']['noise_std']
     transform = None
@@ -134,9 +134,9 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     print(f"Training for {epochs} epochs...")
     history = model.fit(train_data, test_data, transform=transform)
 
-    # Compute eigendecomposition (MPS-safe version)
+    # Compute eigendecomposition (original code is now MPS-safe)
     print("Computing eigendecomposition...")
-    eigenvalues, eigenvectors = decompose_model_mps_safe(model)
+    eigenvalues, eigenvectors = model.decompose()
 
     return model, history, eigenvalues, eigenvectors
 
@@ -172,6 +172,7 @@ def save_checkpoint(
             'noise_std': config['regularization']['noise_std'],
             'weight_decay': config['regularization']['weight_decay'],
             'dataset': dataset_name,
+            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
         },
         'model_state_dict': model.state_dict(),
         'metrics': {

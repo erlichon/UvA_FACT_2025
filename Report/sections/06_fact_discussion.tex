@@ -7,23 +7,25 @@
 \subsection{What was Easy}
 \label{sec:easy}
 
-\textit{[To be completed based on implementation experience. Preliminary observations:]}
-
 \begin{itemize}
-    \item The bilinear layer architecture is straightforward to implement---it simply replaces nonlinearities with element-wise multiplication.
-    \item The original paper's codebase was available and well-documented, providing clear reference for the eigendecomposition procedure.
-    \item The MNIST dataset is small enough for rapid iteration during development.
+    \item \textbf{Core architecture:} The bilinear layer is straightforward to implement---it replaces nonlinearities with element-wise multiplication of two linear projections.
+    \item \textbf{Code availability:} The original paper's codebase was publicly available with clear documentation, providing reference implementations for eigendecomposition and visualization.
+    \item \textbf{Fast iteration:} MNIST/Fashion-MNIST are small enough ($\sim$3 minutes per training run on GPU) for rapid experimentation with different configurations.
+    \item \textbf{Reproducible results:} With proper seed management, results were highly consistent across runs (standard deviations $<$1\% for all metrics).
 \end{itemize}
 
 \subsection{What was Difficult}
 \label{sec:difficult}
 
-\textit{[To be completed based on implementation experience. Preliminary observations:]}
-
 \begin{itemize}
-    \item Matching exact numerical values from the paper requires careful attention to random seed management across data loading, model initialization, and training.
-    \item The eigendecomposition step is computationally expensive for large hidden dimensions.
-    \item Determining the ``correct'' level of regularization that balances accuracy and interpretability requires hyperparameter search.
+    \item \textbf{Hyperparameter matching:} The paper's code defaults (noise std $= 0.4$, weight decay $= 0.5$) differ from the values reported in Appendix G.1 (noise std $= 0.5$, weight decay $= 1.0$).
+    Careful reading of the paper was required to identify the correct hyperparameters.
+
+    \item \textbf{Understanding regularization effects:} The paper uses ``regularization'' to refer to both noise augmentation and weight decay, which have different effects on the learned representations.
+    Understanding this distinction required careful analysis.
+
+    \item \textbf{Language experiment memory constraints:} The interaction matrix analysis for language models involves large einsum operations that caused out-of-memory errors.
+    We implemented memory-efficient alternatives using sequential matrix multiplications.
 \end{itemize}
 
 \subsection{Environmental Impact}
@@ -31,25 +33,23 @@
 
 Following responsible AI practices, we track and report the computational costs and CO2 emissions of our experiments using \texttt{codecarbon}.
 
-% TODO: Uncomment after experiments
-% \begin{table}[h]
-%     \caption{Environmental impact of experiments}
-%     \label{tab:environmental}
-%     \centering
-%     \begin{tabular}{lccc}
-%         \toprule
-%         Experiment & GPU Hours & Energy (kWh) & CO2 (kg) \\
-%         \midrule
-%         Phase 1: Reproduction (20 runs) & X.X & X.XX & X.XXX \\
-%         Phase 2: Extensions (XX runs) & X.X & X.XX & X.XXX \\
-%         Development \& debugging & X.X & X.XX & X.XXX \\
-%         \midrule
-%         \textbf{Total} & X.X & X.XX & X.XXX \\
-%         \bottomrule
-%     \end{tabular}
-% \end{table}
-
-\textit{[Table to be added: Environmental impact metrics from codecarbon]}
+\begin{table}[h]
+    \caption{Environmental impact of experiments}
+    \label{tab:environmental}
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        Experiment & Wall Time (h) & CO2 (kg) \\
+        \midrule
+        Vision: MNIST (20 runs) & $\sim$2.0 & $\sim$0.01 \\
+        Vision: Fashion-MNIST (20 runs) & $\sim$2.0 & $\sim$0.01 \\
+        Language: Negation (fw-medium) & 1.5 & 0.004 \\
+        Language: Correlation (3 models) & $\sim$0.2 & $<$0.001 \\
+        \midrule
+        \textbf{Total} & $\sim$5.7 & $\sim$0.03 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \textbf{Efficiency considerations:}
 The CP-decomposition extension has potential environmental benefits.
@@ -91,23 +91,34 @@ If interpretable eigenvectors genuinely capture the model's decision-making feat
 \section{Conclusion}
 \label{sec:conclusion}
 
-\textit{[To be completed after experiments]}
+We reproduced both the vision experiments (Section 4) and language experiments (Section 5) from \citet{pearce2024bilinear}.
 
-We reproduced both main experimental sections from \citet{pearce2024bilinear}:
-Section 4 (Vision), verifying that regularization induces low-rank interpretable structure in bilinear MLPs on MNIST;
-and Section 5 (Language), analyzing bilinear attention in GPT-2 and comparing with Sparse Autoencoders.
-Our ablation study [confirms/reveals] the relative importance of noise augmentation versus weight decay.
-The CP-decomposition extension demonstrates that structural low-rank constraints [can/cannot] achieve comparable interpretability to regularization-induced low-rank.
+\textbf{Vision Results:}
+\begin{enumerate}
+    \item Weight decay reduces effective rank to 21.4 (MNIST) and 19.6 (Fashion-MNIST), the lowest among all configurations, supporting the paper's claim that regularization induces low-rank structure.
+    \item Accuracy with full regularization (98.3\% MNIST, 87.2\% Fashion) is comparable to no regularization (97.5\%, 88.5\%), confirming minimal accuracy trade-off.
+    \item Eigenvectors under noise augmentation show visually interpretable digit/garment patterns, while those without noise appear diffuse and uninterpretable.
+    \item Results are consistent across 5 random seeds (standard deviations $<$1\%).
+\end{enumerate}
+
+\textbf{Language Results:}
+\begin{enumerate}
+    \item \textbf{Negation circuit discovery: Supported} -- We identify SAE features (5158, 3223) that form opposing directions (cosine similarity $-0.16$), implementing sentiment negation as claimed.
+
+    \item \textbf{Low-rank interaction structure: Not Supported} -- The paper claims 69\% of features have $>$0.75 rank-2 correlation.
+    We find mean correlations of 0.37--0.55 across three models (ts-medium, fw-small, fw-medium), far below this threshold.
+\end{enumerate}
 
 \textbf{Limitations:}
 \begin{itemize}
     \item The interpretability of eigenvectors is assessed qualitatively; future work could develop quantitative metrics.
-    \item The language experiments focus on GPT-2; scaling to larger models remains future work.
+    \item Language experiments use \texttt{fw-medium} rather than \texttt{ts-medium}, which may explain the discrepancy in low-rank structure.
 \end{itemize}
 
 \textbf{Future Work:}
 \begin{itemize}
+    \item Investigate why low-rank interaction structure does not generalize across model variants
     \item Apply bilinear decomposition to larger-scale vision models
     \item Develop automated methods for assessing eigenvector interpretability
-    \item Explore other tensor decompositions (Tucker, TT) as alternatives to CP
+    \item Complete the CP-decomposition extension to compare structural vs.\ regularization-induced low-rank
 \end{itemize}

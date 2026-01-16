@@ -23,9 +23,7 @@ sae:
 analysis:
   # Number of output features to analyze
   n_features: 500
-  # Rank for low-rank approximation
+  # Rank for low-rank approximation (k=2 for paper's rank-2 analysis)
   rank_k: 2
-  # Whether to project Q onto SAE latents
-  project: false
-  # Paper claim: 69% above 0.75
-  target_correlation: 0.75
+  # Paper claim: 69% of features have >0.75 variance explained by top-k eigenvalues
+  target_variance_explained: 0.75
