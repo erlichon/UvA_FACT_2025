@@ -1,5 +1,14 @@
 import torch
 
+
+def _safe_eigvalsh(tensor):
+    """MPS-safe eigenvalue computation."""
+    device = tensor.device
+    if device.type == "mps":
+        return torch.linalg.eigvalsh(tensor.cpu()).to(device)
+    return torch.linalg.eigvalsh(tensor)
+
+
 def compute_outliers(data, factor):
     q1 = torch.quantile(data, 0.25, dim=1, keepdim=True)
     q3 = torch.quantile(data, 0.75, dim=1, keepdim=True)
@@ -39,11 +48,13 @@ def compute_kurtosis(data):
     return torch.mean(torch.pow(zscores, 4.0), dim=1) - 3.0
 
 def compute_truncated_eigenvalues(data, k=2):
-    vals = torch.linalg.eigvalsh(data)
+    """Compute sum of top-k eigenvalue magnitudes (MPS-safe)."""
+    vals = _safe_eigvalsh(data)
     return vals.abs().topk(k=k).values.sum(-1)
 
 def compute_effective_rank(data):
-    vals = torch.linalg.eigvalsh(data)
+    """Compute effective rank using (L1/L2)^2 formula (MPS-safe)."""
+    vals = _safe_eigvalsh(data)
     
     l2 = vals.pow(2).sum(-1).sqrt()
     l1 = vals.abs().sum(-1)

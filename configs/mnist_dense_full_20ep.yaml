@@ -1,0 +1,24 @@
+name: mnist_dense_full_20ep
+experiment_id: P1.4_20ep
+
+# Paper-matched 20-epoch training for direct comparison
+# Paper Table 1: epochs 20-100, this uses 20 for baseline comparison
+
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 20  # Paper's tutorial default
+  lr: 0.001
+  batch_size: 2048
+
+# Paper Table 1 values
+regularization:
+  noise_std: 0.5
+  weight_decay: 1.0
+
+data:
+  dataset: mnist

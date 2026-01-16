@@ -1,23 +1,59 @@
 % Section 2: Scope of Reproducibility
-% Explicitly state: "We reproduce Section 4 (Vision) of Pearce et al. (2024)."
-% Define the Hyperparameters used (refer to src/configs/)
+% Reproduce both Section 4 (Vision) and Section 5 (Language/Negation) of Pearce et al. (2024)
 
 \section{Scope of Reproducibility}
 \label{sec:scope}
 
-We reproduce Section 4 (Vision) of \citet{pearce2024bilinear}, which demonstrates that bilinear MLPs enable weight-based mechanistic interpretability through eigendecomposition of the interaction tensor.
+We reproduce the main experimental sections of \citet{pearce2024bilinear}: Section 4 (Vision) demonstrating interpretable eigendecomposition on MNIST and Fashion-MNIST, and Section 5 (Language) discovering negation circuits in bilinear transformers using Sparse Autoencoder (SAE) analysis.
 
 \subsection{Claims to Verify}
 
-The original paper makes the following testable claims regarding the vision experiments:
+\subsubsection{Section 4: Vision (Image Classification)}
 
+The paper makes the following testable claims regarding vision experiments:
+
+\begin{enumerate}
+    \item \textbf{Claim V1 (Low-Rank Emergence):} Regularization (input noise + weight decay) induces low-rank structure in the bilinear interaction tensor, as measured by effective rank.
+    \item \textbf{Claim V2 (Interpretable Eigenvectors):} The eigenvectors of the regularized model's interaction tensor correspond to interpretable digit-like patterns.
+    \item \textbf{Claim V3 (Overfitting Without Regularization):} Without regularization, the eigenspectrum is flat (high effective rank $\sim$150--200) and eigenvectors show noise-like overfitting patterns.
+    \item \textbf{Claim V4 (Noise Importance):} Input noise augmentation is crucial for inducing interpretable structure, more so than weight decay alone.
+    \item \textbf{Claim V5 (Cross-Seed Consistency):} Eigenvectors are consistent across random seeds (cosine similarity 0.8--0.9).
+    \item \textbf{Claim V6 (Adversarial Generation):} Adversarial perturbations can be constructed directly from the eigendecomposition.
+\end{enumerate}
+
+\subsubsection{Section 5: Language (Negation Circuits)}
+
+The paper discovers \textbf{sentiment negation circuits} in bilinear transformers:
+
+\begin{enumerate}
+    \item \textbf{Claim L1 (SAE Feature Discovery):} Sparse Autoencoders trained around MLP layers reveal interpretable features that can be analyzed via bilinear decomposition.
+    \item \textbf{Claim L2 (Negation Features):} The model learns distinct features for ``not + negative words'' (e.g., ``not lost'') and ``not + positive words'' (e.g., ``not free'') that form opposing directions in feature space.
+    \item \textbf{Claim L3 (Low-Rank Interactions):} 69\% of SAE output features achieve $>$0.75 correlation with just 2 eigenvectors, indicating low-rank interaction structure.
+    \item \textbf{Claim L4 (Sparse Interaction Matrices):} The top 50 interactions between input and output SAE features form a small, interpretable submatrix.
+    \item \textbf{Claim L5 (Cross-Model Generalization):} The same negation circuit structure appears in two different models (TinyStories and FineWeb-EDU).
+\end{enumerate}
+
+\subsection{Success Criteria}
+
+\textbf{Vision (Section 4):}
 \begin{itemize}
-    \item \textbf{Claim 1:} Regularization (input noise + weight decay) induces low-rank structure in the bilinear interaction tensor, as measured by effective rank.
-    \item \textbf{Claim 2:} The eigenvectors of the regularized model's interaction tensor correspond to interpretable digit-like patterns.
-    \item \textbf{Claim 3:} Without regularization, the eigenspectrum is flat (high effective rank) and eigenvectors show noise-like overfitting patterns.
+    \item Effective rank ratio (regularized / unregularized) $< 0.5$
+    \item Top eigenvectors visually resemble digit/fashion templates
+    \item Test accuracy within 2\% of paper values ($\sim$95\% with regularization)
+    \item Cross-seed eigenvector cosine similarity $> 0.8$
+\end{itemize}
+
+\textbf{Language (Section 5):}
+\begin{itemize}
+    \item SAE features activate on expected negation patterns
+    \item Negation feature pairs show opposing directions (negative cosine similarity)
+    \item $>$60\% of features show $>$0.75 low-rank correlation
+    \item Interaction submatrices are sparse and interpretable
 \end{itemize}
 
 \subsection{Paper Context}
 
-% TODO: Briefly describe how this fits into broader FACT topics
-% Connect to mechanistic interpretability landscape
+This work fits into the broader landscape of mechanistic interpretability research.
+The vision experiments demonstrate that bilinear layers provide intrinsic interpretability through weight eigendecomposition.
+The language experiments show that this extends to understanding \emph{circuits}---computational subgraphs that implement specific behaviors like sentiment negation.
+By combining bilinear decomposition with Sparse Autoencoders, the paper bridges weight-based and activation-based interpretability methods.

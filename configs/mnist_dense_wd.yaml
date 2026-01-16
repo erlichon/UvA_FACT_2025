@@ -1,0 +1,20 @@
+name: mnist_dense_wd
+experiment_id: P1.3
+
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+  variance_corrected_init: false  # Push into Rich Training regime
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.0
+  weight_decay: 1.0
+
+data:
+  dataset: mnist

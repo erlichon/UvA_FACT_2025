@@ -154,8 +154,10 @@ class Model(PreTrainedModel):
         return DataFrame.from_records(history, columns=['train/loss', 'train/acc', 'val/loss', 'val/acc'])
 
     def decompose(self):
-        """The function to decompose a single-layer model into eigenvalues and eigenvectors."""
+        """The function to decompose a single-layer model into eigenvalues and eigenvectors.
         
+        MPS-safe: eigendecomposition is performed on CPU if device is MPS.
+        """
         # Split the bilinear layer into the left and right components
         l, r = self.w_lr[0].unbind()
         
@@ -165,8 +167,13 @@ class Model(PreTrainedModel):
         # Symmetrize the tensor
         b = 0.5 * (b + b.mT)
 
-        # Perform the eigendecomposition
-        vals, vecs = torch.linalg.eigh(b)
+        # Perform the eigendecomposition (MPS-safe: move to CPU if needed)
+        device = b.device
+        if device.type == "mps":
+            vals, vecs = torch.linalg.eigh(b.cpu())
+            vals, vecs = vals.to(device), vecs.to(device)
+        else:
+            vals, vecs = torch.linalg.eigh(b)
         
         # Project the eigenvectors back to the input space
         vecs = einsum(vecs, self.w_e, "cls emb comp, emb inp -> cls comp inp")
