@@ -4,12 +4,14 @@
 # This script consolidates all language-related experiments:
 # - Figure 9: Correlation sweep (ts-medium, fw-small, fw-medium)
 # - Figure 8: Negation circuit visualization
+# - Figure 10: SAE training time analysis
 # - Negation discovery
 # - Interaction analysis
 #
 # Usage:
 #   ./scripts/train/run_language.sh figure9 [options]     # Correlation sweep
 #   ./scripts/train/run_language.sh figure8 [options]     # Negation circuit viz
+#   ./scripts/train/run_language.sh figure10 [options]    # SAE training time
 #   ./scripts/train/run_language.sh negation [options]    # Negation discovery
 #   ./scripts/train/run_language.sh interaction [options] # Interaction analysis
 #   ./scripts/train/run_language.sh figures               # Generate all figures
@@ -27,7 +29,7 @@
 set -e  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$PROJECT_ROOT"
 
 # Default values
@@ -68,7 +70,7 @@ while [[ $# -gt 0 ]]; do
             FEATURE="$2"
             shift 2
             ;;
-        figure9|correlation|figure8|negation-viz|negation|interaction|figures|test|all|help)
+        figure9|correlation|figure8|negation-viz|figure10|sae-training|negation|interaction|figures|test|all|help)
             if [ -z "$COMMAND" ]; then
                 COMMAND=$1
             else
@@ -253,6 +255,38 @@ run_figure8() {
     echo "Output: results/language/figure_8_data_fw_medium.json"
 }
 
+# --- FIGURE 10: SAE TRAINING TIME ---
+run_figure10() {
+    print_header
+    activate_conda
+    
+    mkdir -p results/language
+    
+    local n_features=-1
+    local n_batches=10
+    if $QUICK_MODE; then
+        n_features=100
+        n_batches=5
+    fi
+    
+    echo ">>> Running SAE Training Time Analysis (Figure 10)"
+    echo "    Model: fw-medium, Layer: 12, Expansion: 16"
+    echo "    SAE versions: v0 (1x) -> v4 (16x training)"
+    echo "    Features: $n_features (-1 = all)"
+    echo "    Device: $DEVICE"
+    echo ""
+    
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/sae_training_time_analysis.py \
+        --device "$DEVICE" \
+        --n-features "$n_features" \
+        --n-batches "$n_batches" \
+        --output "results/language/sae_training_time_comparison.json"
+    
+    echo ""
+    echo "Figure 10 data generated!"
+    echo "Output: results/language/sae_training_time_comparison.json"
+}
+
 # --- NEGATION DISCOVERY ---
 run_negation() {
     print_header
@@ -330,7 +364,7 @@ generate_figures() {
     activate_conda
     
     echo ">>> Generating language figures..."
-    python scripts/figures/generate_language_figures.py
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/generate_language_figures.py
     
     echo ""
     echo "Figure generation complete!"
@@ -443,6 +477,7 @@ show_help() {
     echo "Commands:"
     echo "  figure9       Correlation sweep for Figure 9 (all 3 models)"
     echo "  figure8       Negation circuit visualization (Figure 8)"
+    echo "  figure10      SAE training time analysis (Figure 10)"
     echo "  negation      Negation feature discovery"
     echo "  interaction   Interaction matrix analysis"
     echo "  figures       Generate all language figures from results"
@@ -478,6 +513,9 @@ case $COMMAND in
         ;;
     figure8|negation-viz)
         run_figure8
+        ;;
+    figure10|sae-training)
+        run_figure10
         ;;
     negation)
         run_negation

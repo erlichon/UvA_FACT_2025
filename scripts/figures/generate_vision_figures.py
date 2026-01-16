@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 # Add project + original code paths
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
