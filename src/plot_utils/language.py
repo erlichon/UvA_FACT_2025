@@ -598,3 +598,356 @@ def compute_fraction_above_threshold(
             fractions[model] = above / len(correlations)
     
     return fractions
+
+
+# =============================================================================
+# Figure 8: Sentiment Negation Circuit Visualization
+# =============================================================================
+
+# Feature type markers (matches paper Figure 8B)
+FIGURE_8_MARKERS = {
+    "negation": {"color": "#2ca02c", "marker": "^", "label": "Negation", "s": 120},
+    "positive": {"color": "#ff7f0e", "marker": "v", "label": "Positive sentiment", "s": 100},
+    "negative": {"color": "#1f77b4", "marker": "s", "label": "Negative sentiment", "s": 100},
+    "direction": {"color": "#d62728", "marker": "*", "label": "Direction", "s": 200},
+    "other": {"color": "#7f7f7f", "marker": "o", "label": "Other", "s": 60},
+}
+
+
+def plot_figure_8a_submatrix(
+    Q_submatrix: np.ndarray,
+    feature_indices: List[int],
+    ax: Optional[plt.Axes] = None,
+    cmap: str = "RdBu_r",
+) -> plt.Figure:
+    """
+    Plot Figure 8A: Interaction submatrix heatmap.
+    
+    Args:
+        Q_submatrix: The submatrix containing top interactions
+        feature_indices: List of feature indices in the submatrix
+        ax: Optional matplotlib axes
+        cmap: Colormap name
+    
+    Returns:
+        matplotlib Figure
+    """
+    if ax is None:
+        set_publication_style()
+        fig, ax = plt.subplots(figsize=(6, 5))
+    else:
+        fig = ax.figure
+    
+    Q = np.array(Q_submatrix)
+    vmax = np.abs(Q).max()
+    
+    im = ax.imshow(Q, cmap=cmap, vmin=-vmax, vmax=vmax, aspect="equal")
+    
+    # Feature labels
+    labels = [str(f) for f in feature_indices]
+    ax.set_xticks(range(len(labels)))
+    ax.set_yticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
+    ax.set_yticklabels(labels, fontsize=7)
+    
+    ax.set_title("A) Top 15 Interactions")
+    
+    # Colorbar
+    cbar = plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
+    cbar.set_label("Interaction Strength", fontsize=9)
+    
+    return fig
+
+
+def plot_figure_8b_projections(
+    feature_projections: Dict[str, Tuple[float, float]],
+    meaningful_directions: Dict[str, Tuple[float, float]],
+    feature_types: Optional[Dict[str, str]] = None,
+    ax: Optional[plt.Axes] = None,
+) -> plt.Figure:
+    """
+    Plot Figure 8B: Feature projections onto top eigenvectors.
+    
+    Args:
+        feature_projections: Dict mapping feature index to (v1_proj, v2_proj)
+        meaningful_directions: Dict with "bad-good" and "[BOS] not" projections
+        feature_types: Optional dict mapping feature index to type
+        ax: Optional matplotlib axes
+    
+    Returns:
+        matplotlib Figure
+    """
+    if ax is None:
+        set_publication_style()
+        fig, ax = plt.subplots(figsize=(6, 5))
+    else:
+        fig = ax.figure
+    
+    # Plot SAE feature projections
+    for feat_idx, (v1, v2) in feature_projections.items():
+        ftype = feature_types.get(str(feat_idx), "other") if feature_types else "other"
+        style = FIGURE_8_MARKERS.get(ftype, FIGURE_8_MARKERS["other"])
+        ax.scatter(v1, v2, c=style["color"], marker=style["marker"], 
+                   s=style["s"], alpha=0.8, edgecolors="white", linewidth=0.5)
+    
+    # Plot meaningful directions with special markers
+    for dir_name, (v1, v2) in meaningful_directions.items():
+        style = FIGURE_8_MARKERS["direction"]
+        ax.scatter(v1, v2, c=style["color"], marker=style["marker"],
+                   s=style["s"], alpha=1.0, edgecolors="black", linewidth=1,
+                   label=f'"{dir_name}"', zorder=10)
+        # Add text label
+        ax.annotate(dir_name, (v1, v2), xytext=(5, 5), textcoords="offset points",
+                    fontsize=8, fontweight="bold")
+    
+    # Add reference lines
+    ax.axhline(0, color="gray", linestyle="-", linewidth=0.5, alpha=0.5)
+    ax.axvline(0, color="gray", linestyle="-", linewidth=0.5, alpha=0.5)
+    
+    ax.set_xlabel("Projection onto $v_1$")
+    ax.set_ylabel("Projection onto $v_2$")
+    ax.set_title("B) Feature Projections")
+    
+    # Create legend with feature type markers
+    legend_elements = []
+    for ftype, style in FIGURE_8_MARKERS.items():
+        if ftype == "direction":
+            continue  # Skip, we add these separately
+        legend_elements.append(
+            plt.scatter([], [], c=style["color"], marker=style["marker"],
+                       s=style["s"], label=style["label"], edgecolors="white")
+        )
+    ax.legend(handles=legend_elements, loc="best", fontsize=8)
+    
+    ax.grid(True, alpha=0.3)
+    
+    return fig
+
+
+def plot_figure_8c_scatter(
+    z_true: np.ndarray,
+    z_pred: np.ndarray,
+    ax: Optional[plt.Axes] = None,
+    feature_idx: Optional[int] = None,
+) -> plt.Figure:
+    """
+    Plot Figure 8C: True activation vs rank-2 approximation scatter.
+    
+    Args:
+        z_true: True SAE activations
+        z_pred: Predicted activations (rank-2 approximation)
+        ax: Optional matplotlib axes
+        feature_idx: Optional feature index for title
+    
+    Returns:
+        matplotlib Figure
+    """
+    if ax is None:
+        set_publication_style()
+        fig, ax = plt.subplots(figsize=(5, 5))
+    else:
+        fig = ax.figure
+    
+    z_true = np.array(z_true)
+    z_pred = np.array(z_pred)
+    
+    # Compute correlation
+    corr = np.corrcoef(z_true, z_pred)[0, 1] if len(z_true) > 1 else 0
+    
+    ax.scatter(z_true, z_pred, alpha=0.3, s=10, color="#2E86AB", edgecolors="none")
+    
+    # Identity line
+    max_val = max(z_true.max(), z_pred.max()) * 1.1
+    ax.plot([0, max_val], [0, max_val], "k--", alpha=0.5, linewidth=1.5, label="y=x")
+    
+    # Correlation annotation
+    ax.text(0.05, 0.95, f"r = {corr:.3f}", transform=ax.transAxes,
+            fontsize=11, verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="gray"))
+    
+    ax.set_xlabel("True Activation")
+    ax.set_ylabel("Rank-2 Approximation")
+    
+    title = "C) Activation vs Approximation"
+    if feature_idx is not None:
+        title += f" (Feature {feature_idx})"
+    ax.set_title(title)
+    
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, max_val)
+    ax.set_ylim(0, max_val)
+    
+    return fig
+
+
+def plot_figure_8_composite(
+    figure_8_data: dict,
+    feature_types: Optional[Dict[str, str]] = None,
+    figsize: Tuple[float, float] = (14, 4.5),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Generate complete Figure 8 with all three panels.
+    
+    Args:
+        figure_8_data: Dict containing panel_a, panel_b, panel_c data
+            (as produced by negation_visualization.py)
+        feature_types: Optional dict mapping feature index to type for coloring
+        figsize: Figure size
+        save_path: Optional path to save the figure
+    
+    Returns:
+        matplotlib Figure
+    """
+    set_publication_style()
+    
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+    
+    # Panel A: Interaction submatrix
+    panel_a = figure_8_data.get("panel_a", {})
+    plot_figure_8a_submatrix(
+        Q_submatrix=panel_a.get("Q_submatrix", []),
+        feature_indices=panel_a.get("feature_indices", []),
+        ax=axes[0],
+    )
+    
+    # Panel B: Eigenvector projections
+    panel_b = figure_8_data.get("panel_b", {})
+    plot_figure_8b_projections(
+        feature_projections=panel_b.get("feature_projections", {}),
+        meaningful_directions=panel_b.get("meaningful_directions", {}),
+        feature_types=feature_types,
+        ax=axes[1],
+    )
+    
+    # Panel C: Activation scatter
+    panel_c = figure_8_data.get("panel_c", {})
+    plot_figure_8c_scatter(
+        z_true=panel_c.get("z_true", []),
+        z_pred=panel_c.get("z_pred_rank2", []),
+        ax=axes[2],
+        feature_idx=figure_8_data.get("output_feature_idx"),
+    )
+    
+    # Add main title
+    model_name = figure_8_data.get("model_name", "Unknown")
+    feature_idx = figure_8_data.get("output_feature_idx", "?")
+    fig.suptitle(f"Sentiment Negation Circuit (Feature {feature_idx}, {model_name})", 
+                 fontsize=12, fontweight="bold", y=1.02)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Figure 8 saved to: {save_path}")
+    
+    return fig
+
+
+def plot_figure_9c_scatters(
+    results: dict,
+    n_features: int = 9,
+    seed: int = 42,
+    figsize: Tuple[float, float] = (10, 10),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot Figure 9C: 3x3 grid of scatter plots for random features.
+    
+    Args:
+        results: Correlation results dict (from verify_correlation.py)
+        n_features: Number of features to plot (should be perfect square)
+        seed: Random seed for feature selection
+        figsize: Figure size
+        save_path: Optional path to save the figure
+    
+    Returns:
+        matplotlib Figure
+    """
+    set_publication_style()
+    
+    n_cols = int(np.sqrt(n_features))
+    n_rows = int(np.ceil(n_features / n_cols))
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+    axes = axes.flatten()
+    
+    # Get features with scatter data
+    features_with_scatter = []
+    for feat in results.get("per_feature", []):
+        if "scatter_data" in feat:
+            features_with_scatter.append(feat)
+    
+    if not features_with_scatter:
+        for ax in axes:
+            ax.text(0.5, 0.5, "No scatter data\n(use --save-scatter)", 
+                    ha="center", va="center", transform=ax.transAxes, fontsize=10)
+            ax.set_xticks([])
+            ax.set_yticks([])
+        fig.suptitle("Figure 9C: Scatter data not available")
+        plt.tight_layout()
+        return fig
+    
+    # Randomly select features
+    np.random.seed(seed)
+    n_select = min(n_features, len(features_with_scatter))
+    selected_indices = np.random.choice(len(features_with_scatter), n_select, replace=False)
+    
+    for i, ax in enumerate(axes):
+        if i >= n_select:
+            ax.axis("off")
+            continue
+        
+        feat = features_with_scatter[selected_indices[i]]
+        scatter = feat["scatter_data"]
+        
+        z_true = np.array(scatter.get("z_true", []))
+        z_pred = np.array(scatter.get("z_pred_rank2", []))
+        
+        if len(z_true) == 0 or len(z_pred) == 0:
+            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+            continue
+        
+        # Compute correlation
+        corr = np.corrcoef(z_true, z_pred)[0, 1] if len(z_true) > 1 else 0
+        
+        # Scatter plot
+        ax.scatter(z_true, z_pred, alpha=0.3, s=8, color="#2E86AB", edgecolors="none")
+        
+        # Identity line
+        max_val = max(z_true.max(), z_pred.max()) * 1.1
+        ax.plot([0, max_val], [0, max_val], "k--", alpha=0.5, linewidth=1)
+        
+        # Labels
+        ax.set_xlabel("True", fontsize=8)
+        ax.set_ylabel("Predicted", fontsize=8)
+        ax.set_title(f"Feature {feat['feat_idx']}\n(r = {corr:.2f}, n = {len(z_true)})", fontsize=9)
+        ax.tick_params(axis='both', which='major', labelsize=7)
+        
+        ax.set_xlim(0, max_val)
+        ax.set_ylim(0, max_val)
+    
+    model_name = results.get("summary", {}).get("model_name", "Unknown")
+    fig.suptitle(f"Figure 9C: True vs Predicted Activation ({model_name})", fontsize=12)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Figure 9C saved to: {save_path}")
+    
+    return fig
+
+
+def load_figure_8_data(json_path: Union[str, Path]) -> dict:
+    """
+    Load Figure 8 data from JSON file.
+    
+    Args:
+        json_path: Path to figure_8_data.json
+    
+    Returns:
+        Dict with panel_a, panel_b, panel_c data
+    """
+    with open(json_path) as f:
+        return json.load(f)

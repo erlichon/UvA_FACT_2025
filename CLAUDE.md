@@ -35,7 +35,15 @@ python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb 
 # Full training with tracking
 python src/train.py --config configs/mnist_dense_full.yaml --seed 42
 
-# Available configs: {mnist,fashion}_dense_{none,noise,wd,full}.yaml
+# Available configs: {mnist,fashion}_dense_{none,noise,wd,full,noise015}.yaml
+
+# Model size sweep for Figure 5 (6 sizes × 5 seeds = 30 runs)
+./scripts/run_model_size_sweep.sh --no-wandb
+# Creates configs/sweeps/mnist_size_{30,50,100,300,500,1000}.yaml
+# Saves to results/sweeps/model_size/checkpoints/
+
+# Generate all vision figures (recommended single entrypoint)
+python scripts/vision_analysis.py
 ```
 
 ### Language Experiments (Section 5)
@@ -75,9 +83,14 @@ python -m pytest tests/ --cov=src --cov-report=term-missing  # With coverage
 ### Analysis & Figures
 
 ```bash
-# Vision figures
-python scripts/generate_figures.py       # Generate all vision figures from checkpoints
-python scripts/recompute_effective_rank.py  # Recompute ranks after formula fix
+# Vision figures (all, including appendix + hub)
+python scripts/vision_analysis.py
+
+# Or select specific sections:
+python scripts/vision_analysis.py --sections regularization
+python scripts/vision_analysis.py --sections truncation_similarity
+python scripts/vision_analysis.py --sections challenge
+python scripts/vision_analysis.py --sections adversarial appendix hub
 
 # Language figures (Figure 9)
 ./scripts/run_language_sweep.sh          # Run correlation sweep first
@@ -111,6 +124,9 @@ squeue -u scur0075  # Monitor jobs
 |--------|---------|
 | `src/models/bilinear_layer.py` | `BilinearDense` (wraps original), `BilinearCP` (extension) |
 | `src/analysis/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
+| `src/analysis/truncation.py` | `compute_truncation_accuracy()`, `compute_eigenvector_similarity()` (Figure 5) |
+| `src/analysis/adversarial.py` | `compute_adversarial_mask()`, `apply_adversarial_perturbation()` (Figure 7) |
+| `src/data/challenge_dataset.py` | `ChallengeDataset` for similarity classification (Figure 6) |
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
 | `src/plot_utils/language.py` | Figure 9 plots: `plot_correlation_progression()`, `plot_correlation_histogram()`, `plot_correlation_scatters()` |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
@@ -168,20 +184,33 @@ def effective_rank(eigenvalues):
 
 ### Language Model Configuration
 
-**IMPORTANT**: Paper's Section 5 uses **fw-medium** as the primary model for both negation discovery AND Figure 9!
+**IMPORTANT CLARIFICATION** (Verified 2026-01-14):
 
-**Model Configuration (from paper's tutorials/2_language.ipynb)**:
-| Model | Layers | SAE Layer | Expansion | SAE Repo | Paper Use |
-|-------|--------|-----------|-----------|----------|-----------|
-| fw-medium | 16 | **7** | 8 | `tdooms/fw-medium-scope` | **PRIMARY** (negation features 3834/751 + Figure 9) |
-| fw-small | 12 | 8 | 4 | `tdooms/fw-small-scope` | Figure 9 |
-| ts-medium | 6 | 4 | 4 | `tdooms/ts-medium-scope` | Secondary validation |
+The paper has TWO different language experiments:
+1. **Paper Section 5.1 (Figure 8)**: Uses ts-tiny (available as `tdooms/ts-medium`)
+2. **Tutorial/Example**: Uses fw-medium for demonstration
 
-**Notes**:
-- Paper refers to "ts-tiny" but HuggingFace model is `tdooms/ts-medium` (6 layers)
-- Negation features 3834/751 are from fw-medium layer 7, NOT ts-medium
-- ts-medium is too small (~30M params) to develop distinct sentiment-specific features
-- fw-small-scope only has expansion=4 SAEs available
+**Model Configuration**:
+| Model | Layers | d_model | Params | SAE Layer | Expansion | SAE Repo | Paper/Tutorial Use |
+|-------|--------|---------|--------|-----------|-----------|----------|-------------------|
+| **ts-medium** | 6 | 512 | 29.4M | 4 | 4 | `tdooms/ts-medium-scope` | Figure 9 only (no Fig 8 - missing mlp-in SAEs) |
+| fw-small | 12 | - | 162M | 8 | 4 | `tdooms/fw-small-scope` | Figure 9 |
+| fw-medium | 16 | 1024 | 335M | 7 | 8 | `tdooms/fw-medium-scope` | **TUTORIAL Figure 8** (features 3834/751) + Fig 9 |
+
+**Critical Notes**:
+- ✅ **VERIFIED**: `tdooms/ts-medium` IS the paper's "ts-tiny" (6L, 512d, ~29M params, TinyStories)
+- ⚠️ **SAE LIMITATION**: ts-medium layer 4 does NOT have `mlp-in` SAEs available on HuggingFace
+  - Available: `mlp-out`, `resid-mid`, `resid-pre` only
+  - Figure 8 requires BOTH `mlp-in` and `mlp-out` SAEs (for Tracer class)
+  - Paper likely used internal SAE checkpoints not publicly released
+- **Figure 8 Reproduction**: Uses fw-medium (layer 7) which has both SAEs available
+  - Features **3834** (not-good), **751** (not-bad) from tutorial example
+  - Demonstrates the same negation circuit phenomenon
+  - Clearer visualizations due to larger model capacity (335M vs 29M params)
+- **Figure 9 Reproduction**: All three models work (only needs output SAEs)
+  - ts-medium layer 4: expansion=4, k=30
+  - fw-small layer 8: expansion=4, k=30
+  - fw-medium layer 7: expansion=8, k=30
 - All pretrained SAEs use k=30 (paper uses k=32, minor difference)
 - Use ~2/3 model depth for SAE layer selection
 
