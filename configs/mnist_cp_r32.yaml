@@ -14,6 +14,7 @@ regularization:
   noise_std: 0.0
   weight_decay: 0.1
 
+
 data:
   dataset: mnist
 

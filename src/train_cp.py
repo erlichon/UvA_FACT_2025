@@ -4,6 +4,8 @@ Training script for CP-Bilinear models.
 Usage:
     python src/train_cp.py --rank 32 --seed 42
     python src/train_cp.py --config configs/mnist_cp_r32.yaml --seed 42
+    python src/train_cp.py --config configs/mnist_cp_r32.yaml --cp-init-mode gated --seed 42
+    python src/train_cp.py --rank 32 --cp-init-mode gated --seed 42
 """
 
 import sys
@@ -96,12 +98,17 @@ def train_cp_model(config: dict, seed: int, device: str, epochs: int):
     # Create model
     rank = config['model']['rank']
     d_hidden = config['model'].get('d_hidden', 256)
-    model = CPImageModel(d_hidden=d_hidden, rank=rank, n_classes=10).to(device)
+    cp_init_mode = config['model'].get('cp_init_mode', 'lambda')  # Default to lambda for backward compatibility
+    print(f"Config loaded - cp_init_mode from config: {config['model'].get('cp_init_mode', 'NOT SET')}")
+    print(f"Using CP initialization mode: {cp_init_mode}")
+    model = CPImageModel(d_hidden=d_hidden, rank=rank, n_classes=10, cp_init_mode=cp_init_mode).to(device)
 
     # Training parameters
     lr = config['training'].get('lr', 1e-3)
     weight_decay = config['regularization']['weight_decay']
     l1_coeff = config['regularization'].get('l1_coeff', 0.0)  # L1 penalty for factors B and C
+    lambda_l1_coeff = config['regularization'].get('lambda_l1_coeff', 1e-1)  # L1 penalty for lambda vector
+    lambda_l0_coeff = config['regularization'].get('lambda_l0_coeff', 0.0)  # L0 proxy penalty for gate logits (gated mode)
     # Note: CP models use NO noise augmentation (noise_std=0.0)
 
     # Train
@@ -112,6 +119,8 @@ def train_cp_model(config: dict, seed: int, device: str, epochs: int):
         lr=lr,
         weight_decay=weight_decay,
         l1_coeff=l1_coeff,
+        lambda_l1_coeff=lambda_l1_coeff,
+        lambda_l0_coeff=lambda_l0_coeff,
         transform=None,  # NO noise augmentation for CP
         verbose=True
     )
@@ -150,6 +159,7 @@ def save_checkpoint(
             'mode': 'cp',
             'rank': config['model']['rank'],
             'd_hidden': config['model'].get('d_hidden', 256),
+            'cp_init_mode': config['model'].get('cp_init_mode', 'lambda'),
             'epochs': epochs,
             'lr': config['training'].get('lr', 1e-3),
             'noise_std': 0.0,  # CP models use no noise
@@ -227,6 +237,8 @@ def main():
     parser.add_argument("--config", type=str, help="Path to config YAML")
     parser.add_argument("--rank", type=int, default=None, help="CP rank (overrides config)")
     parser.add_argument("--d-hidden", type=int, default=256, help="Hidden dimension")
+    parser.add_argument("--cp-init-mode", type=str, default=None, choices=['fixed', 'lambda', 'gated'],
+                        help="CP initialization mode: 'fixed', 'lambda', or 'gated' (overrides config)")
     parser.add_argument("--epochs", type=int, default=None, help="Override epochs from config")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=0.1, help="Weight decay")
@@ -243,7 +255,7 @@ def main():
     # Load config or use defaults
     if args.config:
         config = load_config(args.config)
-        config_name = Path(args.config).stem
+        config_name_base = Path(args.config).stem
     else:
         # Create minimal config from args
         if args.rank is None:
@@ -253,6 +265,7 @@ def main():
                 'mode': 'cp',
                 'rank': args.rank,
                 'd_hidden': args.d_hidden,
+                'cp_init_mode': args.cp_init_mode if args.cp_init_mode else 'lambda',  # Use CLI arg or default
             },
             'training': {
                 'epochs': 100,
@@ -266,13 +279,25 @@ def main():
                 'dataset': 'mnist',
             },
         }
-        config_name = f"mnist_cp_r{args.rank}"
+        config_name_base = f"mnist_cp_r{args.rank}"
 
     # Override rank if provided
     if args.rank is not None:
         config['model']['rank'] = args.rank
+    
+    # Override cp_init_mode if provided via command line
+    if args.cp_init_mode is not None:
+        config['model']['cp_init_mode'] = args.cp_init_mode
 
     epochs = args.epochs if args.epochs is not None else config['training']['epochs']
+    
+    # Get cp_init_mode for checkpoint naming
+    cp_init_mode = config['model'].get('cp_init_mode', 'lambda')
+    
+    # Ensure config_name is in format mnist_cp_r{rank} for consistent checkpoint naming
+    # Extract rank from config if needed
+    rank = config['model']['rank']
+    config_name = f"mnist_cp_r{rank}"
 
     # Determine dataset for tagging
     dataset_name = config.get('data', {}).get('dataset', 'mnist')
@@ -300,8 +325,10 @@ def main():
     # Log spectral metrics (comprehensive)
     spectral_metrics = log_spectral_metrics(eigenvalues, wandb_enabled)
 
-    # Save checkpoint
-    checkpoint_path = Path(args.checkpoint_dir) / f"{config_name}_seed{args.seed}.pt"
+    # Save checkpoint with cp_init_mode in filename
+    # Format: mnist_cp_r{rank}_{cp_init_mode}_seed{seed}.pt
+    # Note: config_name is already "mnist_cp_r{rank}", so we append _{cp_init_mode}
+    checkpoint_path = Path(args.checkpoint_dir) / f"{config_name}_{cp_init_mode}_seed{args.seed}.pt"
     checkpoint = save_checkpoint(
         checkpoint_path, config, model, history,
         eigenvalues, eigenvectors, args.seed, epochs

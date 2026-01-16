@@ -38,15 +38,16 @@ class CPImageModel(nn.Module):
         n_classes: Number of output classes
     """
 
-    def __init__(self, d_hidden: int = 256, rank: int = 32, n_classes: int = 10):
+    def __init__(self, d_hidden: int = 256, rank: int = 32, n_classes: int = 10, cp_init_mode: str = "lambda"):
         super().__init__()
         self.d_hidden = d_hidden
         self.rank = rank
         self.n_classes = n_classes
+        self.cp_init_mode = cp_init_mode
 
         # Architecture matches original
         self.embed = Linear(784, d_hidden, bias=False)
-        self.bilinear = BilinearCP(d_hidden, d_hidden, rank=rank)
+        self.bilinear = BilinearCP(d_hidden, d_hidden, rank=rank, cp_init_mode=cp_init_mode)
         self.head = Linear(d_hidden, n_classes, bias=False)
 
     def forward(self, x: Float[Tensor, "batch 784"]) -> Float[Tensor, "batch n_classes"]:
@@ -58,7 +59,8 @@ class CPImageModel(nn.Module):
         return self.head(h)
 
     def fit(self, train_data, test_data, epochs: int = 100, lr: float = 1e-3,
-            weight_decay: float = 0.1, l1_coeff: float = 0.0, transform=None, verbose: bool = True):
+            weight_decay: float = 0.1, l1_coeff: float = 0.0, lambda_l1_coeff: float = 0.0,
+            lambda_l0_coeff: float = 0.0, transform=None, verbose: bool = True):
         """
         Training loop matching original model interface.
 
@@ -69,6 +71,8 @@ class CPImageModel(nn.Module):
             lr: Learning rate
             weight_decay: AdamW weight decay
             l1_coeff: L1 regularization coefficient for factors B and C (encourages sparse features)
+            lambda_l1_coeff: L1 regularization coefficient for lambda vector (encourages rank pruning, lambda/gated modes)
+            lambda_l0_coeff: L0 proxy penalty coefficient for gate logits (gated mode only)
             transform: Optional augmentation transform
             verbose: Print progress
 
@@ -97,6 +101,20 @@ class CPImageModel(nn.Module):
                     self.bilinear.C.abs().sum()
                 )
                 loss = loss + l1_penalty
+            
+            # Add L1 penalty to lambda vector for rank pruning (lambda/fixed modes)
+            # This provides "downward pressure" to drive effective rank toward minimal set
+            if lambda_l1_coeff > 0 and hasattr(self.bilinear, 'lambdas'):
+                lambda_l1_penalty = lambda_l1_coeff * self.bilinear.lambdas.abs().sum()
+                #lambda_l1_penalty = lambda_l1_coeff * torch.sqrt(self.bilinear.lambdas.abs() + 1e-8).sum()
+                loss = loss + lambda_l1_penalty
+            
+            # Add L0 proxy penalty for gate logits (gated mode)
+            # This is a direct proxy for the L0 norm (count of active ranks)
+            # Penalty: gamma * sum(sigmoid(gate_logits))
+            if lambda_l0_coeff > 0 and hasattr(self.bilinear, 'gate_logits'):
+                lambda_l0_penalty = lambda_l0_coeff * torch.sigmoid(self.bilinear.gate_logits).sum()
+                loss = loss + lambda_l0_penalty
 
             optimizer.zero_grad()
             loss.backward()
@@ -145,7 +163,17 @@ class CPImageModel(nn.Module):
         A = self.bilinear.A  # [d_hidden, rank]
         B = self.bilinear.B  # [d_hidden, rank]
         C = self.bilinear.C  # [d_hidden, rank]
-        lambdas = self.bilinear.lambdas  # [rank]
+        
+        # Get scaling factors based on mode
+        if hasattr(self.bilinear, 'lambdas'):
+            # Fixed or lambda mode: use lambdas directly
+            lambdas = self.bilinear.lambdas  # [rank]
+        elif hasattr(self.bilinear, 'gate_logits'):
+            # Gated mode: use gate probabilities * scaling factor as effective lambdas
+            gates = torch.clamp(torch.sigmoid(self.bilinear.gate_logits) * 1.1 - 0.05, 0, 1)
+            lambdas = gates * self.bilinear.scaling_factor  # [rank]
+        else:
+            raise ValueError("BilinearCP must have either 'lambdas' or 'gate_logits'")
         
         # Get embedding and head weights
         w_e = self.embed.weight  # [d_hidden, 784]
