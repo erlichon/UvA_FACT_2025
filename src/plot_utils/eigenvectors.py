@@ -122,6 +122,16 @@ def plot_eigenvectors_grid(
 
             axes[row, col].imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
             axes[row, col].axis("off")
+            
+            # Add eigenvalue label below each image
+            axes[row, col].annotate(
+                f"λ={val:.1e}",
+                xy=(0.5, -0.02),
+                xycoords="axes fraction",
+                fontsize=6,
+                ha="center",
+                va="top",
+            )
 
             if row == 0:
                 if show_both_signs:

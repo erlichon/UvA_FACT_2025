@@ -45,6 +45,7 @@ from src.utils import (
     init_wandb,
     finish_wandb,
 )
+from src.language.context import LanguageContext
 
 
 # Negation and sentiment word lists (from paper analysis)
@@ -255,15 +256,15 @@ def main():
 
     # Run analysis with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model
-        model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
-        print(f"Loading model: {model_name}")
-        model = Transformer.from_pretrained(model_name, device=device)
+        # Use LanguageContext for unified model/SAE loading
+        ctx = LanguageContext(config, device)
+        model = ctx.model
+        model_name = ctx.model_name
+        layer = ctx.layer
+        point = ctx.output_sae_config.name
 
-        # Load SAE
-        sae = load_sae(config, device)
-        layer = config.get("sae", {}).get("layer", 2)
-        point = config.get("sae", {}).get("point", "mlp-out")
+        # Load SAE via context
+        sae = ctx.get_sae("mlp-out")
 
         # Create dataloader
         print("Loading TinyStories dataset...")

@@ -31,7 +31,7 @@ from src.utils import (
     setup_mps_fallbacks,
     is_mps_device,
 )
-from src.analysis.spectral import effective_rank, spectral_summary, top_k_coverage
+from src.vision.spectral import effective_rank, spectral_summary, top_k_coverage
 import wandb
 
 

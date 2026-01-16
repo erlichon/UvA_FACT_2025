@@ -180,7 +180,7 @@ from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "bilinear-decomposition-main"))
 
-from src.analysis.spectral import extract_from_checkpoint, compute_all_metrics
+from src.vision.spectral import extract_from_checkpoint, compute_all_metrics
 
 
 def load_all_phase1_results(checkpoint_dir: str = "results/phase1/checkpoints") -> pd.DataFrame:
@@ -320,7 +320,7 @@ if __name__ == "__main__":
 
 ### 2. Final Visualization Functions
 
-**Add to `src/analysis/visualization.py`**:
+**Add to `src/vision/visualization.py`**:
 ```python
 def plot_pareto_frontier(
     results_df: pd.DataFrame,
@@ -550,8 +550,8 @@ from src.synthesize_results import (
     aggregate_results,
     statistical_comparison,
 )
-from src.analysis.spectral import extract_from_checkpoint
-from src.analysis.visualization import (
+from src.vision.spectral import extract_from_checkpoint
+from src.vision.visualization import (
     plot_pareto_frontier,
     plot_eigenspectrum_overlay,
     plot_eigenvector_comparison_grid,

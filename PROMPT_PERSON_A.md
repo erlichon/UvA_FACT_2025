@@ -616,8 +616,8 @@ python src/train.py \
 
 ### Step 1: Create Directory Structure
 ```bash
-mkdir -p src/models src/analysis configs jobs results/phase1/checkpoints logs
-touch src/__init__.py src/models/__init__.py src/analysis/__init__.py
+mkdir -p src/models src/vision configs jobs results/phase1/checkpoints logs
+touch src/__init__.py src/models/__init__.py src/vision/__init__.py
 ```
 
 ### Step 2: Create Files

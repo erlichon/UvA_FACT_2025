@@ -117,8 +117,8 @@ After verifying model specifications and SAE availability, we discovered:
 - Run fw-medium negation (Section 5.1 PRIMARY): `python src/language/negation_discovery.py --config configs/language_negation_fw.yaml --use-pretrained`
 - Run fw-medium correlation (Figure 9): `python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml`
 - Run correlation sweep (all 3 models): `./scripts/run_language_sweep.sh [mps|cuda|cpu]`
-- Generate Figure 9: `python scripts/generate_language_figures.py`
-- Run overnight (all experiments): `./scripts/run_overnight_mps.sh`
+- Generate Figure 9: `python scripts/figures/generate_language_figures.py`
+- Run overnight (all experiments): `./scripts/train/run_overnight_mps.sh`
 - Run on GPU: `sbatch jobs/language_fwmedium.job`
 
 **Section 5 (Language) Components** (IMPLEMENTED):
@@ -128,7 +128,7 @@ After verifying model specifications and SAE availability, we discovered:
 - `src/language/verify_correlation.py` - Correlation verification (CLI: `--model`, `--layer`, `--expansion`, `--k`)
 - `src/plot_utils/language.py` - Centralized plotting for Figure 9 (progression, histogram, scatters)
 - `scripts/run_language_sweep.sh` - Run correlation sweep across ts-medium, fw-small, fw-medium
-- `scripts/generate_language_figures.py` - Generate all language figures from results
+- `scripts/figures/generate_language_figures.py` - Generate all language figures from results
 - `configs/language_sae.yaml` - SAE training config
 - `configs/language_negation.yaml` - Negation discovery config
 - `configs/language_interaction.yaml` - Interaction analysis config
@@ -179,7 +179,7 @@ UvA_FACT_2025/
 │   ├── run_overnight_mps.sh      # Full 4-phase overnight run (vision + language + advanced)
 │   ├── run_model_size_sweep.sh   # Model size sweep automation [NEW]
 │   ├── run_language_sweep.sh     # Correlation sweep for 3 models
-│   ├── vision_analysis.py        # Unified vision analysis + all figures + appendix + hub
+│   ├── generate_vision_figures.py        # Unified vision analysis + all figures + appendix + hub
 │   ├── generate_figures.py       # Legacy (kept for backwards compatibility)
 │   ├── generate_language_figures.py # Generate language Figure 9
 │   ├── test_mps_quick.sh         # Quick vision test
@@ -219,16 +219,16 @@ UvA_FACT_2025/
 *Section 4 (Vision) - COMPLETE + EXTENDED*:
 1. `src/models/bilinear_layer.py` - BilinearDense (wraps original) + BilinearCP (extension)
 2. `src/train.py` - Vision training with wandb + codecarbon tracking
-3. `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
-4. `src/analysis/truncation.py` - Truncation accuracy, eigenvector similarity (Figure 5)
-5. `src/analysis/adversarial.py` - Adversarial mask generation (Figure 7)
+3. `src/vision/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
+4. `src/vision/truncation.py` - Truncation accuracy, eigenvector similarity (Figure 5)
+5. `src/vision/adversarial.py` - Adversarial mask generation (Figure 7)
 6. `src/data/challenge_dataset.py` - Challenge dataset (Figure 6)
 7. `src/plot_utils/` - Reusable plotting module (style, eigenspectrum, eigenvectors, ablation)
 8. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
 9. 9 vision config files (4 MNIST + 4 Fashion-MNIST + 1 noise015)
 10. 6 model size sweep configs (30, 50, 100, 300, 500, 1000)
 11. SLURM job scripts for Snellius
-12. `scripts/vision_analysis.py` - Unified vision analysis + all vision figures (core + appendix) + section-based HTML hub
+12. `scripts/figures/generate_vision_figures.py` - Unified vision analysis + all vision figures (core + appendix) + section-based HTML hub
 13. `scripts/generate_figures.py` - Legacy vision figure generation script (kept for backwards compatibility)
 16. `scripts/run_model_size_sweep.sh` - Automate model size training
 17. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
@@ -241,9 +241,9 @@ UvA_FACT_2025/
 22. `src/language/verify_correlation.py` - Correlation verification with CLI overrides
 23. `src/plot_utils/language.py` - Centralized plotting for Figure 9 (DRY architecture)
 24. `scripts/run_language_sweep.sh` - Correlation sweep across 3 models
-25. `scripts/generate_language_figures.py` - Generate all language figures
+25. `scripts/figures/generate_language_figures.py` - Generate all language figures
 26. 3 language config files (supports model/layer/expansion overrides)
-27. `scripts/run_overnight_mps.sh` - Complete 4-phase overnight pipeline
+27. `scripts/train/run_overnight_mps.sh` - Complete 4-phase overnight pipeline
 
 *Testing & Tracking*:
 28. 82 unit tests in `tests/`
@@ -267,7 +267,7 @@ UvA_FACT_2025/
 5. ~~Figure 6: Challenge task~~ **DONE** (similarity classification implemented)
 6. ~~Figure 7: Adversarial masks~~ **DONE** (no-reg vs noise-reg with error bars)
 7. **Run language correlation sweep**: `./scripts/run_language_sweep.sh` (ts-medium, fw-small, fw-medium)
-8. **Generate language figures**: `python scripts/generate_language_figures.py`
+8. **Generate language figures**: `python scripts/figures/generate_language_figures.py`
 9. Run fw-medium interaction + negation experiments (Figure 8)
 10. Update Report LaTeX with all figures and tables
 11. Start Phase 2 extensions (CP implementation, robustness testing)
@@ -394,8 +394,8 @@ Since open-source implementation exists, we must go beyond "paper is reproducibl
 - Figure generation
 
 **Key Deliverables**:
-- `src/analysis/spectral.py` (effective_rank, eigenspectrum extraction)
-- `src/analysis/visualization.py` (publication-quality plots)
+- `src/vision/spectral.py` (effective_rank, eigenspectrum extraction)
+- `src/vision/visualization.py` (publication-quality plots)
 - `notebooks/01_reproduction.ipynb`
 - All Phase 1 figures (eigenspectrum, eigenvectors)
 
