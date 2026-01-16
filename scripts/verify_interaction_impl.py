@@ -11,6 +11,12 @@ from pathlib import Path
 
 import torch
 
+# Add paths for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.utils import safe_eigh, safe_eigvalsh
+
 
 def test_einsum_decomposition():
     """
@@ -77,7 +83,7 @@ def test_effective_rank():
     Q_rank1 = torch.outer(v, v)
     Q_rank1_sym = 0.5 * (Q_rank1 + Q_rank1.T)
 
-    vals = torch.linalg.eigvalsh(Q_rank1_sym)
+    vals = safe_eigvalsh(Q_rank1_sym)
     l1 = vals.abs().sum()
     l2 = vals.pow(2).sum().sqrt()
     eff_rank_1 = (l1/l2).pow(2).item()
@@ -87,7 +93,7 @@ def test_effective_rank():
     Q_full = torch.randn(100, 100)
     Q_full_sym = 0.5 * (Q_full + Q_full.T)
 
-    vals = torch.linalg.eigvalsh(Q_full_sym)
+    vals = safe_eigvalsh(Q_full_sym)
     l1 = vals.abs().sum()
     l2 = vals.pow(2).sum().sqrt()
     eff_rank_full = (l1/l2).pow(2).item()
@@ -99,7 +105,7 @@ def test_effective_rank():
     Q_rank2 = 3 * torch.outer(v1, v1) + 2 * torch.outer(v2, v2)
     Q_rank2_sym = 0.5 * (Q_rank2 + Q_rank2.T)
 
-    vals = torch.linalg.eigvalsh(Q_rank2_sym)
+    vals = safe_eigvalsh(Q_rank2_sym)
     l1 = vals.abs().sum()
     l2 = vals.pow(2).sum().sqrt()
     eff_rank_2 = (l1/l2).pow(2).item()
@@ -119,8 +125,8 @@ def test_rank2_correlation():
     Q_rank2 = 5 * torch.outer(v1, v1) + 3 * torch.outer(v2, v2)
     Q_sym = 0.5 * (Q_rank2 + Q_rank2.T)
 
-    # Compute rank-2 approximation
-    eigenvalues, eigenvectors = torch.linalg.eigh(Q_sym)
+    # Compute rank-2 approximation (MPS-safe)
+    eigenvalues, eigenvectors = safe_eigh(Q_sym)
     order = eigenvalues.abs().argsort(descending=True)
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
@@ -146,7 +152,7 @@ def test_rank2_correlation():
     Q_full = torch.randn(100, 100)
     Q_full_sym = 0.5 * (Q_full + Q_full.T)
 
-    eigenvalues, eigenvectors = torch.linalg.eigh(Q_full_sym)
+    eigenvalues, eigenvectors = safe_eigh(Q_full_sym)
     order = eigenvalues.abs().argsort(descending=True)
     eigenvalues = eigenvalues[order]
     eigenvectors = eigenvectors[:, order]
