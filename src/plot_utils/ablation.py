@@ -154,13 +154,15 @@ def plot_accuracy_vs_effective_rank(
     ax.set_xlabel("Effective Rank (lower = more interpretable)")
     ax.set_ylabel("Test Accuracy (%)")
     ax.set_title(title)
-    ax.legend(title="Configuration", loc="lower left")
+    
+    # Position legend in bottom left, avoiding the annotation arrow
+    ax.legend(title="Configuration", loc="lower left", bbox_to_anchor=(0.0, 0.0), framealpha=0.9)
 
-    # Add direction annotation
+    # Add direction annotation in a non-overlapping position (upper right area pointing left)
     if annotate:
         ax.annotate(
             "Better\nInterpretability",
-            xy=(0.12, 0.12),
+            xy=(0.15, 0.88),
             xycoords="axes fraction",
             fontsize=9,
             ha="center",
@@ -169,9 +171,9 @@ def plot_accuracy_vs_effective_rank(
         )
         ax.annotate(
             "",
-            xy=(0.03, 0.03),
+            xy=(0.03, 0.97),
             xycoords="axes fraction",
-            xytext=(0.21, 0.21),
+            xytext=(0.27, 0.79),
             textcoords="axes fraction",
             arrowprops=dict(arrowstyle="->", color="gray", lw=1.2),
         )

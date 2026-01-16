@@ -1,0 +1,1052 @@
+
+\documentclass{article} % For LaTeX2e
+\usepackage{iclr2025_conference,times}
+
+% Optional math commands from https://github.com/goodfeli/dlbook_notation.
+\input{math_commands.tex}
+
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{graphicx}
+% \usepackage{subfig}
+\usepackage{floatrow}
+\usepackage[labelformat=simple]{subfig}
+\usepackage{svg}
+\usepackage{cancel}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{placeins}
+\usepackage[export]{adjustbox}
+\floatsetup[figure]{style=plain,subcapbesideposition=top}
+
+\renewcommand{\thesubfigure}{\Alph{subfigure})}
+
+% \newcommand\blfootnote[1]{%
+%   \begingroup
+%   \renewcommand\thefootnote{}\footnote{#1}%
+%   \addtocounter{footnote}{-1}%
+%   \endgroup
+% }
+
+\newcommand\extrafootertext[1]{%
+    \bgroup
+    \renewcommand\thefootnote{\fnsymbol{footnote}}%
+    \renewcommand\thempfootnote{\fnsymbol{mpfootnote}}%
+    \footnotetext[0]{#1}%
+    \egroup
+}
+
+\title{Bilinear MLPs enable weight-based \\mechanistic interpretability}
+
+% Authors must not appear in the submitted version. They should be hidden
+% as long as the \iclrfinalcopy macro remains commented out below.
+% Non-anonymous submissions will be rejected without review.
+
+\author{Michael T. Pearce$^*$\\
+Independent\\
+\small\texttt{pearcemt@}\\\small\texttt{alumni.stanford.edu}
+\And
+Thomas Dooms$^*$\\
+University of Antwerp\\
+\small\texttt{thomas.dooms@}\\\small\texttt{uantwerpen.be}
+\And
+Alice Rigg\\
+Independent\\
+\small\texttt{rigg.alice0@}\\\small\texttt{gmail.com}
+\AND
+Jose Oramas \\
+University of Antwerp, sqIRL/IDLab\\
+\small\texttt{jose.oramas@uantwerpen.be}
+\And
+Lee Sharkey \\
+Apollo Research \\
+\small\texttt{lee@apolloresearch.ai}
+}
+
+
+% The \author macro works with any number of authors. There are two commands
+% used to separate the names and addresses of multiple authors: \And and \AND.
+%
+% Using \And between authors leaves it to \LaTeX{} to determine where to break
+% the lines. Using \AND forces a linebreak at that point. So, if \LaTeX{}
+% puts 3 of 4 authors names on the first line, and the last on the second
+% line, try using \AND instead of \And before the third author name.
+
+\newcommand{\fix}{\marginpar{FIX}}
+\newcommand{\new}{\marginpar{NEW}}
+
+\iclrfinalcopy % Uncomment for camera-ready version, but NOT for submission.
+\begin{document}
+
+\maketitle
+\def\thefootnote{*}\footnotetext{Equal contribution}
+\def\thefootnote{\arabic{footnote}}
+\begin{abstract}
+A mechanistic understanding of how MLPs do computation in deep neural networks remains elusive. Current interpretability work can extract features from hidden activations over an input dataset but generally cannot explain how MLP weights construct features. One challenge is that element-wise nonlinearities introduce higher-order interactions and make it difficult to trace computations through the MLP layer. In this paper, we analyze bilinear MLPs, a type of Gated Linear Unit (GLU) without any element-wise nonlinearity that nevertheless achieves competitive performance. Bilinear MLPs can be fully expressed in terms of linear operations using a third-order tensor, allowing flexible analysis of the weights.
+Analyzing the spectra of bilinear MLP weights using eigendecomposition reveals interpretable low-rank structure across toy tasks, image classification, and language modeling. We use this understanding to craft adversarial examples, uncover overfitting, and identify small language model circuits directly from the weights alone. Our results demonstrate that bilinear layers serve as an interpretable drop-in replacement for current activation functions and that weight-based interpretability is viable for understanding deep-learning models.
+\end{abstract}
+
+\section{Introduction}
+Multi-layer perceptrons (MLPs) are an important component of many deep learning models, including transformers \citep{vaswani_attention_2017}. Unfortunately, element-wise nonlinearities obscure the relationship between weights, inputs, and outputs, making it difficult to trace a neural network's decision-making process.
+Consequently, MLPs have previously been treated as undecomposable components in interpretability research \citep{elhage_mathematical_2021}.
+\extrafootertext{Code at: \href{https://github.com/tdooms/bilinear-decomposition}{https://github.com/tdooms/bilinear-decomposition}}
+
+While early mechanistic interpretability literature explored neural network weights \citep{olah2017feature, olah_zoom_2020, voss2021visualizing, elhage_mathematical_2021}, activation-based approaches dominate contemporary research \citep{petsiuk2018riserandomizedinputsampling, ribeiro2016whyitrustyou, simonyan2014deepinside, Montavon_2018}.
+In particular, most recent studies on transformers use sparse dictionary learning (SDL) to decompose latent representations into an overcomplete basis of seemingly interpretable atoms
+\citep{cunningham_sparse_2024, bricken_monosemanticity_2023, marks2024sparse, dunefsky2024transcoders}.
+However, SDL-based approaches only describe which features are present, not how they are formed or what their downstream effect is. 
+Previous work has approximated interactions between latent dictionaries using linear and gradient-based attribution \citep{marks2024sparse, ge2024automatically}, but these approaches offer weak guarantees of generalization. To ensure faithfulness, ideally, we would be able to capture nonlinear feature interactions in circuits that are grounded in the model weights.
+
+One path to better circuit discovery is to use more inherently interpretable architectures. Previous work constrains the model into using human-understandable components or concepts \citep{conceptbottleneck, chen2019lookslikethatdeep}, but this typically requires labeled training data for the predefined concepts and involves a trade-off in accuracy compared to learning the best concepts for performance \citep{henighan_superposition_2023}. Ideally, we could more easily extract and interpret the concepts that models naturally learn rather than force the model to use particular concepts. To this end, \citet{bilinear_note} suggested that bilinear layers \cite{lin2015bilinear, li2017factorized, chrysos2021deep} of the form $g(\vx) = (\mW\vx) \odot (\mV\vx)$ are intrinsically interpretable because their computations can be expressed in terms of linear operations with a third order tensor. This enables the use of tensor or matrix decompositions to directly understand the weights. Moreover, bilinear layers outperform ReLU-based transformers in language modeling \citep{shazeer2020glu} and have performance only slightly below SwiGLU, which is prevalent in competitive models today \citep{llama2}.
+
+Tensor decompositions have long been studied in machine learning \citep{Cichocki_2015, Panagakis_2021, tensor_decomp_deep} where most applications are based on an input dataset. Using decompositions to extract features directly from the weights of tensor-based models is less explored. Here, we show that bilinear MLPs can be decomposed into functionally relevant, interpretable components by directly decomposing the weights, without using inputs. These decompositions reveal a low-rank structure in bilinear MLPs trained across various tasks. In summary, this paper demonstrates that bilinear MLPs are an interpretable drop-in replacement for ordinary MLPs in a wide range of settings. Our contributions are as follows:
+
+\begin{enumerate}
+    \item In \autoref{sec:method}, we introduce several methods to analyze bilinear MLPs. One method decomposes the weights into a set of eigenvectors that explain the outputs along a given set of directions in a way that is fully equivalent to the layer's original computations.
+    \item In \autoref{sec:image_classfication}, we showcase the eigenvector decomposition across multiple image classification tasks, revealing an interpretable low-rank structure. Smaller eigenvalue terms can be truncated while preserving performance. Using the eigenvectors, we see how regularization reduces signs of overfitting in the extracted features and construct adversarial examples.
+    \item Finally, in \autoref{sec:language}, we analyze how bilinear MLPs compute output features from input features, both derived from sparse dictionary learning (SDL). We highlight a small circuit that flips the sentiment of the next token if the current token is a negation (``not''). We also find that many output features are well-correlated with low-rank approximations. This gives evidence that weight-based interpretability can be viable in large language models.
+\end{enumerate}
+
+\section{Background} \label{sec:background} \label{sub:symmetry}
+Throughout, we use conventional notation as in \citet{goodfellow2016deep}. Scalars are denoted by $s$, vectors by $\vv$, matrices by $\mM$, and third-order tensors by $\tT$. The entry in row $i$ and column $j$ of a matrix $\mM$ is a scalar and therefore denoted as $m_{ij}$. We denote taking row $i$ or column $j$ of a matrix by $\vm_{i:}$ and $\vm_{:j}$ respectively. We use $\odot$ to denote an element-wise product and $\cdot_\text{axis}$ to denote a product of tensors along the specified axis.
+
+\textbf{Defining bilinear MLPs.} Modern Transformers \citep{llama2} feature Gated Linear Units (GLUs), which offer a performance gain over standard MLPs for the same number of parameters \citep{shazeer2020glu, dauphin2017language}. GLU activations consist of the component-wise product of two linear up-projections of size $(d_\text{hidden}, d_\text{input})$, $\mW$ and $\mV$, one of which is passed through a nonlinear activation function $\sigma$(\autoref{eq:glu}). The hidden activations $g(\vx)$ then pass through a down-projection $\mP$ of size $(d_\text{output}, d_\text{hidden})$. We omit biases for brevity.
+
+\begin{equation}
+\begin{aligned} \label{eq:glu}
+    g(\vx)          &= (\mW\vx) \odot \sigma(\mV\vx)    \\
+    \text{GLU}(\vx) &= \mP(g(\vx))                           
+\end{aligned}
+\end{equation}
+
+A bilinear layer is a GLU variant that omits the nonlinear activation function $\sigma$. Bilinear layers beat ordinary ReLU MLPs and perform almost as well as SwiGLU on language modeling tasks \citep{shazeer2020glu}. We corroborate these findings in \autoref{app:accuracy}, and show that bilinear layers achieve equal loss when keeping training time constant and marginally worse loss when keeping data constant.
+
+% \subsection{Interaction matrices and the bilinear tensor} \label{sub:interaction}
+\textbf{Interaction matrices and the bilinear tensor.} A bilinear MLP parameterizes the pairwise interactions between inputs. One way to see this is by looking at how a single output $g(\textbf{x})_a$ is computed.
+\begin{align} \label{eq:interaction}
+g(\vx)       &= (\mW \vx) \odot (\mV \vx)                           \nonumber \\
+g(\vx)_a     &= (\vw_{a:}^T\vx) \ (\vv^T_{a:}\vx)                 \nonumber \\
+             &  = \vx^T (\vw_{a:} \vv_{a:}^T) \vx      \nonumber
+             %&= \sum_i \sum_j w_{ai}v_{aj} x_i x_j      \nonumber
+\end{align}
+We call the $(d_\text{input}, d_\text{input})$ matrix $\vw_{a:} \vv_{a:}^T = \mB_{a::}$ an \emph{interaction matrix} since it defines how each pair of inputs interact for a given output dimension $a$.
+
+The collection of interaction matrices across the output axis can be organized into the third-order \emph{bilinear tensor}, $\tB$, with elements $b_{aij} = w_{ai} v_{aj}$, illustrated in \autoref{fig:eigendecomposition}A. The bilinear tensor allows us to easily find the interaction matrix for a specific output direction $\vu$ of interest by taking a product along the output axis, $\vu \ \cdot_\text{out} \tB$, equal to a weighted sum over the neuron-basis interaction matrices, $\sum_a u_a \vw_{a:} \vv_{a:}^T$. As written, $\tB$ has size $(d_\text{hidden}, d_\text{input}, d_\text{input})$ but we will typically multiply the down-projection $\mP$ into $\tB$ resulting in a $(d_\text{output}, d_\text{input}, d_\text{input})$ size tensor. 
+
+\textbf{Simplifications due to symmetry.} Because an interaction matrix is always evaluated with two copies of the input $\vx$, it contains redundant information that does not contribute to the activation. Any square matrix can be expressed uniquely as the sum of a symmetric and anti-symmetric matrix.
+\begin{align*}
+\mB_{a::} = \dfrac{1}{2} ( \underbrace{\mB_{a::} + \mB_{a::}^T}_{\mB_{a::}^{sym}} ) + \dfrac{1}{2} ( \underbrace{\mB_{a::} - \mB_{a::}^T}_{\mB_{a::}^{anti}} )
+\end{align*}
+However, evaluating an anti-symmetric matrix $\mA$ with identical inputs yields 0 and can be omitted:
+\begin{align*}
+\vx^T \mA \vx = \vx^T (-\mA^T) \vx = - (\vx^T \mA \vx)^T = 0.
+\end{align*}
+Therefore, only the symmetric part $\mB_{a::}^{sym}$ contributes. From here on, we drop the $\cdot^{sym}$ superscript and assume the symmetric form for any interaction matrix or bilinear tensor ($b_{aij} = \frac{1}{2}(w_{ai}v_{aj} + w_{aj}v_{ai})$). Symmetric matrices have simpler eigendecompositions since the eigenvalues are all real-valued, and the eigenvectors are orthogonal by the spectral theorem. 
+
+% \subsection{Biases: incorporation into weights} \label{sub:biases}
+\textbf{Incorporating biases.} If a bilinear layer has biases, we can augment the weight matrices to adapt our approach.
+%The biases of layers can be included in the weight matrices in a way that requires no change to our decomposition.
+%In a bilinear layer with biases, the hidden activation has the form $g(x)=(\mW x+b_1) \odot (\mV x+b_2)$.
+Given activations of the form $g(\vx)=(\mW\vx+\vb_1) \odot (\mV\vx+\vb_2)$, define $\mW'=[\mW ; \vb_2]$, $\mV'=[\mV ; \vb_2]$, and $\vx'=[\vx, 1]$. Then, $g(\vx)=(\mW' \vx') \odot (\mV' \vx')$ in a bilinear layer with biases.
+%The bias term can be seen as an additional column $\mW' = [\mW; \vb]$ in the weight matrix which acts upon a constant value that is added to the input $\vx' = [\vx, 1]$.
+%This can be implemented so that each layer propagates this constant, resulting in only a minor change.
+In \autoref{sub:ground_truth}, we study a toy classification task using a model trained with biases, illustrating how biases can be interpreted using the same framework.
+For the rest of our experiments, we used models without biases for simplicity, as it did not harm performance. See \autoref{app:bilinear_variations} for details.
+%since they did not yield improved accuracy. We further discuss this topic in \autoref{app:bilinear_variations}.
+
+% Bilinear layers have a rich history in tensor literature under the name CPD. Bilinear layers offer a generalisation of rank to third-order tensors.
+
+
+\section{Analysis methods} \label{sec:method}
+
+Since bilinear MLPs can be expressed in terms of a third-order tensor, $\tB$, they can be flexibly analyzed using techniques from linear algebra, such as decompositions and transformations. The choice of analysis approach depends on what additional information, in terms of previously obtained input or output features, is provided. 
+
+% The approaches we describe below are not exhaustive, and we expect that sparse-coding-like methods better suited for overcomplete bases may also work well. 
+
+\subsection{Input / output features $\rightarrow$ direct interactions}
+If we have already obtained meaningful sets of features for the bilinear MLP's inputs and outputs, for example from a set of latent feature dictionaries $F^\text{in}$ and $F^\text{out}$, then we can directly study the interactions between these features and understand how the output features are constructed from input ones.  We can transform the bilinear tensor into the feature basis via $\tilde{b}_{abc} = \sum_{ijk} f^\text{\ out}_{ai} \ b_{ijk} \ f^\text{\ in}_{bj} \  f^\text{\ in}_{ck}$. For a given set of sparse input and output activations, only a small subset of the interactions (with $a,b,c$ all active) will contribute, and the statistics of these active interactions can be studied. 
+
+For dictionaries obtained from sparse autoencoders (SAEs) we can instead use the output SAE's encoder directions in the transformation: $\tilde{b}_{abc} = \sum_{ijk} e^\text{\ out}_{ai} \ b_{ijk} \ f^\text{\ in}_{bj} \  f^\text{\ in}_{ck}$. Then the output activations are $z^\text{out}_c = \text{ReLU}(\sum_{ab} \tilde{b}_{abc} z^\text{in}_a z^\text{in}_b)$ in terms of the input directions $\vz^\text{in}$. In \autoref{sec:language}, we use this approach to identify the top relevant interactions for features in a language model.
+
+\subsection{Output features $\rightarrow$ eigendecomposition} \label{sub:decomposition}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=1\textwidth]{figures/eigendecomposition_iclr.pdf}
+\caption{A) Two ways to represent a bilinear layer, via an elementwise product or the bilinear tensor. B) Diagram of the eigendecomposition technique. Multiplying the bilinear tensor by a desired output direction $\vu$ produces an interaction matrix $\mQ$ that can be decomposed into a set of eigenvectors $\vv$ and associated eigenvalues $\lambda_i.$ 
+% Illustration of the decomposition technique. We multiply a desired output direction with the bilinear tensor to attain an interaction matrix for that output. Next, we perform an eigendecomposition on this interaction matrix to get the most prominent eigenvectors.
+}
+\label{fig:eigendecomposition}
+\end{figure}
+
+Given a set of meaningful features for the MLP outputs, we can identify the most important input directions that determine the output feature activations. The output features could come from a dictionary, from the unembedding (shown in \autoref{sec:image_classfication}), or from the decompilation of later layers. 
+
+The interaction matrix, $\mQ = \vu \cdot_\text{out} \tB$ for a given output feature $\vu$ can be decomposed into a set of eigenvectors (\autoref{fig:eigendecomposition}). Since $\mQ$ can be considered symmetric without loss of generality (see \autoref{sub:symmetry}), the spectral theorem gives
+\begin{align}
+    \mQ = \sum_i^{d} \lambda_i \ \vv_i \vv_i^T
+\end{align}
+with a set of $d$ (the rank of $\mW$, $\mV$) orthonormal eigenvectors $\vv_i$ and real-valued eigenvalues $\lambda_i$. In the eigenvector basis, the output in the $\vu$-direction is
+\begin{align}
+    \vx^T \mQ \vx = \sum_i^d \underbrace{\lambda_i \ (\vv_i^T \vx)^2}_{\text{activation for }\vv_i}
+\label{eq:eig_activation}
+\end{align}
+where each term can be considered the activation for the eigenvector $\vv_i$ of size $(d_\text{input})$.  That is, the bilinear layer's outputs are quadratic in the eigenvector basis. 
+
+The eigenvector basis makes it easy to identify any low-rank structure relevant to $\vu$. The top eigenvectors by eigenvalue magnitude give the best low-rank approximation to the interaction matrix $\mQ$ for a given rank. And since the eigenvectors diagonalize $\mQ$, there are no cross-interactions between eigenvectors that would complicate the interpretation of their contributions to $\vu$. %Because of these properties, the top eigenvectors can reasonably be considered input features derived specifically to explain a given output direction and we'll denote them as \emph{eigenvectors}. 
+
+\subsection{No features $\rightarrow$ higher-order SVD}  \label{sub:hosvd}
+
+If we have no prior features available, it is still possible to determine the most important input and output directions of $\tB$ through a higher-order singular value decomposition (HOSVD). The simplest approach that takes advantage of the symmetry in $\tB$ is to reshape the tensor by flattening the two input dimensions to produce a $(d_\text{output}, d_\text{input}^2)$ shaped matrix and then do a standard singular value decomposition (SVD). 
+Schematically, this gives 
+\begin{align}
+    \mB_{\text{out},  \text{in}\times\text{in}} = \sum_i \sigma_i \ \vu^{(i)}_{\text{out}} \otimes \vq^{(i)}_{\text{in}\times\text{in}} \nonumber
+\end{align} where $\vq$ can still be treated as an interaction matrix and further decomposed into eigenvectors as described above. We demonstrate this approach for an MNIST model in \autoref{app:hosvd}.
+
+\section{Image classification: interpreting visual features} \label{sec:image_classfication}
+We consider models trained on the MNIST dataset of handwritten digits and the Fashion-MNIST dataset of clothing images. This is a semi-controlled environment that allows us to evaluate the interpretability of eigenvectors computed using the methods in \autoref{sub:decomposition}. This section analyses a shallow feedforward network (FFN) consisting of an embedding projection, a bilinear layer, and a classification head; see \autoref{app:setup} for details.
+
+First, we qualitatively survey the eigenvectors and highlight the importance of regularization in feature quality. Second, we consider the consistency of eigenvectors across training runs and sizes. Third, we turn toward an algorithmic task on MNIST, where we compare the ground truth with the extracted eigenvectors. Lastly, we use these eigenvectors to construct adversarial examples, demonstrating their causal importance.
+
+\subsection{Qualitative assessment: top eigenvectors appear interpretable} \label{sub:mnist_qualitative}
+The eigenvectors are derived using the unembedding directions for the digits as the output directions $\vu$ to obtain interaction matrices $\mQ = \vu \cdot_\text{out} \tB$ that are then decomposed following \autoref{sub:decomposition}. So each unembedding direction (digit) has a corresponding set of eigenvectors, although we may refer to the full collection as the eigenvectors of the layer or model. 
+
+We can visualize them by projecting them into the input space using the embedding weights. Because the activation of an eigenvector $\vv$ with eigenvalue $\lambda_i$ is quadratic in the input, $\lambda (\vv^T \vx)^2$, the sign of the eigenvector $\vv$ is arbitrary. The quadratic leads to XOR-like behavior where high overlap with an eigenvector's positive regions (blue) \emph{or} the negative regions (red)---but not both---leads to large activation magnitude, while the overall sign is determined by the eigenvalue (\autoref{fig:top_eigenvectors}A).
+
+\begin{figure}[t]
+    \centering
+    \sidesubfloat[A)]{\includegraphics[width=0.35\textwidth, valign=c]{figures/mnist/explainer.pdf}}
+    \hfill
+    \sidesubfloat[B)]{\includegraphics[width=0.56\textwidth, valign=c]{figures/mnist/eigenvectors.pdf} }
+    \caption{A) Eigenvector activations are quadratic in the input and have a large magnitude if an input aligns with the positive (blue) regions \emph{or} the negative (red) regions, but not both. % The 
+    B) Top eigenvectors for single-layer MNIST and Fashion-MNIST models, revealing the most significant patterns learned for each class. In MNIST, eigenvectors represent components of the target class, while Fashion-MNIST eigenvectors function as localized edge detectors. Best viewed in color.}
+    \label{fig:top_eigenvectors}
+\end{figure}
+
+\begin{figure}[b]
+   \centering
+   \includegraphics[width=0.6\linewidth]{figures/mnist/eigenspectrum5.pdf}
+   \caption{The top four positive (top) and negative (bottom) eigenvectors for the digit 5, ordered from left to right by importance. Their eigenvalues are highlighted on the left. Only 20 positive and 20 negative eigenvalues (out of 512) are shown on the left images. Eigenvectors tend to represent semantically and spatially coherent structures.}
+   \label{fig:mnist_eigenvalues}
+\end{figure}
+
+% In simple classification tasks, only a small fraction of eigenvalues have non-negligible magnitude (cite spectrum plot). %E.g. figure 4 A).
+For MNIST, the top positive eigenvector for each output class emphasizes a curve segment specific to its digit or otherwise resembles a prototypical class image (\autoref{fig:top_eigenvectors}B). %(0, 1, 6).In other instances, the top eigenvector emphasizes a curve segments unique to its digit (2, 3, 4, 5) (\autoref{fig:top_eigenvectors}).
+Top eigenvectors for FMNIST function as localized edge detectors, focusing on important edges for each clothing article, such as the leg gap for trousers. The localized edge detection relies on the XOR-like behavior of the eigenvector's quadratic activation. %focus much more on specific parts, for example, the neck and sleeve areas on shirts/pullovers/coats and the leg gap for trousers.
+
+Only a small fraction of eigenvalues have non-negligible magnitude (\autoref{fig:mnist_eigenvalues}). Different top eigenvectors capture semantically different aspects of the class. For example, in the spectrum for digit 5, the first two positive eigenvectors detect the 5's horizontal top stroke but at different positions, similar to Gabor filters. The next two positive eigenvectors detect the bottom segment. The negative eigenvectors are somewhat less intuitive but generally correspond to features that indicate the digit is not a five, such as an upward curve in the top right quadrant instead of a horizontal stroke. In \autoref{app:explainability}, we study this technique towards explaining an input prediction. Details of the training setup are outlined in \autoref{app:setup} while similar plots for other digits can be found in \autoref{app:eigenspectra}.
+
+Because we can extract features directly from model weights, we can identify overfitting in image models by visualizing the top eigenvectors and searching for spatial artifacts.
+%Our decomposition provides a qualitative way to reveal overfitting in models.
+For instance, the eigenvectors of unregularized models focus on certain outlying pixels (\autoref{fig:mnist_noise}). 
+We found adding dense Gaussian noise to the inputs \citep{bricken2023emergence} to be an effective model regularizer, producing bilinear layers with more intuitively interpretable features.
+%Furthermore, using more noise sparsifies the eigenvectors, resulting in cleaner features.
+Increasing the scale of the added noise results produces more digit-like eigenvectors and results in a lower-rank eigenvalue spectrum (\autoref{app:sparsity}). 
+These results indicate that our technique can qualitatively help uncover overfitting or other unwanted behavior in models.
+Furthermore, it can be used to evaluate the effect of certain regularizers and augmentation techniques, as explored in \autoref{app:regularization}.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/regularization/noise.pdf}
+    \caption{Top eigenvector for models trained with varying Gaussian input noise. For reference, the norm of an average digit is about 0.3; adding noise with a norm of 1 results in a heavily distorted but discernible digit. Finally, the test accuracy for each model is shown at the top.}
+    \label{fig:mnist_noise}
+\end{figure}
+
+\subsection{Quantitative assessment: eigenvectors learn consistent patterns}
+One important question in machine learning is whether models learn the same structure across training runs \citep{convergent_learning} and across model sizes \citep{lottery_ticket}. In this section, we study both and find that eigenvectors are similar across runs and behave similarly across model sizes. Furthermore, we characterize the impact of eigenvector truncation on classification accuracy.
+
+\begin{figure}[b]
+    \centering
+    \sidesubfloat[]{\includegraphics[width=0.43\textwidth]{figures/mnist/similarity.pdf}}
+    % \hfill
+    \sidesubfloat[]{\includegraphics[width=0.43\textwidth]{figures/mnist/truncation.pdf}}
+    \caption{A) The similarity between ordered eigenvectors of the same model size averaged over all digits. This shows that equally sized models learn similar features. B) Resulting accuracy after only retaining the $n$ most important eigenvalues (per digit). Both plots are averaged over 5 runs with the 90\% confidence interval shown.}
+    \label{fig:sim_and_trunc}
+\end{figure}
+
+
+Both the ordering and contents of top eigenvectors are very consistent across runs. The cosine similarities of the top eigenvector are between 0.8 and 0.9 depending on size (\autoref{fig:sim_and_trunc}). Generally, increasing model sizes results in more similar top eigenvectors. Further, truncating all but the top few eigenvectors across model sizes yields very similar classification accuracy. This implies that, beyond being consistently similar, these eigenvectors have a comparable impact on classification. In \autoref{app:truncation}, we further study the similarity of eigenvectors between sizes and show that retaining only a handful of eigenvectors results in minimal accuracy drops (0.01\%).
+
+\subsection{Comparing with ground truth: eigenvectors find computation} \label{sub:ground_truth}
+To perform a ground-truth assessment of eigenvectors, we consider a task from a mechanistic interpretability challenge, where the goal was to determine the labeling function (training objective) from a model \citet{casper2023challenge}. Specifically, the challenge required reverse-engineering a binary image classifier trained on MNIST, where the label is based on the similarity to a specific target image. The model predicted `True' if the input has high cosine similarity to this target or high similarity to the complement (one minus the grayscale) of that target and `False' otherwise. This target is chosen as an instance of a `1'.
+
+Previous work \citep{solving_mnist_challenge} reverse-engineered this through a combination of methods, all requiring careful consideration and consisting of non-trivial insights. Furthermore, the methods required knowledge of the original dataset and a hint of what to look for. While our method does not work on the original architecture, we show that we do not require such knowledge and can extract the original algorithm from the weights alone.
+
+We perform our decomposition on the output difference ($\text{True} - \text{False}$) since this is the only meaningful direction before the softmax. This consistently reveals one high positive eigenvalue; the rest are (close to) zero (\autoref{fig:challenge}). The most positive eigenvector is sufficient for completing the task; it computes the exact similarity we want. If the input is close to the target, the blue region will match; if it is close to the complement, the red will match; if both are active simultaneously, they will somewhat cancel out. The remaining two eigenvectors are separated as they seem to overfit the data slightly; the negative eigenvector seems to penalize diagonal structures.
+
+Contrary to other models, this task greatly benefited from including biases. This arises from the fact that the model must not only compute similarity but also make its binary decision based on a learned threshold. If no bias is provided, the model attempts to find quadratic invariances in the data, which don't generalize well, especially given the important but sensitive role of this threshold in classification. Here, the bias (shown in the bottom corner of \autoref{fig:challenge}) represents a negative contribution. The role of biases in bilinear layers is further discussed in \autoref{app:bilinear_variations}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/mnist/challenge.pdf}
+    \caption{Eigenvalues and eigenvectors of a model trained to classify based on similarity to a target. The most important eigenvector (top-left) is a generalizing solution; the other features sharpen the decision boundary based on the training dataset. The latter features disappear with increased regularization. On the right, the target digit is shown along with the learned bias from the model.}
+    \label{fig:challenge}
+\end{figure}
+
+\subsection{Adversarial masks: general attacks from weights}
+To demonstrate the utility of weight-based decomposition, we construct adversarial masks for the MNIST model without training or any forward passes. These masks are added to the input, leading to misclassification as the adversarial digit. The effect is similar to steering, but the intervention is at the input instead of the model internals.
+
+We construct the adversarial masks from the eigenvectors for specific digits. One complication is that the eigenvectors can have nontrivial cosine similarity with each other, so an input along a single eigenvector direction could potentially activate multiple eigenvectors across different digits. To help avoid this, we construct the mask $\vm_i$ for a given eigenvector $\vv_{i:}$ as the corresponding row of the pseudoinverse $(\mV^{+})_{i:}$ for a set of eigenvectors $\mV$ (specifically the top 10 positive). In an analogy to key-value pairs, the pseudoinverses effectively act like keys that activate with more specificity than the eigenvectors themselves, since $\vv_{j:} \cdot (\mV^{+})_{i:} = \delta_{ij}$.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{figures/adversarial_mnist/adversarial_noise05_noise0_v3_updated.pdf}
+\caption{Examples of an adversarial mask constructed from the given eigenvector along for models trained A) with Gaussian noise regularization (std 0.15) and B) without regularization. The average accuracy and the rate of misclassification as the adversarial digit show stronger effects for adversarial masks than random baselines.  In B), the mask is only applied to the outer edge of pixels that are active on less than 1\% of samples.}
+\label{fig:adversarial_mnist}
+\end{figure}
+
+We construct an adversarial mask from an eigenvector for the digit 3 (\autoref{fig:adversarial_mnist}A). Even though the original eigenvector resembles the digit, the pseudoinverse-based mask does not (see \autoref{app:adversarial} for more examples). The accuracy, averaged over masks from the top three eigenvectors, drops significantly more than the baseline of randomly permuting the mask despite regularizing the model during training using dense Gaussian noise with a standard deviation of 0.15. The corresponding rise in misclassification indicates effective steering towards the adversarial digit.
+
+\citet{ilyas2019adversarial} observe that adversarial examples can arise from predictive but non-robust features of the data, perhaps explaining why they often transfer to other models. Our construction can be seen as a toy realization of this phenomenon because the masks correspond to directions that are predictive of robust features but are not robust. We construct masks that only exploit the patterns of over-fitting found on the outer edge of the image for a model trained without regularization (\autoref{fig:adversarial_mnist}B). Since we can find this over-fitting pattern from the eigenvectors, in a general way,  we can construct the mask by hand instead of optimizing it. 
+
+
+\section{Language: finding interactions between SAE features} \label{sec:language}
+Each output of a bilinear layer is described by weighted pairwise interactions between their input features. Previous sections show that this can be successfully leveraged to trace between a bilinear layer's inputs and outputs. Here, we turn towards tracing between latent feature dictionaries obtained by training sparse autoencoders (SAEs) on the MLP inputs or outputs for a 6-layer  bilinear transformer trained on TinyStories \citep{tinystories} (see training details in \autoref{app:setup}). 
+
+\subsection{Sentiment negation circuit}
+We focus on using the eigendecomposition to identify low-rank, single-layer circuits in a bilinear transformer. We cherry-pick and discuss one such circuit that takes input sentiment features and semantically negates them.  Unlike previous work on sparse feature circuits \citep{marks2024sparse} that relies on gradient-based linear approximations, we identify nonlinear interactions grounded in the layer's weights that contribute to the circuit's computation. 
+
+The sentiment negation circuit computes the activation of two opposing output features in layer 4 (index 1882 and 1179) that form a fully linear subspace. The cosine similarity of their decoder vectors is -0.975. Based on their top activations,  the output features activate on negation tokens (``not'', ``never'', ``wasn't'') and boosts either positive sentiment tokens (``good'', ``safe'', ``nice'') or negative sentiment tokens (``bad", ``hurt", ``sad''), so we denote the two features as the \emph{not-good} and the \emph{not-bad} features respectively. See \autoref{app:sae_features} for the top activations of all features mentioned. 
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{figures/language/sentiment_negation_interaction_and_eigenvectors.pdf}
+    \caption{The sentiment negation circuit that computes the not-good and not-bad output features. A) The interaction submatrix containing the top 15 interactions. B) The projection of top interacting features onto the top eigenvectors using cosine similarity. The symbols for different clusters match the labels in A. Clusters coincide with the projection of meaningful directions such as the difference in ``bad'' vs ``good'' token unembeddings and the MLP's input activations for the input ``[BOS] not''. C) The not-good feature activation compared to its approximation by the top two eigenvectors.}
+\label{fig:sentiment_negation_interactions}
+\vspace{-10pt}
+\end{figure}
+
+Focusing on the not-good feature, the top interactions for computing its activations resemble an AND-gate (\autoref{fig:sentiment_negation_interactions}A). Input features that boost negative sentiment tokens (blue squares) have strong positive interactions with negation token features (green triangles), but both have negligible self-interactions. So, both types of input features are needed to activate the not-good feature and flip the boost from negative to positive sentiment. The one positive sentiment feature (orange downward triangle) interacts with the opposite sign. The interactions shown are significantly larger than the typical cross-interactions with a standard deviation of 0.004 (\autoref{fig:sentiment_negation_distributions}. 
+
+The eigenvalue spectrum has one large positive (0.62) and one large negative value (-0.66) as outliers (\autoref{fig:sentiment_negation_distributions}). We can see the underlying geometry of the circuit computation by projecting the input features onto these eigenvectors (\autoref{fig:sentiment_negation_interactions}). By itself, a positive sentiment feature (blue squares) would equally activate both eigenvectors and cancel out, but if a negation feature is also present, the positive eigenvector is strongly activated.  The activation based on only these two eigenvectors, following \autoref{eq:eig_activation}, has a good correlation (0.66) with the activation of the not-good feature, particularly at large activation values (0.76), conditioned on the not-good feature being active.
+
+
+\subsection{Low-rank approximations of output feature activations}
+The top eigenvectors can be used to approximate the activations of the SAE output features using a truncated form of \autoref{eq:eig_activation}. To focus on the more meaningful tail of large activations, we compute the approximation's correlation conditioned on the output feature being active. The correlations of inactive features are generally lower because they are dominated by `noise'. We evaluate this on three bilinear transformers at approximately 2/3 depth: a 6-layer TinyStories (`ts-tiny') and two FineWeb models with 12 and 16 layers (`fw-small' and `fw-medium').
+
+We find that features are surprisingly low-rank, with the average correlation starting around 0.65 for approximations by a single eigenvector and rising steadily with additional eigenvectors (\autoref{fig:language_correlation}A). Most features have a high correlation ($>0.75$) even when approximated by just two eigenvectors (\autoref{fig:language_correlation}B). Scatter plots for a random sample of features show that the low-rank approximation often captures the tail dependence well (\autoref{fig:language_correlation}C). Interestingly, we find the approximation to drastically improve with longer SAE training times while other metrics change only slightly. This indicates a `hidden' transition near convergence and is further discussed in \autoref{app:train_correlation}. Overall, these results suggest that the interactions that produce large output activations are low-rank, making their interpretability potentially easier. 
+
+\begin{figure}[t]
+    \centering
+    \sidesubfloat[A)]{\includegraphics[width=0.285\textwidth, valign=c]{figures/language/correlation_progression.pdf}}
+    \hfill
+    \sidesubfloat[B)]{\includegraphics[width=0.32\textwidth, valign=c]{figures/language/correlation_histogram.pdf} }
+    \hfill
+    \sidesubfloat[C)]{\includegraphics[width=0.255\textwidth, valign=c]{figures/language/correlation_scatters.pdf} }
+    \caption{Activation correlations with low-rank approximations for differently-sized transformers. A) Average correlation over output features computed over every input where the feature is active. B) The distribution of active-only correlations for approximations using the top two eigenvectors. C) Scatter plots for a random set of nine output features on `fw-medium'. Approximations use the top two eigenvectors. Low correlation scores generally only occur on low-activation features.}
+    \label{fig:language_correlation}
+\end{figure}
+
+\section{Discussion}
+\textbf{Summary.}
+This paper introduces a novel approach to weight-based interpretability that leverages the close-to-linear structure of bilinear layers. A key result is that we can identify the most important input directions that explain the layer's output along a given direction using an eigenvector decomposition. The top eigenvectors are often interpretable, for example for MNIST they function as edge-detectors for strokes specific to each digit. The lack of element-wise nonlinearity in bilinear MLPs allows us to transform their weights into interaction matrices that connect input to output features and then extract the low-rank structure. In language models, we find that many SAE output features are well-approximated by low-rank interaction matrices, particularly at large activations. We highlighted one example of an extracted low-rank circuit that flips the sentiment of the next token if the current token is a negation (“not”). The behavior of this circuit can be easily understood in terms of the top eigenvectors, whereas finding a similar circuit in conventional MLPs would be more difficult. Overall, our results demonstrate that bilinear MLPs offer intrinsic interpretability that can aid in feature and circuit extraction. 
+
+% list to cite: causal scrubbing, causal abstraction, "causal mediators" ~ counterfactual interventions, interpretability illusions, 
+\textbf{Implications. } 
+The main implication of our work is that weight-based interpretability is viable, even for large language models. Bilinear MLPs can replace conventional MLPs in transformers with minimal cost while offering intrinsic interpretability due to their lack of element-wise nonlinearities and close-to-linear structure. 
+Current circuit analysis techniques rely on gradient-based approximations \citep{syed2023attributionpatchingoutperformsautomated, marks2024sparse} or use transcoders \citep{dunefsky2024transcoders} to approximate MLPs. Both approaches depend on an input dataset, potentially leading to poor performance out-of-distribution, and they may not fully capture the nonlinear computations in MLPs. In contrast, bilinear MLPs can be transformed into explicit feature interaction matrices and decomposed in a way fully equivalent to the original computations. Extracting interactions more directly from the weights should lead to better, more robust circuits. Weight-based interpretability may also offer better safety guarantees since we could plausibly prove bounds on a layer's outputs by quantifying the residual weights not captured in a circuit's interactions. 
+
+
+\textbf{Limitations.} Application of our methods typically relies on having a set of meaningful output directions available. In shallow models, the unembedding directions can be used, but in deeper models, we rely on features derived from sparse autoencoders that are dependent on an input dataset. Another limitation is that, although the eigenvalue spectra are often low-rank and the top eigenvectors appear interpretable, there are no guarantees the eigenvectors will be monosemantic. We expect that for high-rank spectra, the orthogonality between eigenvectors may limit their interpretability. Applying sparse dictionary learning approaches to decompose the bilinear tensor may be a promising way to relax the orthogonality constraint and find interpretable features from model weights.
+
+
+\section*{Acknowledgements}
+We are grateful to Narmeen Oozeer, Nora Belrose, Philippe Chlenski, and Kola Ayonrinde for helpful feedback on the draft. We are grateful to the \href{https://aisafety.camp/}{AI Safety Camp} program where this work first started and to the \href{https://https://www.matsprogram.org/}{ML Alignment \& Theory Scholars} (MATS) program that supported Michael and Alice while working on this project. We thank CoreWeave for providing compute for the finetuning experiments. This research received funding from the Flemish Government under the "Onderzoeksprogramma Artificiële Intelligentie (AI) Vlaanderen” programme.
+
+\section*{Contributions}
+Michael performed the bulk of the work on the MNIST analysis and provided valuable insights across all presented topics. Thomas worked on the Language Models section and was responsible for code infrastructure. The paper was written in tandem, each focusing on their respective section.
+
+\section*{Ethics statement}
+This paper proposes no advancements to the state-of-the-art in model capabilities. Rather, it provides new methods to analyze the internals of models to increase our understanding. The only misuse the authors envision is using this technique to leak details about the dataset that the model has learned more efficiently. However, this can be avoided by using this technique during safety evaluation.
+
+\section*{Reproducibility statement}
+We aspired to make this work as reproducible as possible. First, \autoref{app:setup} (among others) aims to provide detailed and sufficient descriptions to independently recreate our training setups. Second, our code (currently public but not referenced for anonymity) contains separate files that can be used to generate the figures in this paper independently. We used seeds across training runs so that recreated figures would be equivalent. Third, all models that are compute-intensive to train, such as the SAEs and the LMs, will be shared publicly. Lastly, we will publish an interactive demo, which will allow independent analysis of the figures in \autoref{app:eigenspectra}, \autoref{app:regularization}, and \autoref{app:sae_features} in a way this document cannot.
+
+
+
+%\textbf{Existing Section. }
+%This paper introduces a novel approach to weight-based interpretability that leverages bilinear layers. These layers inherently encode the interaction strengths between pairs of variables, allowing us to expose functionally relevant components without relying on activation data. The key strengths of our approach lie in its generality and fidelity. Our method applies to any MLP-based architecture, from simple classifiers to complex language models. Furthermore, unlike many existing methods, our decomposition is fully equivalent to the original computations, ensuring that the extracted features and interactions accurately represent the model's behavior. This weight-based decomposition bridges the gap between abstract model parameters and concrete, human-understandable features, offering a new avenue for auditing AI systems through enumerative safety. In summary, our findings suggest that bilinear layers are an interpretability-first alternative to traditional inscrutable MLPs for various tasks.
+
+%However, the current approach has limitations.
+%\begin{itemize}
+%    \item Naively applying our decomposition to deeper models results in exponentially many eigenvectors, which is undesirable. Our current solution relies on input-based methods to find feature bases for analyzing interactions. Ideally, we'd decrease or avoid this reliance, finding large circuits from the weights.
+%    \item eigenvectors are orthogonal by nature. While this yields uncorrelated directions, these may not be the most meaningful to consider. Furthermore, it may be important to complement the eigenvectors with correlational statistics.
+%    \item This work mostly focuses on human-specified output directions. Ideally, the decomposition technique should be able to find sparse and meaningful output directions that are important to the model.
+%\end{itemize}
+
+
+% The effectiveness of our method on deep models remains unknown, and the interpretation of complex feature interactions may still require significant human expertise. Additionally, while we have shown that many existing models can be fine-tuned to use bilinear layers, broader adoption of this architecture in the community would be necessary to realize its full potential for interpretability.
+
+
+
+% \subsubsection*{Author Contributions}
+% If you'd like to, you may include  a section for author contributions as is done
+% in many journals. This is optional and at the discretion of the authors.
+
+% \subsubsection*{Acknowledgments}
+% Use unnumbered third level headings for the acknowledgments. All
+% acknowledgments, including those to funding agencies, go at the end of the paper.
+
+\bibliography{iclr2025_conference}
+\bibliographystyle{iclr2025_conference}
+
+\newpage
+\appendix
+
+\section{Eigenspectra: showing eigenvectors across digits} \label{app:eigenspectra}
+The following are plots showing multiple positive and negative eigenvectors for certain digits. Positive features either tend to look for specific patterns in the target class (first eigenvector of 2, matching the bottom part) or tend to match an archetypal pattern (second eigenvector of 6, matching the whole digit). Negative eigenvectors tend to look for a specific part that would change the class of the digit. For instance, if the pattern highlighted by the first negative eigenvector of 4 were on, it would most likely be a 9.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist/eigenspectrum2.pdf}
+    \caption{eigenvectors for digit 2.}
+    \label{fig:eigenspectrum2}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist/eigenspectrum4.pdf}
+    \caption{eigenvectors for digit 4.}
+    \label{fig:eigenspectrum4}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist/eigenspectrum6.pdf}
+    \caption{eigenvectors for digit 6.}
+    \label{fig:eigenspectrum6}
+\end{figure}
+
+\section{Regularization \& augmentation: ablations \& observations} \label{app:regularization}
+
+Following the observation that regularization improves feature interpretability for image classifiers, we study several popular regularization and augmentation techniques. In summary, input noise sparsifies the features, while geometric transformations blur the features. Some popular techniques, such as dropout, have little impact on features. 
+
+\subsection{Regularization}
+
+\textbf{Input noise} has the largest impact on features from any of the explored techniques. Specifically, we found dense Gaussian noise (already depicted in \autoref{fig:mnist_noise}) to provide the best trade-off between feature interpretability and accuracy. We also considered sparse salt-and-pepper noise (blacking or whiting out pixels), which resulted in both lower accuracy and interpretability. Lastly, we explored Perlin noise, which is spatially correlated and produces smooth patches of perturbation. However, this performed worst of all, not fixing the overfitting.
+
+\textbf{Model noise} adds random Gaussian noise to the activations. This had no measurable impact on any of our experiments. However, this may simply be because our models are quite shallow.
+
+\textbf{Weight decay} generally acts as a sparsifier for eigenvalues but does not significantly impact the eigenvectors. This is extremely useful as it can zero out the long tail of unimportant eigenvalues, strongly reducing the labor required to analyze a model fully (more details in \autoref{app:sparsity}).
+
+\textbf{Dropout} did not seem to impact our models. Overfitting was still an issue, even for very high values ($>0.5$). We suspect this may change in larger or capacity-constrained models.
+
+\subsection{Augmentation}
+
+\textbf{Translation} stretches features in all directions, making them smoother. The maximal shift (right) is about 7 pixels in each direction, which is generally the maximal amount without losing important information. Interestingly, translation does not avoid overfitting but rather results in smoother overfitting patches. High translation results in split features, detecting the same pattern in different locations (\autoref{fig:extreme_translate}). This also results in a higher rank.
+
+\textbf{Rotation} affects the features in the expected manner. Since rotating the digit zero does not significantly impact features, we consider the digit 5, which has a mix of rotation invariance and variance. Again, it does not stop the model from learning overfitting patches near the edges without noise. These features become broader with increased rotation.
+
+\textbf{Blur} does not significantly affect features beyond making them somewhat smoother. Again, it still overfits certain edge pixels in a blurred manner without noise.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/regularization/xtreme_translate.pdf}
+    \caption{Important eigenvectors for a model trained with high translation regularization (7 pixels on either side). Similar patterns manifest as multiple eigenvectors at different locations.}
+    \label{fig:extreme_translate}
+\end{figure}
+
+All these augmentations are shown separately in \autoref{fig:feature_ablation}. Combining augmentations has the expected effect. For instance, blurring and rotation augmentation yield smooth and curvy features.
+
+\newpage
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.66\textwidth]{figures/regularization/translate.pdf}\\
+    \includegraphics[width=0.66\textwidth]{figures/regularization/rotate.pdf}\\
+    \includegraphics[width=0.66\textwidth]{figures/regularization/blur.pdf}
+    \caption{Important eigenvectors for models with different hyperparameters.  }
+    % \caption{Top eigenvectors for the digit 5 across 15 models with varying noise and translation. The validation accuracy of the model is shown above each feature. }
+    \label{fig:feature_ablation}
+\end{figure}
+
+\section{Explainability: a small case study with eigenvectors} \label{app:explainability}
+While this paper focuses on bilinear layers for interpretability, the proposed techniques can also be used for post-hoc explainability to understand what has gone wrong. Our explanations are generally not as human-friendly as other methods but are fully grounded in the model's weights. This section explores explaining two test-set examples, one correctly classified and one incorrectly.
+
+The figures are divided into three parts. The left line plots indicate the sorted eigenvector activation strengths for the digits with the highest logits. The middle parts visualize the top positive and negative eigenvectors for each digit. The right displays the input under study and the related logits.
+
+The first example, a somewhat badly drawn five, results in about equal positive activations for the output classes 5, 6, and 8 (which all somewhat match this digit). The negative eigenvectors are most important in this classification, where class 5 is by far the least suppressed. This is an interesting example of the model correctly classifying through suppression.
+
+The second example, a seven-y looking two, is actually classified as a 7. From looking at the top eigenvectors of the digit 2 (shown in \autoref{fig:eigenspectrum2}), we see that the more horizontal top stroke and more vertical slanted stroke activates the top eigenvector for the digit 7 more strongly than the 2-eigenvectors that look for more curved and slanted strokes. The negative eigenvectors are not very important in this incorrect classification.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist/case_study5.pdf}
+    \caption{Study of a correctly classified 5. The output is strongly influenced by negative eigenvectors, resulting in strong suppression for the other digits. }
+    \label{fig:case_study5}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/mnist/case_study2.pdf}
+    \caption{Study of a misclassified 2. The model mostly classifies twos based on the bottom line and top curve, which are both only partially present.}
+    \label{fig:case_study2}
+\end{figure}
+
+\section{HOSVD: finding the most important shared features} \label{app:hosvd}
+In the case that no output features are available or we wish to find the dominant output directions, we can use HOSVD on the $\tB$ tensor (described in \autoref{sub:hosvd}). Intuitively, this reveals the most important shared features. We demonstrate this approach on the same MNIST model used in \autoref{sec:image_classfication}.
+
+Instead of contributing to a single output dimension, each interaction matrix can contribute to an arbitrary direction, shown at the bottom right ("contributions"). Further, the importance of the contributions is determined by their singular value, which is shown at the top right. The remainder of the visualization shows the top eigenvalues and the corresponding eigenvectors.
+
+The most important output direction separates digits with a prominent vertical line (1, 4, and 7) from digits with a prominent horizontal line (5 specifically). Similarly, the second most important direction splits horizontal from vertical lines but is more localized to the top half. Specifically, it splits by the orientation of the top stroke (whether it starts/ends left or right).
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/hosvd/hosvd_0.pdf}
+    \caption{The most important output direction of an MNIST model roughly splits digits by its horizontality or verticality.}
+    \label{fig:hosvd_0}
+\end{figure}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/hosvd/hosvd_1.pdf}
+    \caption{The second most important output direction of an MNIST model splits digits according to the orientation of its top stroke.}
+    \label{fig:hosvd_1}
+\end{figure}
+
+We observe that the output directions uncovered through HOSVD somewhat correspond to meaningful concepts, albeit sometimes dominated by a specific digit (such as 5 and 6). Less significant directions often highlight specific portions of digits that seem meaningful but are more challenging to describe. In summary, while in the case of MNIST, the results are not particularly more interpretable than decomposing according to digits, we believe this technique increases in utility (but also computational cost) as the number of output classes increases.
+
+
+\section{Sparsity: weight decay versus input noise} \label{app:sparsity}
+Throughout, we make the claims that input noise helps create cleaner eigenvectors and that weight decay results in lower rank; this appendix aims to quantify these claims. To quantify near-sparsity, we use $\left(L_1/L_2\right)^2$, which can be seen as a continuous version of the $L_0$ norm, accounting for near-zero values. We analyze both the eigenvalues, indicating the effective rank, and the top eigenvectors, indicating the effective pixel count.
+
+As visually observed in \autoref{fig:mnist_noise}, this analysis (left of \autoref{fig:mnist_sparsity}) shows that input noise plays a large role in determining the eigenvector sparsity; weight decay does not. On the other hand, input noise increases the number of important eigenvectors while weight decay decreases it. Intuitively, input noise results in specialized but more eigenvectors, while weight decay lowers the rank.
+
+\begin{figure}[H]
+    \centering
+    \subfloat{\includegraphics[width=0.48\textwidth]{figures/mnist/eigenvec_sparsity.pdf}}
+    \hfill
+    \subfloat{\includegraphics[width=0.48\textwidth]{figures/mnist/eigenval_sparsity.pdf}}
+    \caption{Measuring the approximate $L_0$ norm of eigenvalues (left) and the top 5 eigenvectors (right) with varying Gaussian input noise and weight decay.}
+    \label{fig:mnist_sparsity}
+\end{figure}
+
+
+\section{Truncation \& similarity: a comparison across sizes} \label{app:truncation}
+This appendix contains a brief extension of the results presented in \autoref{fig:sim_and_trunc}.
+
+\begin{figure}[H]
+    \centering
+    \subfloat{\includegraphics[width=0.35\textwidth]{figures/mnist/acc_drop.pdf}}
+    \hfill
+    \subfloat{\includegraphics[width=0.35\textwidth]{figures/mnist/inter_similarity.pdf}}
+    \hfill
+    \subfloat{\includegraphics[width=0.25\textwidth]{figures/mnist/inter_size_similarity.pdf}}
+    \caption{A) The accuracy drop when truncating the model to a limited number of eigenvectors. The first few eigenvectors result in a similar drop across sizes. Narrow models tend to naturally remain more low-rank. In general, few eigenvectors are necessary to recover the full accuracy. B) Inter-model size similarity of eigenvectors (using 300 as a comparison point). The top features for similarly-sized models are mostly similar. C) A similarity comparison between all model sizes for the top eigenvector. }
+    \label{fig:accuracy_drop}
+\end{figure}
+
+\newpage
+
+\section{Experimental setups: a detailed description} \label{app:setup}
+
+This section contains details about our architectures used and hyperparameters to help reproduce results. More information can be found in our code [currently not referenced for anonymity].
+
+\subsection{Image classification setup}
+The image classification models (\autoref{sec:image_classfication}) in this paper consist of three parts: an embedding, the bilinear layer, and the head/unembedding, as shown in \autoref{fig:mnist_architecture}. The training hyperparameters are found in \autoref{tab:mnist_model_parameters}. However, since the model is small, these parameters (except input noise; \autoref{app:regularization}) do not affect results much.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\linewidth]{figures/mnist/architecture.pdf}
+    \caption{The architecture of the MNIST model. }
+    \label{fig:mnist_architecture}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Training setup for the MNIST models, unless otherwise stated in the text.}
+
+    \begin{tabular}{lr}
+        \multicolumn{2}{c}{\textbf{MNIST Training Parameters}} \\
+        \midrule
+        \textbf{input noise norm} & 0.5 \\
+        \textbf{weight decay} & 1.0 \\
+        \textbf{learning rate} & 0.001 \\
+        \textbf{batch size} & 2048 \\
+        \textbf{optimizer} & AdamW \\
+        \textbf{schedule} & cosine annealing \\
+        \textbf{epochs} & 20-100\\
+    \end{tabular}
+    \label{tab:mnist_model_parameters}
+\end{table}
+
+
+\subsection{Language model setup}
+The language model used in \autoref{sec:language} is a 6-layer modern transformer model \citep{llama2} where the SwiGLU is replaced with a bilinear MLP (\autoref{fig:language_architecture}). The model has about 33 million parameters. The training setup is detailed in \autoref{tab:language_model_parameters}. As the training dataset, we use a simplified and cleaned version of TinyStories \citep{tinystories} that remedies the following issues.
+
+\begin{itemize}
+    \item[] \textbf{Contamination:} About 20\% of stories are exact duplicates (in both train and test).
+    \item[] \textbf{Corruption:} Some stories contain strange symbol sequences akin to data corruption.
+\end{itemize}
+
+Furthermore, we use a custom interpretability-first BPE tokenizer. The tokenizer is lower-case only, splits on whitespace, and has a vocabulary of only 4096 tokens.
+
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\linewidth]{figures/language/architecture.pdf}
+    \caption{Simplified depiction of a bilinear transformer model. A model dimension of 512 is used, and an expansion factor of 4 (resulting in 2048 hidden dimensions in the MLP). }
+    \label{fig:language_architecture}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{Tinystories training setup. Omitted parameters are the HuggingFace defaults.}
+    \begin{tabular}{lr}
+        \multicolumn{2}{c}{\textbf{TinyStories Training Parameters}} \\
+        \midrule
+        \textbf{weight decay} & 0.1 \\
+        \textbf{batch size} & 512 \\
+        \textbf{context length} & 256 \\
+        \textbf{learning rate} & 0.001 \\
+        \textbf{optimizer} & AdamW \\
+        \textbf{schedule} & linear decay \\
+        \textbf{epochs} & 5 \\
+        \textbf{tokens} & $\pm$ 2B \\
+        \textbf{initialisation} & gpt2 \\
+    \end{tabular}
+    \label{tab:language_model_parameters}
+\end{table}
+
+The models used in the experiments shown in \autoref{fig:language_correlation} are trained of the FineWeb dataset \citep{fineweb}. These follow the architecture of GPT2-small (12 layers) and GPT2-medium (16 layers) but have bilinear MLPs. Their parameter count is 162M and 335M, respectively. Both use the Mixtral tokenizer.
+
+\begin{table}[H]
+    \centering
+    \caption{FineWeb training setup. Omitted parameters are the HuggingFace defaults.}
+    \begin{tabular}{lr}
+        \multicolumn{2}{c}{\textbf{FineWeb Training Parameters}} \\
+        \midrule
+        \textbf{weight decay} & 0.1 \\
+        \textbf{batch size} & 512 \\
+        \textbf{context length} & 512 \\
+        \textbf{learning rate} & 6e-4 \\
+        \textbf{optimizer} & AdamW \\
+        \textbf{schedule} & linear decay \\
+        \textbf{tokens} & $\pm$ 32B \\
+        \textbf{initialisation} & gpt2 \\
+    \end{tabular}
+    \label{tab:language_model_parameters}
+\end{table}
+
+\subsection{Sparse autoencoder setup}
+All discussed SAEs use a TopK activation function, as described in \citet{gao_topk}. We found $k = 30$ to strike a good balance between sparseness and reconstruction loss. \autoref{sec:language} studies quite narrow dictionaries (4x expansion) for simplicity. The exact hyperparameters are shown in \autoref{tab:sae_parameters}, and the attained loss added (\autoref{eq:loss_added}) across layers is shown in \autoref{fig:sae_layer_loss}.
+
+\begin{equation} \label{eq:loss_added}
+    L_{added} = \dfrac{L_{patch} - L_{clean}}{L_{clean}}
+\end{equation}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\linewidth]{figures/language/sae_loss_added.pdf}
+    \caption{Loss added for the mlp\_out and resid\_mid SAEs across layers.}
+    \label{fig:sae_layer_loss}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \caption{SAE training hyperparameters.}
+    \begin{tabular}{lr}
+        \multicolumn{2}{c}{\textbf{SAE Training Parameters}} \\
+        \midrule
+        \textbf{expansion} & 4x \\
+        \textbf{k} & 30 \\
+        \textbf{batch size} & 4096 \\
+        \textbf{learning rate} & 1e-4 \\
+        \textbf{optimizer} & AdamW \\
+        \textbf{schedule} & cosine annealing \\
+        \textbf{tokens} & $\pm$ 150M \\
+        \textbf{buffer size} & $\pm$ 2M \\
+        \textbf{normalize decoder} & True \\
+        \textbf{tied encoder init} & True \\
+        \textbf{encoder bias} & False \\
+    \end{tabular}
+
+    \label{tab:sae_parameters}
+\end{table}
+
+\section{Correlation: analyzing the impact of training time} \label{app:train_correlation}
+\autoref{fig:language_correlation} shows how a few eigenvectors capture the essence of SAE features. This section discusses the impact of SAE quality, measured through training steps, on the resulting correlation. In short, we find features of SAEs that are trained longer are better approximated with few eigenvectors.
+
+We train 5 SAEs with an expansion factor of 16 on the output of the MLP at layer 12 of the `fw-medium' model. Each is trained twice as long as the last. The feature approximation correlations are computed over 100K activations; features with less than 10 activations (of which there are less than 1000) are considered dead and not shown. The reconstruction error and loss recovered between SAEs differ only by 10\% while the correlation mean changes drastically (\autoref{tab:correlation_mean}). The correlation distribution is strongly bimodal for the `under-trained' SAEs (shown in \autoref{fig:train_correlation} with darker colors). Given more training time, this distribution shifts towards higher correlations. The activation frequencies of features are mostly uncorrelated with their approximations.
+
+\renewcommand{\arraystretch}{1.2}
+\begin{table}[h]
+    \centering
+    \caption{The SAE metrics along with the mean of the correlations shown in \autoref{fig:train_correlation}. The correlation improves strongly with longer training, while other metrics only change marginally.}
+    \label{tab:correlation_mean}
+    \begin{tabular}{l|ccccc}
+    \textbf{Training steps (relative)} & 1 & 2 & 4 & 8 & 16 \\
+    \hline
+    \textbf{Normalized MSE}  & 0.17 & 0.16 & 0.16 & 0.15 & 0.15 \\
+    \textbf{Loss recovered}  & 0.60 & 0.61 & 0.65 & 0.65 & 0.66 \\
+    \hline
+    \textbf{Correlation mean}   & 0.17 & 0.28 & 0.42 & 0.52 & 0.59 \\
+    \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/language/correlation_training.pdf}
+    \caption{Feature approximation correlations using two eigenvectors across SAEs with different training times. Darker is shorter, and bright is longer. This shows a clear bimodal distribution for `under-trained' SAEs, which vanishes upon longer training, indicating some form of convergence.}
+    \label{fig:train_correlation}
+\end{figure}
+
+\section{Bilinear transformers: a loss comparison} \label{app:accuracy}
+While experiments on large models show bilinear layers to only marginally lag behind SwiGLU \citep{shazeer2020glu}, this section quantifies this accuracy trade-off through compute efficiency. We performed our experiments using a 6-layer transformer model trained on TinyStories. For these experiments, we use $\text{d\_model} = 512$ and $\text{d\_hidden} = 2048$, resulting in roughly 30 million parameters. However, we have found these results to hold across all sizes we tried.
+
+\renewcommand{\arraystretch}{1.2}
+\begin{table}[h]
+\centering
+\caption{The loss of language models with varying MLP activation functions. Bilinear layers are 6\% less data efficient but equally compute efficient.}
+\begin{tabular}{c|ccc}
+        & \textbf{Bilinear}  & \textbf{ReGLU}     & \textbf{SwiGLU}   \\
+\hline
+\textbf{constant epochs}  & 1.337    & 1.332     & 1.321 \\
+\textbf{constant time}    & 1.337    & 1.337     & 1.336 \\
+\end{tabular}
+\end{table}
+
+Considering the data efficiency (constant epochs), both SwiGLU and ReGLU marginally beat the bilinear variant. Concretely, SwiGLU attains the same final loss of the bilinear variant in 6\% less epochs. On the other hand, when considering compute efficiency (constant time), we see that these differences vanish \footnote{An improvement in implementation efficiency, such as fusing kernels, may change this fact.}. Consequently, if data is abundant, there is little disadvantage to using bilinear layers over other variants.
+
+\section{Finetuning: your transformer is secretly bilinear} \label{app:finetune_glu}
+
+Many state-of-the-art open-source models use a gated MLP called SwiGLU \citep{llama2}. This uses the following activation function $\text{Swish}_\beta(x) = x \cdot \text{sigmoid}(\beta x)$. We can vary the $\beta$ parameter to represent common activation functions. If $\beta = 1$, that corresponds to SiLU activation, used by many current state-of-the-art models. $\beta = 1.7$ approximates a GELU and $\beta = 0$ is simply linear, corresponding to our setup. Consequently, we can fine-tune away the gate by interpolating $\beta$ from its original value to zero. This gradually converts an ordinary MLP into its bilinear variant.
+
+To demonstrate how this approach performs, we fine-tuned TinyLlama-1.1B, a 1.1 billion-parameter transformer model pretrained on 3 trillion tokens of data, using a single A40 GPU. For simplicity, we trained on a slice of FineWeb data. Due to computing constraints, we only tried a single schedule that linearly interpolates towards $\beta = 0$ during the first 30\% (120M tokens) and then fine-tunes for the remaining 70\% (280M tokens). We compare this to a baseline that does not vary $\beta$ during fine-tuning, corresponding to continued training. We use this baseline to compensate for the difference in the pretraining distribution of TinyLlama (consisting of a mixture of RedPajama and StarCoder data). 
+This shows that this fine-tuning process increases the loss by about (0.05) but seems to benefit from continued training (\autoref{fig:finetuning}). We plan to extend this result with a more thorough search for an improved schedule, which will probably result in a lower final loss. We also expect longer training runs to close to gap even further.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/finetuning.pdf}
+    \caption{Comparison of fine-tuning versus a baseline over the course of 400M tokens. The loss difference is noticeable but decreases quickly with continued training.}
+    \label{fig:finetuning}
+\end{figure}
+
+\section{Tensor decompositions: extracting shared features} \label{app:tensor_decomposition}
+
+% \subsection{Re-expressing the bilinear tensor} \label{sub:rewrite_b_tensor}
+Given a complete or over-complete set of $m$ $\vu$-vectors, we can re-express $\tB$ in terms of the eigenvectors, which amounts to a change of basis. To avoid multiple contributions from similar $\vu$-vectors, we have to use the pseudo-inverse, which generalizes the inverse for non-square matrices.
+Taking the $\vu$-vectors as the columns of $\mU$, the pseudo-inverse $\mU^+$ satisfies $\mU\mU^+ = I$, as long as $\mU$ is full rank (equal to $d$). Then 
+\begin{align}
+    \tB &= \sum^m_k \vu^+_{:k} \otimes \mQ_k \\
+                &= \sum^m_k \sum_i^d \lambda_{\{k,i\}} \ \vu^+_{:k} \otimes \vv_{\{k,i\}} \otimes \vv_{\{k,i\}}
+\end{align}
+where $\vu^+_{:k}$ are the rows of $U^+$ and $Q_k = \sum_i \lambda_{\{k,i\}} \vv_{\{k,i\}} \otimes \vv_{\{k,i\}}$ is the eigendecomposition of the interaction matrix corresponding for $\vu{k:}$. We can then recover the interaction matrices from $\mQ_k = \vu_{k:} \cdot_\text{out} \tB$ using the fact that
+$\vu_{k:} \cdot \vu^+_{:k'} = \delta_{kk'}$ (Kronecker delta). Note that the eigenvectors within a single output direction $k$ are orthogonal but will overlap when comparing across different output directions. 
+
+% \subsection{Higher order SVD} \label{sub:tensor_decomp}
+% Instead of working backward from the outputs, we can use higher-order tensor decompositions on $\tB$ for a given layer in isolation. The simplest approach that takes advantage of the symmetry between the inputs of $\tB$ is to reshape the tensor, flattening the two input dimensions to produce a $d_\text{out} \times d_\text{in}^2$ shape matrix, and then do a standard singular value decomposition (SVD). 
+% Schematically, this gives $\mB_{\text{out},  \text{in}\times\text{in}} = \sum_i \sigma_i \ \mathbf{r}^{(i)}_{\text{out}} \otimes \mQ^{(i)}_{\text{in}\times\text{in}}$, where $Q$ can still be treated as an interaction matrix and further decomposed into eigenvectors as described in \autoref{sub:decomposition}. 
+
+\section{Bilinear layers: a practical guide} \label{app:bilinear_variations}
+
+Bilinear layers are inherently quadratic; they can only model the importance of pairs of features, not single features. Interestingly, we haven't found this to be an issue in real-world tasks. However, linear structure is important for some toy tasks and, therefore, merits some reflection. Without modification, bilinear layers will model this linear relation as a quadratic function. To resolve this, we can add biases to the layer as follows: $\text{BL}(\vx) = (\mW \vx + \vb) \odot (\mV \vx + \vc)$. In contrast to ordinary layers, where the bias acts as a constant value, here it acts as both a linear \textit{and} a constant value. This becomes apparent when expanded:
+
+$$\text{BL}(\vx) = \mW \vx \odot \mV \vx + (\vc \mW \vx + \vb \mV \vx) + \vc \vb$$
+
+We disambiguate by calling the terms `interaction', `linear', and `constant'. Theoretically, this is very expressive; all binary gates and most mathematical operations can be approximated quite well with it. In practice, the training process often fails to leverage this flexibility and degenerates to using quadratic invariances instead of learned constants.
+
+\section{Adversarial masks: additional figure} \label{app:adversarial}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/adversarial_mnist/adversarial_encoders.pdf}
+    \caption{More examples of adversarial masks constructed from specific eigenvectors for models with A) no regularization, B) Gaussian noise regularization with std 0.15, and C) Gaussian noise regularization with std 0.3.}
+    \label{fig:adversarial_encoders}
+\end{figure}
+
+\section{Language: further details for feature circuits} \label{app:language_ext}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/language/sentiment_negation_distributions.pdf}
+    \caption{A) Histogram of self-interactions and cross-interactions. B) The eigenvalue spectrum for the sentiment negation feature discussed in \autoref{sec:language}. The dashed red line gives spectrum for a random symmetric matrix with Gaussian distributed entries with the same standard deviation.}
+    \label{fig:sentiment_negation_distributions}
+\end{figure}
+
+% \begin{figure}[h]
+%     \centering
+%     \includegraphics[width=0.75\linewidth]{figures/language/sae-self-interaction.png}
+%     \caption{Histogram containing the interaction magnitudes for a third-person present tense verb feature (sees, is, goes). We annotate outlier interactions that negatively contribute to this feature. }
+%     \label{fig:sae_self_interaction}
+% \end{figure}
+
+\newpage
+
+\section{Input features of the negation feature} \label{app:sae_features}
+
+\renewcommand{\arraystretch}{2.0}
+\begin{table}[h]
+\centering
+\tiny
+\begin{tabular}{|l|}
+
+\hline
+\normalsize \textbf{Output Feature (1882): not good} \\
+\hline
+lily wanted to climb the ladder , but \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  her} mommy \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  told} her to \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  stay} away from \colorbox{rgb,255:red,217;green,231;blue,244}{\strut  it} because it was \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut  safe} \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  .} lily listened to her \\ 
+\hline 
+
+. \colorbox{rgb,255:red,241;green,246;blue,252}{\strut  they} \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  looked} everywhere \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  .} \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  the} train was \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  lost} \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  .} \colorbox{rgb,255:red,235;green,243;blue,250}{\strut  the} train stayed in the hole , and it was \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,211;green,229;blue,241}{\strut  happy} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  .} \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  the} end \colorbox{rgb,255:red,236;green,243;blue,250}{\strut  .} \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  [EOS]} \\ 
+\hline 
+
+\colorbox{rgb,255:red,241;green,247;blue,252}{\strut  the} man was \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  angry} . he \colorbox{rgb,255:red,225;green,236;blue,246}{\strut  grabbed} \colorbox{rgb,255:red,241;green,247;blue,252}{\strut  sue} , who \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  screamed} and \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  cried} . sue was very \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  troubled} . she \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  never} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  got} \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  to} \colorbox{rgb,255:red,234;green,241;blue,249}{\strut  watch} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  the} \colorbox{rgb,255:red,231;green,240;blue,249}{\strut  play} \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  and} \\ 
+\hline 
+
+, \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  and} lily still couldn \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  '} \colorbox{rgb,255:red,196;green,222;blue,236}{\strut  t} find her beloved \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  jacket} \colorbox{rgb,255:red,222;green,234;blue,246}{\strut  .} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  she} felt so \colorbox{rgb,255:red,239;green,245;blue,251}{\strut  sad} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  that} she \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  stopped} \colorbox{rgb,255:red,169;green,208;blue,231}{\strut  playing} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  with} \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  her} \colorbox{rgb,255:red,167;green,207;blue,230}{\strut  friends} and \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  stopped} \\ 
+\hline 
+
+big \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  dog} \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  ,} \colorbox{rgb,255:red,241;green,246;blue,252}{\strut  and} max said , " i \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  didn} \colorbox{rgb,255:red,244;green,249;blue,253}{\strut  '} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  t} like \colorbox{rgb,255:red,235;green,243;blue,250}{\strut  the} \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  big} \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  dog} \colorbox{rgb,255:red,241;green,247;blue,252}{\strut  .} he \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  wasn} \colorbox{rgb,255:red,232;green,240;blue,249}{\strut  '} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} honest \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  like} \colorbox{rgb,255:red,220;green,232;blue,244}{\strut  me} . " lily \\ 
+\hline 
+
+\colorbox{rgb,255:red,216;green,231;blue,243}{\strut  sick} . they \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  called} the doctor , who said he was very i \colorbox{rgb,255:red,238;green,244;blue,250}{\strut ll} . \colorbox{rgb,255:red,237;green,243;blue,250}{\strut  sadly} , \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  the} small boy \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  never} recove \colorbox{rgb,255:red,216;green,231;blue,243}{\strut red} and he passed \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Output Feature (1179): not bad} \\
+\hline
+me to the park , car ! " \colorbox{rgb,255:red,243;green,248;blue,252}{\strut  the} car \colorbox{rgb,255:red,245;green,249;blue,253}{\strut  didn} \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  '} \colorbox{rgb,255:red,194;green,221;blue,236}{\strut  t} \colorbox{rgb,255:red,239;green,245;blue,251}{\strut  resp}ond , but \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  lily} didn \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  '} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  mind} . she was just happy \\ 
+\hline 
+
+was a \colorbox{rgb,255:red,244;green,249;blue,253}{\strut  bee} ! susie was afraid at first \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  ,} but \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  mommy} \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  explained} that \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  the} \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  bee} was friendly \colorbox{rgb,255:red,241;green,247;blue,252}{\strut  and} \colorbox{rgb,255:red,241;green,247;blue,252}{\strut  would} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  hurt} \colorbox{rgb,255:red,230;green,239;blue,248}{\strut  her} \colorbox{rgb,255:red,245;green,249;blue,253}{\strut  .} susie was curious \\ 
+\hline 
+
+was proud of himself . he was \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  scared} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  to} collect the lemons , but he didn \colorbox{rgb,255:red,243;green,248;blue,252}{\strut  '} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} \colorbox{rgb,255:red,213;green,229;blue,242}{\strut  give} \colorbox{rgb,255:red,236;green,243;blue,250}{\strut  up} . he \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  collected} \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  all} \\ 
+\hline 
+
+became friends . they went \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  on} many adventures together . the bear was \colorbox{rgb,255:red,242;green,247;blue,252}{\strut  still} clumsy \colorbox{rgb,255:red,241;green,246;blue,252}{\strut  ,} but he \colorbox{rgb,255:red,246;green,250;blue,253}{\strut  didn} \colorbox{rgb,255:red,240;green,246;blue,251}{\strut  '} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  mind} . he was happy to \\ 
+\hline 
+
+made many new friends and had \colorbox{rgb,255:red,244;green,248;blue,252}{\strut  lots} of \colorbox{rgb,255:red,245;green,249;blue,253}{\strut  fun} . \colorbox{rgb,255:red,247;green,250;blue,253}{\strut  the} little frog was always very busy , but he \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  never} forgot \colorbox{rgb,255:red,246;green,250;blue,253}{\strut  the} \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  cow} ' s \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  advice} \\ 
+\hline 
+
+\colorbox{rgb,255:red,244;green,249;blue,253}{\strut  "} tom says . he gives him a hug . the snowman is cold \colorbox{rgb,255:red,243;green,247;blue,252}{\strut  and} wet , but tom \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  does} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut  mind} . he \colorbox{rgb,255:red,241;green,246;blue,252}{\strut  likes} the snowman \\ 
+\hline 
+
+\hline
+\end{tabular}
+\caption{Output SAE features in the negation feature discussed in \autoref{sec:language}.}
+\label{tab:sae_features}
+\end{table}
+
+\renewcommand{\arraystretch}{2.0}
+\begin{table}[h]
+\centering
+\tiny
+\begin{tabular}{|l|}
+
+\hline
+\normalsize \textbf{Input Feature (326): crashing and breaking} \\
+\hline
+but \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  ,} \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  as} \colorbox{rgb,255:red,232;green,240;blue,249}{\strut  the} \colorbox{rgb,255:red,224;green,235;blue,246}{\strut  lady} \colorbox{rgb,255:red,231;green,240;blue,249}{\strut  was} carrying the birdie across the \colorbox{rgb,255:red,222;green,234;blue,246}{\strut  road} \colorbox{rgb,255:red,141;green,189;blue,220}{\strut  ,} \colorbox{rgb,255:red,167;green,207;blue,230}{\strut  a} \colorbox{rgb,255:red,145;green,192;blue,222}{\strut  car} didn ' \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  t} \colorbox{rgb,255:red,144;green,191;blue,222}{\strut  see} \colorbox{rgb,255:red,175;green,211;blue,232}{\strut  them} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  and} \colorbox{rgb,255:red,146;green,192;blue,222}{\strut  hit} \colorbox{rgb,255:red,186;green,217;blue,234}{\strut  them} \colorbox{rgb,255:red,183;green,215;blue,234}{\strut  both} \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  .} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  the} \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  birdie} \\ 
+\hline 
+
+takes an egg and taps it on the edge of the bowl \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  .} \colorbox{rgb,255:red,230;green,239;blue,248}{\strut  but} \colorbox{rgb,255:red,208;green,228;blue,241}{\strut  he} \colorbox{rgb,255:red,223;green,235;blue,246}{\strut  tap} \colorbox{rgb,255:red,208;green,228;blue,241}{\strut s} \colorbox{rgb,255:red,224;green,235;blue,246}{\strut  too} \colorbox{rgb,255:red,119;green,166;blue,208}{\strut  hard} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  and} \colorbox{rgb,255:red,141;green,189;blue,220}{\strut  the} \colorbox{rgb,255:red,122;green,170;blue,210}{\strut  egg} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  breaks} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  in} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  his} \colorbox{rgb,255:red,161;green,203;blue,228}{\strut  hand} \\ 
+\hline 
+
+\colorbox{rgb,255:red,217;green,231;blue,244}{\strut  and} \colorbox{rgb,255:red,213;green,230;blue,242}{\strut  faster} \colorbox{rgb,255:red,177;green,212;blue,232}{\strut  .} \colorbox{rgb,255:red,199;green,224;blue,238}{\strut  he} \colorbox{rgb,255:red,214;green,231;blue,243}{\strut  feels} \colorbox{rgb,255:red,217;green,232;blue,244}{\strut  dizzy} \colorbox{rgb,255:red,208;green,228;blue,240}{\strut  from} \colorbox{rgb,255:red,211;green,229;blue,242}{\strut  the} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  speed} \colorbox{rgb,255:red,189;green,219;blue,235}{\strut  .} \colorbox{rgb,255:red,185;green,217;blue,234}{\strut  he} \colorbox{rgb,255:red,225;green,236;blue,246}{\strut  does} \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  not} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  see} \colorbox{rgb,255:red,171;green,208;blue,231}{\strut  the} \colorbox{rgb,255:red,144;green,190;blue,221}{\strut  rock} \colorbox{rgb,255:red,122;green,170;blue,210}{\strut  in} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  his} \colorbox{rgb,255:red,135;green,183;blue,217}{\strut  way} \colorbox{rgb,255:red,109;green,153;blue,198}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  he} \colorbox{rgb,255:red,152;green,196;blue,225}{\strut  hit} \colorbox{rgb,255:red,157;green,200;blue,226}{\strut s} \colorbox{rgb,255:red,213;green,229;blue,242}{\strut  the} \colorbox{rgb,255:red,132;green,180;blue,216}{\strut  rock} \colorbox{rgb,255:red,119;green,166;blue,208}{\strut  and} \colorbox{rgb,255:red,185;green,217;blue,234}{\strut  his} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (1376): dangerous actions} \\
+\hline
+" no , sweetie \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  ,} \colorbox{rgb,255:red,155;green,199;blue,226}{\strut  you} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  can} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  '} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  t} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  touch} \colorbox{rgb,255:red,219;green,232;blue,244}{\strut  the} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  fish} \colorbox{rgb,255:red,174;green,210;blue,231}{\strut  .} \colorbox{rgb,255:red,106;green,147;blue,190}{\strut  they} \colorbox{rgb,255:red,124;green,172;blue,211}{\strut  are} \colorbox{rgb,255:red,167;green,207;blue,230}{\strut  not} \colorbox{rgb,255:red,183;green,215;blue,234}{\strut  for} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  touch} \colorbox{rgb,255:red,170;green,208;blue,231}{\strut ing} \colorbox{rgb,255:red,154;green,198;blue,225}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  they} \colorbox{rgb,255:red,115;green,162;blue,204}{\strut  might} \colorbox{rgb,255:red,132;green,180;blue,216}{\strut  bite} \colorbox{rgb,255:red,120;green,168;blue,209}{\strut  you} \colorbox{rgb,255:red,178;green,212;blue,232}{\strut  or} \colorbox{rgb,255:red,148;green,194;blue,223}{\strut  get} \colorbox{rgb,255:red,190;green,219;blue,235}{\strut  scared} \\ 
+\hline 
+
+with them ! " tom was worried . he said " lila \colorbox{rgb,255:red,223;green,234;blue,246}{\strut  ,} \colorbox{rgb,255:red,214;green,230;blue,243}{\strut  we} \colorbox{rgb,255:red,225;green,235;blue,246}{\strut  should} not touch \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  the} \colorbox{rgb,255:red,208;green,228;blue,241}{\strut  balloons} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  they} \colorbox{rgb,255:red,106;green,146;blue,189}{\strut  are} \colorbox{rgb,255:red,144;green,190;blue,221}{\strut  not} \colorbox{rgb,255:red,187;green,217;blue,234}{\strut  our} \colorbox{rgb,255:red,189;green,219;blue,235}{\strut s} \colorbox{rgb,255:red,155;green,199;blue,226}{\strut  .} \colorbox{rgb,255:red,159;green,201;blue,227}{\strut  maybe} \\ 
+\hline 
+
+was worried and said , " no , sam \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  .} \colorbox{rgb,255:red,178;green,212;blue,232}{\strut  you} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  must}n \colorbox{rgb,255:red,231;green,240;blue,249}{\strut  '} t \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  go} \colorbox{rgb,255:red,211;green,229;blue,242}{\strut  in} \colorbox{rgb,255:red,175;green,211;blue,232}{\strut  !} \colorbox{rgb,255:red,106;green,148;blue,192}{\strut  it} \colorbox{rgb,255:red,106;green,131;blue,166}{\strut  would} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  be} \colorbox{rgb,255:red,107;green,151;blue,196}{\strut  too} \colorbox{rgb,255:red,111;green,156;blue,199}{\strut  dangerous} \colorbox{rgb,255:red,188;green,218;blue,235}{\strut  .} " but sam \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (1636): nervous / worried} \\
+\hline
+big adventure . he decided to take a trip to the tip . joe was so excited , \colorbox{rgb,255:red,208;green,228;blue,241}{\strut  but} \colorbox{rgb,255:red,106;green,150;blue,195}{\strut  he} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,136;green,184;blue,217}{\strut  a} \colorbox{rgb,255:red,136;green,184;blue,217}{\strut  little} \colorbox{rgb,255:red,160;green,202;blue,228}{\strut  worried} \colorbox{rgb,255:red,189;green,219;blue,235}{\strut  too} \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  .} \colorbox{rgb,255:red,225;green,236;blue,246}{\strut  he} \\ 
+\hline 
+
+two people doing yoga . joe was fascinated and he clapped with excitement . \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  but} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  the} \colorbox{rgb,255:red,107;green,151;blue,196}{\strut  people} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  were}n \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  '} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  t} \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  happy} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  .} \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  one} \\ 
+\hline 
+
+forest and soon he spotted a lovely tree with lots of delicious fruit . he was excited , \colorbox{rgb,255:red,208;green,228;blue,240}{\strut  but} \colorbox{rgb,255:red,113;green,159;blue,202}{\strut  he} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,132;green,180;blue,216}{\strut  also} \colorbox{rgb,255:red,167;green,207;blue,230}{\strut  a} \colorbox{rgb,255:red,155;green,199;blue,226}{\strut  bit} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  nervous} \colorbox{rgb,255:red,221;green,233;blue,245}{\strut  .} \colorbox{rgb,255:red,232;green,240;blue,249}{\strut  he} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (123): negative attribute} \\
+\hline
+[BOS] once upon a time there was a poor rug \colorbox{rgb,255:red,174;green,210;blue,231}{\strut  .} \colorbox{rgb,255:red,169;green,208;blue,231}{\strut  it} \colorbox{rgb,255:red,149;green,195;blue,223}{\strut  was} \colorbox{rgb,255:red,178;green,213;blue,232}{\strut  old} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  and} \colorbox{rgb,255:red,187;green,217;blue,234}{\strut  fa} \colorbox{rgb,255:red,220;green,232;blue,244}{\strut de} \colorbox{rgb,255:red,178;green,212;blue,232}{\strut d} \colorbox{rgb,255:red,141;green,189;blue,220}{\strut  ,} \colorbox{rgb,255:red,184;green,216;blue,234}{\strut  but} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  it} \\ 
+\hline 
+
+[BOS] once upon a time , there was a beach . the beach was very \colorbox{rgb,255:red,220;green,232;blue,244}{\strut  filthy} \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  .} \colorbox{rgb,255:red,106;green,150;blue,195}{\strut  it} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  had} \colorbox{rgb,255:red,140;green,188;blue,220}{\strut  a} \colorbox{rgb,255:red,150;green,195;blue,224}{\strut  lot} \colorbox{rgb,255:red,117;green,163;blue,205}{\strut  of} \colorbox{rgb,255:red,127;green,175;blue,213}{\strut  trash} \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  on} \colorbox{rgb,255:red,143;green,190;blue,221}{\strut  it} \\ 
+\hline 
+
+to say hello . she ran to the door and knocked on it , but it was \colorbox{rgb,255:red,211;green,229;blue,241}{\strut  filthy} \colorbox{rgb,255:red,106;green,149;blue,193}{\strut  and} \colorbox{rgb,255:red,178;green,213;blue,232}{\strut  covered} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  in} \colorbox{rgb,255:red,139;green,187;blue,219}{\strut  dirt} \colorbox{rgb,255:red,233;green,241;blue,249}{\strut  .} the new kid opened \\ 
+\hline 
+
+\hline
+\end{tabular}
+\caption{SAE features that contribute to the negation feature discussed in \autoref{sec:language}.}
+% \label{tab:sae_features}
+\end{table}
+\renewcommand{\arraystretch}{2.0}
+\begin{table}[h]
+\centering
+\tiny
+\begin{tabular}{|l|}
+
+\hline
+\normalsize \textbf{Input Feature (990): a bad turn} \\
+\hline
+\colorbox{rgb,255:red,231;green,240;blue,248}{\strut  .} she went up to him and asked \colorbox{rgb,255:red,224;green,235;blue,246}{\strut  him} why \colorbox{rgb,255:red,177;green,212;blue,232}{\strut  he} \colorbox{rgb,255:red,185;green,217;blue,234}{\strut  was} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  crying} . the little \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  boy} \colorbox{rgb,255:red,124;green,172;blue,211}{\strut  said} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  ,} \colorbox{rgb,255:red,106;green,149;blue,193}{\strut  "} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  i} \colorbox{rgb,255:red,170;green,208;blue,231}{\strut  lost} \colorbox{rgb,255:red,183;green,215;blue,234}{\strut  my} \colorbox{rgb,255:red,199;green,223;blue,237}{\strut  li} \colorbox{rgb,255:red,141;green,189;blue,220}{\strut p} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  bal} \colorbox{rgb,255:red,173;green,210;blue,231}{\strut m} \\ 
+\hline 
+
+a little boy \colorbox{rgb,255:red,231;green,240;blue,249}{\strut  crying} \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  .} she went to him and asked why \colorbox{rgb,255:red,180;green,214;blue,233}{\strut  he} \colorbox{rgb,255:red,195;green,222;blue,236}{\strut  was} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  sad} . the little \colorbox{rgb,255:red,193;green,221;blue,235}{\strut  boy} \colorbox{rgb,255:red,115;green,162;blue,204}{\strut  said} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  he} \colorbox{rgb,255:red,177;green,212;blue,232}{\strut  lost} \colorbox{rgb,255:red,186;green,217;blue,234}{\strut  his} \colorbox{rgb,255:red,188;green,218;blue,235}{\strut  toy} \colorbox{rgb,255:red,147;green,193;blue,223}{\strut  and} didn \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  '} \\ 
+\hline 
+
+\colorbox{rgb,255:red,222;green,234;blue,245}{\strut h} \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  .} spot asked , \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  "} why are \colorbox{rgb,255:red,208;green,228;blue,241}{\strut  you} sad , little \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  bird} \colorbox{rgb,255:red,221;green,233;blue,245}{\strut  ?} " the \colorbox{rgb,255:red,190;green,219;blue,235}{\strut  bird} \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  replied} \colorbox{rgb,255:red,188;green,218;blue,235}{\strut  ,} \colorbox{rgb,255:red,106;green,145;blue,187}{\strut  "} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  i} \colorbox{rgb,255:red,174;green,210;blue,231}{\strut  lost} \colorbox{rgb,255:red,181;green,214;blue,233}{\strut  my} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  favorite} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  toy} \colorbox{rgb,255:red,143;green,190;blue,221}{\strut  in} \colorbox{rgb,255:red,211;green,229;blue,242}{\strut  the} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (1929): inability to do something / failure} \\
+\hline
+\colorbox{rgb,255:red,231;green,240;blue,249}{\strut  '} t listen to him \colorbox{rgb,255:red,199;green,223;blue,237}{\strut  .} \colorbox{rgb,255:red,139;green,187;blue,219}{\strut  max} \colorbox{rgb,255:red,145;green,192;blue,222}{\strut  tried} \colorbox{rgb,255:red,190;green,219;blue,235}{\strut  again} \colorbox{rgb,255:red,178;green,212;blue,232}{\strut  and} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  again} \colorbox{rgb,255:red,180;green,214;blue,233}{\strut  ,} \colorbox{rgb,255:red,196;green,222;blue,236}{\strut  but} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  the} \colorbox{rgb,255:red,222;green,234;blue,246}{\strut  water} \colorbox{rgb,255:red,213;green,229;blue,242}{\strut  wouldn} \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  '} t answer \colorbox{rgb,255:red,133;green,181;blue,216}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  he} \colorbox{rgb,255:red,136;green,184;blue,217}{\strut  said} \colorbox{rgb,255:red,210;green,228;blue,241}{\strut  please} \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  and} \colorbox{rgb,255:red,199;green,223;blue,237}{\strut  asked} \colorbox{rgb,255:red,186;green,217;blue,234}{\strut  nicely} \colorbox{rgb,255:red,204;green,226;blue,239}{\strut  ,} \\ 
+\hline 
+
+how \colorbox{rgb,255:red,174;green,210;blue,231}{\strut  .} \colorbox{rgb,255:red,115;green,162;blue,204}{\strut  he} \colorbox{rgb,255:red,162;green,204;blue,228}{\strut  tried} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  moving} \colorbox{rgb,255:red,223;green,235;blue,246}{\strut  it} \colorbox{rgb,255:red,214;green,230;blue,243}{\strut  ,} pushing \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  it} \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  ,} \colorbox{rgb,255:red,233;green,241;blue,249}{\strut  pull} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut ing} \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  it} \colorbox{rgb,255:red,205;green,226;blue,240}{\strut  .} \colorbox{rgb,255:red,232;green,240;blue,249}{\strut  nothing} \colorbox{rgb,255:red,196;green,222;blue,236}{\strut  seemed} \colorbox{rgb,255:red,221;green,233;blue,245}{\strut  to} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  work} \colorbox{rgb,255:red,126;green,174;blue,212}{\strut  .} \colorbox{rgb,255:red,106;green,141;blue,182}{\strut  he} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,106;green,144;blue,187}{\strut  getting} \colorbox{rgb,255:red,135;green,183;blue,217}{\strut  frustrated} \colorbox{rgb,255:red,151;green,196;blue,224}{\strut  .} \colorbox{rgb,255:red,122;green,170;blue,210}{\strut  he} \colorbox{rgb,255:red,161;green,203;blue,228}{\strut  asked} \colorbox{rgb,255:red,205;green,226;blue,240}{\strut  his} \\ 
+\hline 
+
+couldn ' t reach \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  it} \colorbox{rgb,255:red,220;green,233;blue,245}{\strut  on} the counter \colorbox{rgb,255:red,157;green,199;blue,226}{\strut  .} \colorbox{rgb,255:red,106;green,133;blue,169}{\strut  she} \colorbox{rgb,255:red,144;green,191;blue,222}{\strut  tried} \colorbox{rgb,255:red,210;green,228;blue,241}{\strut  and} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  tried} \colorbox{rgb,255:red,140;green,188;blue,220}{\strut  ,} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  but} \colorbox{rgb,255:red,159;green,201;blue,227}{\strut  it} \colorbox{rgb,255:red,175;green,211;blue,232}{\strut  was} \colorbox{rgb,255:red,180;green,214;blue,233}{\strut  too} \colorbox{rgb,255:red,198;green,223;blue,237}{\strut  high} \colorbox{rgb,255:red,133;green,181;blue,216}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  lily} \colorbox{rgb,255:red,169;green,208;blue,231}{\strut  '} \colorbox{rgb,255:red,131;green,179;blue,215}{\strut  s} \colorbox{rgb,255:red,136;green,184;blue,217}{\strut  mom} \colorbox{rgb,255:red,180;green,213;blue,233}{\strut  came} \colorbox{rgb,255:red,225;green,235;blue,246}{\strut  into} \colorbox{rgb,255:red,220;green,232;blue,244}{\strut  the} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (491): body parts} \\
+\hline
+a bucket \colorbox{rgb,255:red,225;green,236;blue,246}{\strut  and} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut  a} \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  shovel} and start to fill the bucket with soil \colorbox{rgb,255:red,238;green,245;blue,251}{\strut  .} they press \colorbox{rgb,255:red,211;green,229;blue,242}{\strut  the} soil hard \colorbox{rgb,255:red,189;green,219;blue,235}{\strut  with} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  their} \colorbox{rgb,255:red,158;green,201;blue,227}{\strut  hands} \colorbox{rgb,255:red,237;green,244;blue,250}{\strut  .} they turn the bucket \\ 
+\hline 
+
+day , he hopped up to a magazine that was lying on the ground . he poked it with \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  his} \colorbox{rgb,255:red,113;green,159;blue,202}{\strut  furry} \colorbox{rgb,255:red,149;green,195;blue,223}{\strut  foot} and it felt hard \\ 
+\hline 
+
+spider on the ceiling . she wanted to catch it , so she reached up \colorbox{rgb,255:red,228;green,238;blue,247}{\strut  to} pinch it \colorbox{rgb,255:red,229;green,238;blue,247}{\strut  with} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  her} \colorbox{rgb,255:red,146;green,192;blue,222}{\strut  fingers} . but the spider was \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (947): bad ending (seriously)} \\
+\hline
+\colorbox{rgb,255:red,174;green,210;blue,231}{\strut  the} \colorbox{rgb,255:red,152;green,196;blue,225}{\strut  doctor} \colorbox{rgb,255:red,144;green,191;blue,222}{\strut  ,} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  who} \colorbox{rgb,255:red,180;green,214;blue,233}{\strut  said} \colorbox{rgb,255:red,158;green,201;blue,227}{\strut  he} \colorbox{rgb,255:red,159;green,201;blue,227}{\strut  was} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  very} \colorbox{rgb,255:red,199;green,223;blue,237}{\strut  i} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut ll} \colorbox{rgb,255:red,120;green,168;blue,209}{\strut  .} \colorbox{rgb,255:red,133;green,181;blue,216}{\strut  sadly} \colorbox{rgb,255:red,111;green,157;blue,200}{\strut  ,} \colorbox{rgb,255:red,160;green,202;blue,228}{\strut  the} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut  small} \colorbox{rgb,255:red,106;green,147;blue,192}{\strut  boy} \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  never} \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  rec}ove \colorbox{rgb,255:red,152;green,196;blue,225}{\strut red} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  and} \colorbox{rgb,255:red,106;green,135;blue,172}{\strut  he} \colorbox{rgb,255:red,117;green,164;blue,206}{\strut  passed} \colorbox{rgb,255:red,128;green,176;blue,214}{\strut  away} \colorbox{rgb,255:red,108;green,152;blue,196}{\strut  .} \colorbox{rgb,255:red,219;green,232;blue,244}{\strut  [EOS]} \colorbox{rgb,255:red,162;green,204;blue,228}{\strut  [EOS]} \\ 
+\hline 
+
+\colorbox{rgb,255:red,202;green,225;blue,238}{\strut  '} \colorbox{rgb,255:red,147;green,193;blue,223}{\strut  t} \colorbox{rgb,255:red,196;green,223;blue,237}{\strut  make} \colorbox{rgb,255:red,162;green,204;blue,228}{\strut  it} \colorbox{rgb,255:red,192;green,220;blue,235}{\strut  out} \colorbox{rgb,255:red,180;green,213;blue,233}{\strut  of} \colorbox{rgb,255:red,211;green,229;blue,242}{\strut  the} \colorbox{rgb,255:red,157;green,200;blue,226}{\strut  water} \colorbox{rgb,255:red,114;green,160;blue,202}{\strut  .} \colorbox{rgb,255:red,140;green,188;blue,220}{\strut  her} \colorbox{rgb,255:red,106;green,137;blue,175}{\strut  family} \colorbox{rgb,255:red,108;green,152;blue,196}{\strut  was} \colorbox{rgb,255:red,111;green,156;blue,199}{\strut  very} \colorbox{rgb,255:red,106;green,135;blue,172}{\strut  sad} \colorbox{rgb,255:red,106;green,135;blue,172}{\strut  and} \colorbox{rgb,255:red,183;green,215;blue,234}{\strut  missed} \colorbox{rgb,255:red,156;green,199;blue,226}{\strut  her} \colorbox{rgb,255:red,178;green,212;blue,232}{\strut  very} \colorbox{rgb,255:red,132;green,180;blue,216}{\strut  much} \colorbox{rgb,255:red,106;green,147;blue,190}{\strut  .} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  they} \colorbox{rgb,255:red,153;green,197;blue,225}{\strut  remembered} \colorbox{rgb,255:red,170;green,208;blue,231}{\strut  how} \colorbox{rgb,255:red,196;green,223;blue,237}{\strut  jolly} \colorbox{rgb,255:red,193;green,221;blue,235}{\strut  and} \colorbox{rgb,255:red,216;green,231;blue,243}{\strut  happy} \colorbox{rgb,255:red,219;green,232;blue,244}{\strut  she} \\ 
+\hline 
+
+\colorbox{rgb,255:red,154;green,198;blue,225}{\strut  was} \colorbox{rgb,255:red,161;green,203;blue,228}{\strut  very} \colorbox{rgb,255:red,144;green,191;blue,222}{\strut  sad} \colorbox{rgb,255:red,112;green,157;blue,201}{\strut  .} \colorbox{rgb,255:red,168;green,207;blue,230}{\strut  his} \colorbox{rgb,255:red,132;green,180;blue,216}{\strut  friends} \colorbox{rgb,255:red,152;green,196;blue,225}{\strut  could} \colorbox{rgb,255:red,175;green,211;blue,232}{\strut  not} \colorbox{rgb,255:red,191;green,220;blue,235}{\strut  help} \colorbox{rgb,255:red,163;green,204;blue,229}{\strut  him} \colorbox{rgb,255:red,106;green,146;blue,189}{\strut  .} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  the} \colorbox{rgb,255:red,106;green,145;blue,189}{\strut  hippo} \colorbox{rgb,255:red,135;green,183;blue,217}{\strut  stayed} \colorbox{rgb,255:red,148;green,194;blue,223}{\strut  stuck} \colorbox{rgb,255:red,139;green,187;blue,219}{\strut  with} \colorbox{rgb,255:red,196;green,223;blue,237}{\strut  the} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  disgusting} \colorbox{rgb,255:red,116;green,163;blue,205}{\strut  wrap} \colorbox{rgb,255:red,106;green,142;blue,183}{\strut  forever} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  .} \colorbox{rgb,255:red,217;green,231;blue,244}{\strut  [EOS]} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (882): being positive} \\
+\hline
+, there was a musician who wandered through the countryside . he was quite weak , \colorbox{rgb,255:red,204;green,226;blue,239}{\strut  but} \colorbox{rgb,255:red,106;green,139;blue,178}{\strut  he} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,128;green,176;blue,214}{\strut  determined} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  to} \colorbox{rgb,255:red,202;green,225;blue,238}{\strut  make} \colorbox{rgb,255:red,227;green,237;blue,247}{\strut  it} to the \\ 
+\hline 
+
+finger ! she yelped and quickly pulled away . the little girl was a bit scared \colorbox{rgb,255:red,223;green,235;blue,246}{\strut  but} \colorbox{rgb,255:red,113;green,159;blue,202}{\strut  she} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,124;green,172;blue,211}{\strut  also} \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  brave} \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  .} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  she} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  did} \colorbox{rgb,255:red,205;green,226;blue,240}{\strut  not} \\ 
+\hline 
+
+was tall and had long , bony fingers . the little boy was a bit scared , \colorbox{rgb,255:red,219;green,232;blue,244}{\strut  but} \colorbox{rgb,255:red,109;green,153;blue,198}{\strut  he} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  was} \colorbox{rgb,255:red,120;green,168;blue,208}{\strut  also} \colorbox{rgb,255:red,117;green,165;blue,206}{\strut  very} \colorbox{rgb,255:red,139;green,187;blue,219}{\strut  curious} \colorbox{rgb,255:red,193;green,221;blue,235}{\strut  .} \colorbox{rgb,255:red,213;green,229;blue,242}{\strut  he} \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  went} \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (240): negation of attribute} \\
+\hline
+ran to it and asked the others what it was . he was so excited to know that it wasn \colorbox{rgb,255:red,106;green,130;blue,166}{\strut t} \colorbox{rgb,255:red,188;green,218;blue,235}{\strut  just} \colorbox{rgb,255:red,225;green,236;blue,246}{\strut  a} strange big box it \\ 
+\hline 
+
+explore a big tunnel and see what he might find inside . joe \colorbox{rgb,255:red,238;green,244;blue,250}{\strut s} mum told him that it wasn \colorbox{rgb,255:red,106;green,130;blue,166}{\strut t} \colorbox{rgb,255:red,186;green,217;blue,234}{\strut  a} safe tunnel and he should \\ 
+\hline 
+
+go swimming in the ocean . he asked his mom to take him . his mom explained that it was \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} safe to swim alone and she \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (766): inability to perform physical actions} \\
+\hline
+but one day , he got sick and started to suffer . \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  his} body \colorbox{rgb,255:red,223;green,235;blue,246}{\strut  hurt} and he couldn ' \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} \colorbox{rgb,255:red,188;green,218;blue,235}{\strut  play} \colorbox{rgb,255:red,213;green,230;blue,242}{\strut  with} his friends \colorbox{rgb,255:red,214;green,231;blue,243}{\strut  anymore} . \\ 
+\hline 
+
+[BOS] one day , a pretty bird \colorbox{rgb,255:red,234;green,242;blue,249}{\strut  hurt} \colorbox{rgb,255:red,207;green,227;blue,240}{\strut  its} \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  wing} . it \colorbox{rgb,255:red,232;green,241;blue,249}{\strut  could} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,214;green,230;blue,243}{\strut  fly} . a kind girl named \\ 
+\hline 
+
+to play with him too . one day , the puppy fell down and \colorbox{rgb,255:red,229;green,239;blue,248}{\strut  hurt} \colorbox{rgb,255:red,217;green,231;blue,244}{\strut  his} leg . he could \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} \colorbox{rgb,255:red,196;green,223;blue,237}{\strut  play} and run like before . \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (1604): avoiding bad things} \\
+\hline
+it in a more careful way . so he started playing more carefully , making sure that he wouldn ' \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  t} \colorbox{rgb,255:red,226;green,237;blue,247}{\strut  get} too dirty . he kept \\ 
+\hline 
+
+shelf . she smiled and said yes . jimmy was careful to pull it off the shelf so it would \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} break . he proudly showed it \\ 
+\hline 
+
+jane noticed the ice was very icy . mary suggested they wear gloves , so that the cold would \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  not} hurt their hands . jane agreed \\ 
+\hline 
+
+\hline
+\hline
+\normalsize \textbf{Input Feature (1395): positive ending} \\
+\hline
+. the old man watched the pony with a smile on his face . the pony was happy and \colorbox{rgb,255:red,150;green,195;blue,224}{\strut  no} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  longer} \colorbox{rgb,255:red,222;green,234;blue,245}{\strut  scared} . she had found a \\ 
+\hline 
+
+and jane seeing a deer in the woods and choosing to \colorbox{rgb,255:red,231;green,240;blue,248}{\strut  stay} and appreciate it , \colorbox{rgb,255:red,201;green,225;blue,238}{\strut  instead} \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  of} \colorbox{rgb,255:red,129;green,177;blue,214}{\strut  trying} \colorbox{rgb,255:red,131;green,179;blue,215}{\strut  to} \colorbox{rgb,255:red,165;green,205;blue,229}{\strut  catch} \colorbox{rgb,255:red,205;green,226;blue,240}{\strut  it} . [EOS] \\ 
+\hline 
+
+. sam was happy , and so was the ball . now \colorbox{rgb,255:red,238;green,244;blue,250}{\strut  ,} sam and the ball could play together \colorbox{rgb,255:red,106;green,130;blue,166}{\strut  without} \colorbox{rgb,255:red,137;green,185;blue,218}{\strut  mud} . they rolled and bounced \\ 
+\hline 
+
+\hline
+\end{tabular}
+\caption{SAE features that contribute to the negation feature discussed in \autoref{sec:language} (continued).}
+% \label{tab:sae_features}
+\end{table}
+
+
+%Because of In recent years, the The switch 
+
+%2. Better circuits: We can conenct activations to the weights, which is good. 
+%Better capture nonlinear interactions. out of distribution inputs.
+
+%Potentially better safety guarantees
+%3. Cleaner mathematical structure can potentially provide better safety guarantees. plausible to prove bounds for model truncation. 
+%4. Something about out of distribution inputs.
+
+%\textbf{Implications. } It is crucial for mechanistic interpretability methods to avoid telling `just-so' stories that are divorced from the internal workings of the model. % Often, interpretability papers are driven by a 
+%Often, interpretability papers define some metric which is claimed to correspond to some property of interest, often faithfulness, and then very rigorously measure this metric. These studies have little overlapping experimental methodologyUnfortunately, interpretability research has a habit of making making ad-hoc faithfulness claims,  
+%A model's weights define its internal workings. We argue it is essential to connect activations to the weights of a model to ensure the faithfulness of interpretations. In contrast, we observe that the literature appears to largely dismiss weight interpretability as a plausible avenue. As a result, defining and evaluating faithfulness becomes an open philosophical problem. 
+%Current research seeks to find circuits, subgraphs of a neural network that are causally implicated in performing a specific task, as explanations for model behaviors. 
+%Interpretability papers often take counterfactual theories of causality for granted by using activation patching as 
+%Interpretability papers employ ad-hoc faithfulness evaluations with little overlapping experimental methodology. % Notably, these approaches dismiss a model's weights as inscrutable,  
+%Circuit analyses rely on counterfactual interventions, which do not effectively capture multiple independently sufficient causes of the same effect. which 
+%Circuit analyses often share a common weakness: they are unable to interpret edges in their circuits \citep{conmy2023automatedcircuitdiscoverymechanistic, marks2024sparse}, and fail to capture interactions between multiple contributing effects \citep{mueller2024missedcausesambiguouseffects}.
+%Causal scrubbing \citep{scrubbing} has been proposed as a method to evaluate the faithfulness of circuits based on input-output behavior. Causal scrubbing is rarely cited because it shows poor performance.
+%Our approach exposes a direct interface via the interaction matrix, whose entries explicitly quantify feature interactions, and whose eigenvalues measure contribution significance. We show that interpreting weights is viable under mild simplifications to the underlying model, that do not harm performance in practice. Bilinear layers are compatible with existing activation-based methods, such as SDL, and enable intrinsic attribution to MLP outputs. We hope that weight-based approaches become more widely adopted in the future. % something like this, needs adjusting
+%One of the main challenges in using SAEs for mechanistic interpretability is that there is no known ‘ground truth’ against which to benchmark the features learned by SAEs. We argue that interpreting a model's weights  Informally, faithfulness has been defined as the degree to which an explanation accurately represents
+%the ‘true reasoning process behind a model’s behavior’
+%We show that weight-based interpretability is viable with mild simplifications of the underlying model, that do not harm performance significantly in practice.
+%Bilinear layers are compatible with existing activation-based methods such as SDL and enable attribution to MLP outputs through its and expose all existing methods in interpretability transfer, and we  
+
+%Current circuit analysis methods rely on gradient-based approximations or use transcoders to approximate MLPs. Both approaches depend on an input dataset, potentially leading to poor performance out-of-distribution, and they may not fully capture the nonlinear computations in MLPs.  Additionally, it’s been argued that 
+
+%In contrast, by utilizing the close-to-linear structure of bilinear MLPs, we can transform the MLP weights into explicit feature interaction matrices from which low-rank structure can be extracted by eigenvector decomposition.  
+
+\end{document}

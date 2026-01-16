@@ -1,17 +1,19 @@
 #!/bin/bash
 #SBATCH --partition=gpu_a100
 #SBATCH --gpus=1
-#SBATCH --job-name=language_full
+#SBATCH --job-name=lang_full_pipeline
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=9
-#SBATCH --time=08:00:00
-#SBATCH --output=logs/language_full_%j.out
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=32G
+#SBATCH --time=06:00:00
+#SBATCH --output=logs/language_full_pipeline_%j.out
+#SBATCH --error=logs/language_full_pipeline_%j.err
 
 module purge
 module load 2025
 module load Anaconda3/2025.06-1
 
-cd "$HOME/fact-project" || exit 1
+cd "$HOME/UvA_FACT_2025" || exit 1
 source activate fact
 
 echo "========================================"
@@ -41,7 +43,8 @@ echo "Step 2/2: Analyzing interaction matrices..."
 echo "========================================"
 python src/language/interaction_analysis.py \
     --config configs/language_interaction.yaml \
-    --output results/language/interaction_analysis.json
+    --output results/language/interaction_analysis.json \
+    --device cuda
 
 echo ""
 echo "========================================"

@@ -22,6 +22,8 @@ def plot_eigenvectors_grid(
     title: str = "Top Eigenvectors",
     save_path: Optional[str] = None,
     class_names: Optional[List[str]] = None,
+    group_by_sign: bool = True,
+    show_both_signs: bool = False,
 ) -> plt.Figure:
     """
     Plot grid of top eigenvectors as images.
@@ -32,19 +34,21 @@ def plot_eigenvectors_grid(
     Args:
         eigenvectors: [n_classes, n_components, d_input] - eigenvector matrix
         eigenvalues: [n_classes, n_components] - for sorting by magnitude
-        n_top: Number of top eigenvectors to show per class
+        n_top: Number of top eigenvectors to show per class (per sign if show_both_signs)
         classes: Which classes to plot (default: all)
         img_shape: Shape to reshape eigenvectors (28, 28 for MNIST)
         title: Plot title
         save_path: If provided, save figure
         class_names: Optional names for classes
+        group_by_sign: If True, show positive eigenvectors first, then negative
+        show_both_signs: If True, show n_top positive AND n_top negative (2*n_top columns)
 
     Returns:
         matplotlib Figure with grid of eigenvector images
 
     Layout:
         Rows: Classes (0-9 or selected)
-        Columns: Top eigenvectors (sorted by |eigenvalue|)
+        Columns: Top eigenvectors (sorted by |eigenvalue|, optionally grouped by sign)
     """
     n_classes_total = eigenvectors.shape[0]
     if classes is None:
@@ -54,10 +58,12 @@ def plot_eigenvectors_grid(
         class_names = [str(i) for i in range(n_classes_total)]
 
     n_rows = len(classes)
-    n_cols = n_top
+    
+    # If showing both signs, double the columns
+    n_cols = n_top * 2 if show_both_signs else n_top
 
     fig, axes = plt.subplots(
-        n_rows, n_cols, figsize=(n_cols * 1.3, n_rows * 1.3 + 0.5)
+        n_rows, n_cols, figsize=(n_cols * 1.1, n_rows * 1.1 + 0.6)
     )
     if n_rows == 1:
         axes = axes[np.newaxis, :]
@@ -65,11 +71,43 @@ def plot_eigenvectors_grid(
         axes = axes[:, np.newaxis]
 
     for row, cls in enumerate(classes):
-        # Sort eigenvectors by eigenvalue magnitude
-        abs_vals = eigenvalues[cls].abs()
-        sorted_indices = abs_vals.argsort(descending=True)
+        vals = eigenvalues[cls]
+        abs_vals = vals.abs()
+        
+        # Get indices for positive and negative eigenvalues, each sorted by magnitude
+        pos_mask = vals > 0
+        neg_mask = vals < 0
+        
+        # Sort positive eigenvalues by magnitude (descending)
+        pos_indices = torch.where(pos_mask)[0]
+        if len(pos_indices) > 0:
+            pos_magnitudes = abs_vals[pos_indices]
+            pos_sorted = pos_indices[pos_magnitudes.argsort(descending=True)]
+        else:
+            pos_sorted = torch.tensor([], dtype=torch.long)
+        
+        # Sort negative eigenvalues by magnitude (descending)
+        neg_indices = torch.where(neg_mask)[0]
+        if len(neg_indices) > 0:
+            neg_magnitudes = abs_vals[neg_indices]
+            neg_sorted = neg_indices[neg_magnitudes.argsort(descending=True)]
+        else:
+            neg_sorted = torch.tensor([], dtype=torch.long)
+        
+        if show_both_signs:
+            # Show n_top positive, then n_top negative
+            sorted_indices = torch.cat([
+                pos_sorted[:n_top], 
+                neg_sorted[:n_top]
+            ])
+        elif group_by_sign:
+            # Combine: positive first, then negative
+            sorted_indices = torch.cat([pos_sorted, neg_sorted])
+        else:
+            # Original behavior: sort by absolute magnitude
+            sorted_indices = abs_vals.argsort(descending=True)
 
-        for col in range(n_top):
+        for col in range(min(n_cols, len(sorted_indices))):
             idx = sorted_indices[col]
             vec = eigenvectors[cls, idx].numpy()
             val = eigenvalues[cls, idx].item()
@@ -86,7 +124,16 @@ def plot_eigenvectors_grid(
             axes[row, col].axis("off")
 
             if row == 0:
-                axes[row, col].set_title(f"#{col + 1}", fontsize=9)
+                if show_both_signs:
+                    # Clear column header distinction for positive vs negative
+                    if col < n_top:
+                        axes[row, col].set_title(f"+{col + 1}", fontsize=8)
+                    else:
+                        axes[row, col].set_title(f"-{col - n_top + 1}", fontsize=8)
+                else:
+                    # Show sign indicator in column header
+                    sign = "+" if val > 0 else "-"
+                    axes[row, col].set_title(f"#{col + 1} ({sign})", fontsize=9)
 
         # Add class label on left
         axes[row, 0].annotate(
@@ -98,12 +145,18 @@ def plot_eigenvectors_grid(
             va="center",
         )
 
-    fig.suptitle(title, y=0.98)
+    # Add super-titles for positive/negative sections if showing both signs
+    if show_both_signs:
+        # Add "Positive" and "Negative" labels
+        fig.text(0.25, 0.99, "Positive Eigenvalues", ha='center', fontsize=11, fontweight='bold')
+        fig.text(0.75, 0.99, "Negative Eigenvalues", ha='center', fontsize=11, fontweight='bold')
+
+    fig.suptitle(title, y=1.03)
     plt.tight_layout()
 
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        fig.savefig(save_path)
+        fig.savefig(save_path, bbox_inches='tight')
         print(f"Saved: {save_path}")
 
     return fig

@@ -1,0 +1,22 @@
+# MNIST Noise Sweep: noise_std = 0.3
+# Part of Figure 4 reproduction - Effect of Input Noise
+name: mnist_noise_0.3
+experiment_id: sweep_noise_0.3
+
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.3
+  weight_decay: 0.0  # Isolate noise effect
+
+data:
+  dataset: mnist

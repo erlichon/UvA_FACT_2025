@@ -1,0 +1,38 @@
+name: language_negation_ts
+experiment_id: L5.1_PAPER
+
+# Paper Section 5.1: Sentiment Negation Circuit (EXACT REPRODUCTION)
+# "...for a 6-layer bilinear transformer trained on TinyStories"
+# "...two opposing output features in layer 4 (index 1882 and 1179)"
+#
+# VERIFIED (2026-01-14): tdooms/ts-medium IS the paper's "ts-tiny"
+# - 6 layers, 512d_model, 29.4M params, TinyStories dataset
+# - Features: 1882 (not-good), 1179 (not-bad)
+# - Expected cosine similarity: -0.975
+
+model:
+  # Paper's Figure 8 model
+  pretrained: "tdooms/ts-medium"
+
+sae:
+  # Use pretrained SAEs from HuggingFace (tdooms/ts-medium-scope)
+  # Paper Section 5.1 uses layer 4 of 6-layer model
+  # Paper Table 3: expansion=4, k=30 for TinyStories experiments
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 4
+  expansion: 4
+  k: 30
+
+analysis:
+  # Number of samples to analyze for negation patterns
+  n_samples: 50000
+  # Number of top features to report
+  top_k: 20
+  
+  # Paper's EXACT features for Figure 8 (Section 5.1)
+  expected_not_good_feature: 1882   # "not + negative words"
+  expected_not_bad_feature: 1179    # "not + positive words"
+  
+  # For Figure 8 visualization
+  figure_8_feature: 1882  # Primary feature for detailed analysis

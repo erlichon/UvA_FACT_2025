@@ -40,7 +40,7 @@ class BilinearDense(nn.Module):
     """
 
     def __init__(self, d_in: int, d_out: int, bias: bool = False, gate: str = None,
-                 variance_corrected_init: bool = True):
+                 variance_corrected_init: bool = False):
         super().__init__()
         self._original = OriginalBilinear(d_in, d_out, bias=bias, gate=gate)
 
@@ -88,7 +88,7 @@ class BilinearCP(nn.Module):
     """
 
     def __init__(self, d_in: int, d_out: int, rank: int, bias: bool = False,
-                 variance_corrected_init: bool = True):
+                 variance_corrected_init: bool = False):
         super().__init__()
         if bias:
             raise NotImplementedError("Bias not supported for CP mode")
@@ -137,7 +137,7 @@ class BilinearCP(nn.Module):
 
 def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
                     rank: int = None, bias: bool = False, gate: str = None,
-                    variance_corrected_init: bool = True):
+                    variance_corrected_init: bool = False):
     """
     Factory function to create appropriate bilinear layer.
 
@@ -148,8 +148,9 @@ def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
         rank: CP rank (required if mode='cp')
         bias: Include bias term
         gate: Gating function for dense mode
-        variance_corrected_init: If True (default), apply d_in^0.25 scaling
-                                 to push model into "Rich Training" regime.
+        variance_corrected_init: If True, apply d_in^0.25 scaling to push model
+                                 into "Rich Training" regime. Default False for
+                                 exact reproduction; enabled via config in train.py.
 
     Returns:
         BilinearDense or BilinearCP instance
