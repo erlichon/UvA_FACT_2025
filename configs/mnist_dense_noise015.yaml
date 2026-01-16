@@ -1,0 +1,21 @@
+name: mnist_dense_noise015
+experiment_id: P1.7
+
+# Noise-only regularization with std=0.15 (matches paper's Figure 7)
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.15  # Paper's Figure 7 uses this value
+  weight_decay: 0.0
+
+data:
+  dataset: mnist

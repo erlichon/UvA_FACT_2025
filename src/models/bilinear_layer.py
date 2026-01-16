@@ -29,11 +29,32 @@ class BilinearDense(nn.Module):
     Wrapper around original Bilinear layer for exact reproduction.
 
     This ensures we use the exact same implementation as the paper.
+
+    Args:
+        d_in: Input dimension
+        d_out: Output dimension
+        bias: Include bias term
+        gate: Gating function name
+        variance_corrected_init: If True, apply d_in^0.25 scaling for Rich Training regime.
+                                 This prevents "Lazy Training" pathology.
     """
 
-    def __init__(self, d_in: int, d_out: int, bias: bool = False, gate: str = None):
+    def __init__(self, d_in: int, d_out: int, bias: bool = False, gate: str = None,
+                 variance_corrected_init: bool = False):
         super().__init__()
         self._original = OriginalBilinear(d_in, d_out, bias=bias, gate=gate)
+
+        # Apply variance-corrected initialization for Rich Training regime
+        # Scale = d_in^0.25, similar to Kaiming init but adapted for bilinear
+        if variance_corrected_init:
+            scale = d_in ** 0.25
+            with torch.no_grad():
+                # Scale the weight matrix (contains both w_l and w_r)
+                # Original Bilinear inherits from nn.Linear with weight [2*d_out, d_in]
+                self._original.weight.data *= scale
+                # Scale bias if present
+                if hasattr(self._original, 'bias') and self._original.bias is not None:
+                    self._original.bias.data *= scale
 
     def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
         return self._original(x)
@@ -63,9 +84,11 @@ class BilinearCP(nn.Module):
         d_out: Output dimension
         rank: CP decomposition rank
         bias: Include bias term (not implemented for CP)
+        variance_corrected_init: If True, apply d_in^0.25 scaling for Rich Training regime.
     """
 
-    def __init__(self, d_in: int, d_out: int, rank: int, bias: bool = False):
+    def __init__(self, d_in: int, d_out: int, rank: int, bias: bool = False,
+                 variance_corrected_init: bool = False):
         super().__init__()
         if bias:
             raise NotImplementedError("Bias not supported for CP mode")
@@ -75,11 +98,17 @@ class BilinearCP(nn.Module):
         self.rank = rank
 
         # CP factors: A, B for input projections, C for output
-        # Use Xavier-style initialization: scale by 1/sqrt(fan_in)
+        # Base initialization: Xavier-style with bilinear correction
         # For bilinear: output variance ~ Var(x)^2 * Var(A) * Var(B) * Var(C) * rank
         # To maintain unit variance: std = (d_in * rank)^(-1/4) for A, B and (rank)^(-1/2) for C
         std_ab = (d_in * rank) ** (-0.25)
         std_c = rank ** (-0.5)
+
+        # Apply variance correction for Rich Training regime
+        if variance_corrected_init:
+            scale = d_in ** 0.25
+            std_ab *= scale
+            std_c *= scale
 
         self.A = nn.Parameter(torch.randn(d_in, rank) * std_ab)
         self.B = nn.Parameter(torch.randn(d_in, rank) * std_ab)
@@ -107,7 +136,8 @@ class BilinearCP(nn.Module):
 
 
 def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
-                    rank: int = None, bias: bool = False, gate: str = None):
+                    rank: int = None, bias: bool = False, gate: str = None,
+                    variance_corrected_init: bool = False):
     """
     Factory function to create appropriate bilinear layer.
 
@@ -118,15 +148,20 @@ def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
         rank: CP rank (required if mode='cp')
         bias: Include bias term
         gate: Gating function for dense mode
+        variance_corrected_init: If True, apply d_in^0.25 scaling to push model
+                                 into "Rich Training" regime. Default False for
+                                 exact reproduction; enabled via config in train.py.
 
     Returns:
         BilinearDense or BilinearCP instance
     """
     if mode == 'dense':
-        return BilinearDense(d_in, d_out, bias=bias, gate=gate)
+        return BilinearDense(d_in, d_out, bias=bias, gate=gate,
+                            variance_corrected_init=variance_corrected_init)
     elif mode == 'cp':
         if rank is None:
             raise ValueError("rank required for CP mode")
-        return BilinearCP(d_in, d_out, rank=rank, bias=bias)
+        return BilinearCP(d_in, d_out, rank=rank, bias=bias,
+                         variance_corrected_init=variance_corrected_init)
     else:
         raise ValueError(f"Unknown mode: {mode}")

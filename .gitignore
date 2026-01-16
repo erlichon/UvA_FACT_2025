@@ -13,3 +13,5 @@ Report/*.toc
 Report/*.fls
 Report/*.fdb_latexmk
 .DS_Store
+*.bbl
+*.blg
