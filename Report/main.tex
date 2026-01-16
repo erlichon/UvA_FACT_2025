@@ -16,6 +16,9 @@
 % Additional packages for our report
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{subcaption}
+\usepackage{natbib}
+\usepackage{cleveref}
 
 \title{Reproducing ``Bilinear MLPs Enable Weight-Based Mechanistic Interpretability''}
 
@@ -41,13 +44,14 @@
 \maketitle
 
 \begin{abstract}
-% TODO: Write abstract (max 1 paragraph)
-% Key points:
-% - We reproduce Section 4 (Vision) of Pearce et al. (2024)
-% - Verify that regularization induces low-rank structure in bilinear MLPs
-% - Extend to robustness analysis (Rotated MNIST, EMNIST)
-% - Propose CP-decomposition as structural alternative to regularization
-% - Report environmental impact (CO2 emissions)
+Mechanistic interpretability typically relies on post-hoc analysis of model activations.
+Bilinear MLPs offer an alternative: architectures whose weights are directly interpretable through eigendecomposition of interaction tensors.
+We reproduce the main experiments from Pearce et al. (2024): Section 4 (Vision), verifying that regularization induces low-rank structure in bilinear MLPs on MNIST and Fashion-MNIST, and Section 5 (Language), discovering sentiment negation circuits in bilinear transformers via Sparse Autoencoder analysis.
+Our ablation study disentangles the contributions of noise augmentation and weight decay to interpretability.
+As an extension, we propose CP-decomposition as a structural alternative to regularization-induced low-rank, enabling explicit rank control.
+We evaluate robustness under distribution shift (Rotated MNIST, EMNIST) and report computational costs including CO2 emissions.
+Our reproduction confirms the vision claims: regularization reduces effective rank (21.4 vs 38.5 for no regularization) while maintaining accuracy (98\%).
+For language, we confirm negation circuit discovery (opposing features with cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---mean rank-2 correlations (0.37--0.55) fall well below the paper's 69\% $>$0.75 threshold.
 \end{abstract}
 
 % Modular sections

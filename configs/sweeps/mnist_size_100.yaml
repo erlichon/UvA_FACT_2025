@@ -1,0 +1,20 @@
+name: mnist_size_100
+experiment_id: P1.5.3
+
+model:
+  mode: dense
+  d_hidden: 100
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.5
+  weight_decay: 1.0
+
+data:
+  dataset: mnist

@@ -1,20 +1,16 @@
 *.pyc
-wandb/
 **/.DS_Store
 *.pt
+data/
+
 Report/*.aux
 Report/*.log
 Report/*.out
+Report/*.synctex.gz
 Report/*.toc
 Report/*.fls
 Report/*.fdb_latexmk
-Report/*.synctex.gz
-Report/*.synctex(busy)
-Report/*.synctex.gz(busy)
-Report/*.synctex(busy).gz
-Report/*.synctex.gz(busy).gz
-Report/*.bbl
-Report/*.blg
+
 
 arXiv-2410.08417v2/*.aux
 arXiv-2410.08417v2/*.log
@@ -29,3 +25,7 @@ arXiv-2410.08417v2/*.synctex(busy).gz
 arXiv-2410.08417v2/*.synctex.gz(busy).gz
 arXiv-2410.08417v2/*.bbl
 arXiv-2410.08417v2/*.blg
+.DS_Store
+__pycache__/
+wandb/
+logs/

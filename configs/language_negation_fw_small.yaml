@@ -1,0 +1,33 @@
+# Language Negation Discovery - FineWeb-Small (MEMORY-SAFE VERSION)
+# 
+# Using fw-small instead of fw-medium for memory safety:
+#   - fw-small: 12L, expansion=4 (4096 features) - ~4x less memory
+#   - fw-medium: 16L, expansion=8 (8192 features) - Too large for local systems
+#
+# This demonstrates the SAME negation circuit phenomenon with lower memory requirements.
+
+name: language_negation_fw_small
+experiment_id: L5.1_MEMORY_SAFE
+
+model:
+  pretrained: "tdooms/fw-small"  # 12 layers, smaller model
+
+sae:
+  use_pretrained: true
+  point: "mlp-out"
+  layer: 8           # Middle layer for fw-small (12 layers total)
+  expansion: 4       # Smaller expansion = 4096 features instead of 8192
+  k: 30
+
+analysis:
+  n_samples: 50000   # Number of text samples to analyze
+  top_k: 20          # Number of top features to report
+  
+  # Note: Features will differ from fw-medium due to different training
+  # We'll discover the negation features empirically
+  figure_8_feature: null  # Will be determined by analysis
+
+# Expected properties:
+# - Negative cosine similarity between not+positive and not+negative features
+# - Form a linear subspace
+# - Low-rank interaction matrices

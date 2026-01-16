@@ -102,25 +102,36 @@ class Sight(LanguageModel):
     """A helper class to more cleanly interface with NNsight."""
     def __init__(self, model, *args, **kwargs):
         super().__init__(model, tokenizer=model.tokenizer, *args, **kwargs)
-    
+
     def __getitem__(self, *args):
         if len(args) == 1 and isinstance(args[0], tuple):
              args = args[0]
-        
+
         if len(args) == 2 and isinstance(args[0], str) and isinstance(args[1], int):
             point, layer = args
         else:
             raise ValueError("Invalid arguments, should be a tuple or two arguments.")
-        
+
         point = point.replace("-", "_")
-        
-        return dict(
-            resid_pre=self._envoy.transformer.h[layer].input,
-            resid_mid=self._envoy.transformer.h[layer].n2.input,
-            resid_post=self._envoy.transformer.h[layer].output,
-            mlp_in=self._envoy.transformer.h[layer].n2.output,
-            mlp_out=self._envoy.transformer.h[layer].mlp.output,
-            attn_out=self._envoy.transformer.h[layer].attn.output,
-            pattern=self._envoy.transformer.h[layer].attn.softmax.output,
-            scores=self._envoy.transformer.h[layer].attn.softmax.input[0][0],
-        )[point]
+
+        # NOTE: Updated for nnsight 0.5.x API - only access the requested point
+        # (accessing all points causes OutOfOrderError)
+        layer_module = self.transformer.h[layer]
+        if point == "resid_pre":
+            return layer_module.input
+        elif point == "resid_mid":
+            return layer_module.n2.input
+        elif point == "resid_post":
+            return layer_module.output
+        elif point == "mlp_in":
+            return layer_module.n2.output
+        elif point == "mlp_out":
+            return layer_module.mlp.output
+        elif point == "attn_out":
+            return layer_module.attn.output
+        elif point == "pattern":
+            return layer_module.attn.softmax.output
+        elif point == "scores":
+            return layer_module.attn.softmax.input[0][0]
+        else:
+            raise ValueError(f"Unknown point: {point}")

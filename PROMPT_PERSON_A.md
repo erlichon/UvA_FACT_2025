@@ -486,7 +486,7 @@ training:
   batch_size: 2048
 
 regularization:
-  noise_std: 0.5
+  noise_std: 0.4
   weight_decay: 0.0
 
 data:
@@ -510,7 +510,7 @@ training:
 
 regularization:
   noise_std: 0.0
-  weight_decay: 1.0
+  weight_decay: 0.5
 
 data:
   dataset: mnist
@@ -532,8 +532,8 @@ training:
   batch_size: 2048
 
 regularization:
-  noise_std: 0.5
-  weight_decay: 1.0
+  noise_std: 0.4
+  weight_decay: 0.5
 
 data:
   dataset: mnist

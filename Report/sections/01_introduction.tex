@@ -5,12 +5,23 @@
 \section{Introduction}
 \label{sec:introduction}
 
-% A few sentences placing the work in high-level context.
-% Limit it to a few paragraphs at most; your report is on reproducing a piece of work.
+Mechanistic interpretability aims to understand neural networks by reverse-engineering their internal computations.
+The dominant approach uses Sparse Autoencoders (SAEs) trained post-hoc on model activations to discover interpretable features~\citep{goodfellow2016deep}.
+While effective, this approach requires substantial additional compute and yields features that may not faithfully represent the original model's computations.
 
-% TODO: Write introduction connecting to FACT-AI Transparency topic
-% Key points to cover:
-% - Mechanistic interpretability landscape (post-hoc vs intrinsic)
-% - Weight-based interpretability as alternative to SAEs
-% - Lower compute cost advantage
-% - Brief summary of our contributions (reproduction + extensions)
+An alternative paradigm is \emph{intrinsic} interpretability: designing architectures whose weights are directly interpretable without post-hoc analysis.
+\citet{pearce2024bilinear} propose bilinear MLPs as such an architecture.
+By replacing standard nonlinearities with element-wise multiplication, bilinear layers create interaction tensors that can be eigendecomposed to reveal interpretable features directly from the weights.
+
+This work contributes to \textbf{FACT-AI Topic 1.4: Transparency}.
+Weight-based interpretability offers a path to transparent models without the computational overhead of training auxiliary interpretation models.
+If the learned eigenvectors correspond to human-interpretable concepts (e.g., digit templates for MNIST), the model's decision process becomes directly auditable.
+
+We make the following contributions:
+\begin{itemize}
+    \item \textbf{Vision Reproduction (Section 4):} We reproduce the MNIST experiments, verifying that regularization induces low-rank structure in bilinear MLPs with interpretable eigenvectors.
+    \item \textbf{Language Reproduction (Section 5):} We reproduce the GPT-2 experiments, analyzing bilinear attention and comparing with Sparse Autoencoders.
+    \item \textbf{Ablation:} We disentangle the contributions of noise augmentation and weight decay to interpretability.
+    \item \textbf{Extension:} We propose CP-decomposition as a structural alternative to regularization-induced low-rank, enabling explicit rank control.
+    \item \textbf{Environmental Analysis:} We report computational costs and CO2 emissions following responsible AI practices.
+\end{itemize}

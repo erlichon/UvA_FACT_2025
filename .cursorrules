@@ -1,0 +1,466 @@
+# FACT-AI Bilinear MLP Interpretability Project
+
+## Project Identity
+
+**Course**: FACT-AI (Fairness, Accountability, Confidentiality and Transparency in AI), UvA MSc AI  
+**Paper**: "Bilinear MLPs enable weight-based mechanistic interpretability" (arXiv:2410.08417)  
+**Deadline**: 30 January 2026  
+**Result Freeze**: 17 January 2026
+
+**Reproduction Scope**:
+- Section 4 (Vision): MNIST/Fashion-MNIST eigendecomposition
+- Section 5 (Language): Negation circuit discovery via SAE analysis
+
+---
+
+## Research Questions & Extensions
+
+### Core Hypothesis
+> **Structural low-rank** (CP-Decomposition) produces equivalent or better interpretability than **emergent low-rank** (via regularization), with the advantage of explicit rank control.
+
+### Research Questions / Extensions
+
+| ID | Extension | Goal |
+|----|-----------|------|
+| RQ1 | Regularization vs. Interpretability | How does training regularization (none vs. noise vs. weight decay) affect eigenvalue spectrum rank and eigenvector interpretability? Does regularization lead to cleaner, more interpretable features? |
+| RQ2 | Cross-Dataset Robustness | Do learned eigenvectors generalize beyond the training distribution (Rotated MNIST, EMNIST)? Do perturbations remain class-targeted, or do eigenvectors reflect dataset artifacts? |
+| RQ3 | Forced Low-Rank (CP Factorization) | Does forcing low-rank structure via CP decomposition improve interpretability compared to emergent low-rank behavior? Is low rank necessary or merely sufficient for interpretability? |
+| RQ4 | Regularization vs. Structural Rank | How do emergent low-rank (from regularization) and explicit rank constraints (CP) compare in terms of performance, robustness, and interpretability trade-offs? |
+| RQ5 | Architectural Scalability (Conceptual) | How could bilinear interaction constraints scale to larger vision models (Tucker-factorized layers)? What are the parameter scaling and interpretability trade-offs? |
+
+### Key Comparisons to Make
+- Dense (no reg) vs Dense (full reg) vs CP R=32 (no reg)
+- Accuracy vs Effective Rank Pareto frontier
+- Eigenvector quality side-by-side
+
+---
+
+## Documentation Hierarchy
+
+**Read these files for detailed context:**
+
+| File | Purpose |
+|------|---------|
+| `CONTEXT.md` | Current project state, team roles, results (SINGLE SOURCE OF TRUTH) |
+| `CLAUDE.md` | Commands, architecture, config formats, key paper claims |
+| `WORKPLAN.md` | Experiment matrix, timeline, success criteria |
+| `PROMPT_PERSON_*.md` | Role-specific prompts (A=Infrastructure, B=Analysis, C=Robustness, F=CP Implementation, G=Language) |
+| `docs/WANDB_GUIDE.md` | Experiment tracking guide |
+| `Report/REPORT_INSTRUCTIONS.md` | LaTeX report guidelines |
+
+---
+
+## Critical Constraints
+
+### 1. Original Code Preservation
+```
+bilinear-decomposition-main/   ← DO NOT MODIFY
+```
+This directory contains the original paper code. All our implementations WRAP this code (don't reimplement).
+
+### 2. Environmental Tracking (MANDATORY)
+Every experiment MUST log:
+- GPU hours (`wall_time * gpu_count`)
+- CO2 emissions via `codecarbon`
+- All metrics to wandb
+
+### 3. Snellius HPC Specifics
+```bash
+ssh scur0075@Snellius  # Case-sensitive hostname
+#SBATCH --partition=gpu_a100
+module load 2025
+module load Anaconda3/2025.06-1
+source activate fact
+```
+
+### 4. Budget Awareness
+- Total budget: 25,000 SBUs
+- Always test locally before cluster submission
+- Claude outputs job files; humans submit manually
+
+### 5. Reproducibility
+- All experiments use 5 seeds: `[42, 43, 44, 45, 46]`
+- Configs stored in `configs/` as YAML
+
+---
+
+## Directory Structure
+
+```
+UvA_FACT_2025/
+├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
+├── src/
+│   ├── models/bilinear_layer.py  # BilinearDense (wrapper) + BilinearCP (extension)
+│   ├── analysis/spectral.py      # effective_rank, top_k_coverage, data loading
+│   ├── plot_utils/               # Reusable plotting functions
+│   │   ├── style.py              # Publication style, colors
+│   │   ├── eigenspectrum.py      # Eigenvalue plots
+│   │   ├── eigenvectors.py       # Eigenvector visualizations
+│   │   ├── ablation.py           # Ablation study plots
+│   │   └── language.py           # Figure 9 plots (correlation progression, histogram, scatters)
+│   ├── language/                 # Section 5 wrappers
+│   │   ├── verify_correlation.py # Correlation verification (CLI: --model, --layer, --expansion, --k)
+│   │   └── ...                   # Other language modules
+│   ├── train.py                  # Vision training
+│   └── utils.py                  # Shared utilities
+├── configs/                      # YAML experiment configs
+├── jobs/                         # SLURM scripts
+├── scripts/                      # Standalone scripts
+│   ├── generate_figures.py       # Generate vision figures
+│   ├── run_language_sweep.sh     # Correlation sweep (ts-medium, fw-small, fw-medium)
+│   └── generate_language_figures.py  # Generate Figure 9 from sweep results
+├── results/
+│   ├── phase1/
+│   │   ├── checkpoints/          # MNIST checkpoints (40 files)
+│   │   └── figures/              # Generated PDF figures
+│   ├── phase1_fashion/checkpoints/
+│   └── language/                 # Language results (JSON + figures)
+│       ├── correlation_{model}.json  # Sweep results per model
+│       └── figures/              # Language figures
+├── notebooks/                    # Analysis notebooks
+│   └── 01_reproduction.ipynb     # Vision reproduction analysis
+├── Report/
+│   ├── figures/                  # Figures for LaTeX
+│   └── sections/                 # LaTeX sections
+└── tests/                        # Unit tests
+```
+
+---
+
+## Code Conventions
+
+### Import Pattern for Original Code
+```python
+import sys
+from pathlib import Path
+
+# Add original code to path
+_ORIG_PATH = Path(__file__).parent.parent.parent / "bilinear-decomposition-main"
+sys.path.insert(0, str(_ORIG_PATH))
+
+# Now import original modules
+from image.model import Model, Config
+from image.datasets import MNIST
+from shared.components import Bilinear
+```
+
+### Type Hints
+Use `jaxtyping` for tensor shapes:
+```python
+from jaxtyping import Float
+from torch import Tensor
+
+def forward(self, x: Float[Tensor, "... d_in"]) -> Float[Tensor, "... d_out"]:
+    ...
+```
+
+### Wrapping Philosophy
+- **Dense mode**: Wrap original `Bilinear` class for exact reproduction
+- **CP mode**: Our extension with explicit rank control
+- **SAE/Language**: Use original `sae/` and `language/` modules via wrappers
+
+### Plotting Utilities
+Use `src/plot_utils/` for all visualization:
+```python
+from src.plot_utils.style import set_publication_style, COLORS
+from src.plot_utils.eigenspectrum import plot_eigenspectrum_comparison
+from src.plot_utils.eigenvectors import plot_eigenvectors_grid
+from src.plot_utils.ablation import plot_ablation_bars
+from src.plot_utils.language import (
+    plot_correlation_progression,
+    plot_correlation_histogram,
+    load_correlation_results,
+)
+
+set_publication_style()  # Call once at start
+```
+
+**Key functions**:
+- `plot_eigenspectrum_comparison(eigenvalues_dict, ...)` - Compare configs
+- `plot_eigenvectors_grid(eigenvectors, eigenvalues, ...)` - 10x5 grid
+- `plot_ablation_bars(df, metrics, ...)` - Grouped bar chart
+- `plot_accuracy_vs_effective_rank(df, ...)` - Trade-off scatter
+- `plot_correlation_progression(results_dict, ...)` - Figure 9A (line plot)
+- `plot_correlation_histogram(results_dict, rank=2, ...)` - Figure 9B (histogram)
+- `load_correlation_results(results_dir)` - Load sweep JSON files
+
+### Notebooks
+- Use project root discovery pattern at top of notebook
+- Keep notebooks minimal; reuse `plot_utils/` functions
+- Save figures as PDF to both `results/.../figures/` and `Report/figures/`
+
+---
+
+## Current Status
+
+**Phase 1 (Vision)**: COMPLETE + EXTENDED
+- 40/40 base MNIST checkpoints (4 configs x 5 seeds x 2 datasets)
+- 30/30 model size sweep checkpoints (6 sizes x 5 seeds) for Figure 5
+- 5/5 noise σ=0.15 checkpoints for Figure 7
+- 1/1 challenge task checkpoint for Figure 6
+- All figures (1-7, 9) generated in `Report/figures/`
+- Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
+
+**Phase 2 (Language)**: ~95% COMPLETE
+- Correlation sweep infrastructure complete (`scripts/run_language_sweep.sh`)
+- Centralized plotting module (`src/plot_utils/language.py`) for Figure 9
+- **CRITICAL**: Paper's negation features (3834/751) come from fw-medium, NOT ts-medium
+- Overnight script: `./scripts/run_overnight_mps.sh` (runs all 4 phases)
+- Figure generation: `python scripts/generate_language_figures.py`
+
+**Advanced Vision Experiments (Figures 5-7)**: COMPLETE
+- Figure 5: Eigenvector similarity and truncation accuracy across model sizes
+- Figure 6: Challenge task (similarity classification from eigenvector similarity)
+- Figure 7: Adversarial mask robustness (no-reg vs noise-reg with error bars)
+
+---
+
+## Common Commands
+
+### Environment Setup
+```bash
+# Snellius (GPU)
+conda env create -f environment.yml && conda activate fact
+
+# Local (CPU/MPS)
+conda env create -f environment_cpu.yml && conda activate fact_cpu
+```
+
+### Vision Training (Section 4)
+```bash
+# Local test (quick, no wandb)
+python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb --epochs 2
+
+# Full training
+python src/train.py --config configs/mnist_dense_full.yaml --seed 42
+
+# Available configs: {mnist,fashion}_dense_{none,noise,wd,full}.yaml
+```
+
+### Language Experiments (Section 5)
+```bash
+# Run correlation sweep for Figure 9 (ts-medium, fw-small, fw-medium)
+./scripts/run_language_sweep.sh           # Default: MPS device
+./scripts/run_language_sweep.sh cuda      # Use CUDA
+
+# Generate Figure 9 from sweep results
+python scripts/generate_language_figures.py
+
+# Single model correlation verification
+python src/language/verify_correlation.py --config configs/language_sae.yaml \
+    --model tdooms/fw-medium --layer 10 --expansion 8 --k 30
+
+# Negation discovery (uses pretrained SAEs)
+python src/language/negation_discovery.py --config configs/language_negation.yaml --use-pretrained
+
+# Interaction analysis
+python src/language/interaction_analysis.py --config configs/language_interaction.yaml
+
+# Full pipeline (Snellius)
+sbatch jobs/language_full_pipeline.job
+```
+
+### Testing
+```bash
+python -m pytest tests/ -v
+python -m pytest tests/ -v -k "test_effective_rank"
+```
+
+### Figure Generation
+```bash
+# Generate all Phase 1 figures (run from project root)
+python scripts/generate_figures.py
+```
+
+### Local MPS Scripts (Apple Silicon)
+```bash
+./scripts/test_mps_quick.sh          # Quick vision test
+./scripts/test_mps_language.sh       # Quick language test
+./scripts/run_overnight_mps.sh       # Full overnight run
+```
+
+---
+
+## Checkpoint Format
+
+All checkpoints follow this structure for team compatibility:
+
+```python
+checkpoint = {
+    'config': {
+        'mode': 'dense',       # or 'cp'
+        'd_hidden': 256,
+        'noise_std': 0.4,
+        'weight_decay': 0.5,
+        # ... flat config dict
+    },
+    'model_state_dict': model.state_dict(),
+    'metrics': {
+        'train_acc': float,
+        'val_acc': float,
+        'effective_rank': float,
+    },
+    'seed': int,
+    'eigenvalues': Tensor,     # [10, 256] (n_classes, d_hidden)
+    'eigenvectors': Tensor,    # [10, 256, 784] (n_classes, d_hidden, d_input)
+}
+# Path: results/phase1/checkpoints/{config_name}_seed{seed}.pt
+```
+
+### Loading Checkpoints
+```python
+from src.analysis.spectral import load_checkpoint_eigenvalues
+
+eigenvalues, eigenvectors = load_checkpoint_eigenvalues(
+    "results/phase1/checkpoints/mnist_dense_full_seed42.pt"
+)
+```
+
+---
+
+## Config Format (YAML)
+
+```yaml
+name: mnist_dense_full
+experiment_id: P1.4
+
+model:
+  mode: dense       # 'dense' or 'cp'
+  d_hidden: 256
+
+training:
+  epochs: 100
+  lr: 0.001
+
+regularization:
+  noise_std: 0.5
+  weight_decay: 1.0
+
+data:
+  dataset: mnist    # or 'fashion_mnist'
+```
+
+---
+
+## Team Roles
+
+| Person | Role | Key Deliverables |
+|--------|------|------------------|
+| A | Infrastructure Lead | train.py, bilinear_layer.py, SLURM jobs, configs |
+| B | Analysis Lead | visualization.py, notebooks, figures |
+| C | Robustness Testing | rotated_mnist.py, emnist.py, robustness analysis |
+| D | CP Rank Sweep | CP sweep experiments after F completes |
+| E | Synthesis + ViT | Final comparison, report synthesis |
+| F | CP Implementation | Complete BilinearCP class |
+| G | Language Infrastructure | Section 5 wrappers, Fashion-MNIST configs |
+
+**Handoff Protocol**: Check `CONTEXT.md` Section 0 for current status and dependencies.
+
+---
+
+## Key Paper Claims to Verify
+
+### Section 4 (Vision)
+- **Effective rank ratio** (reg/no-reg) < 0.5
+- **Accuracy**: ~94-95% with regularization
+- **Top eigenvectors** visually resemble digits
+- **~10 eigenvalues** per class capture digit structure
+
+### Section 5 (Language)
+- **VERIFIED** (2026-01-14): `tdooms/ts-medium` IS the paper's "ts-tiny" (6L, 512d, 29.4M params)
+- ⚠️ **SAE LIMITATION**: ts-medium layer 4 lacks `mlp-in` SAEs on HuggingFace (only `mlp-out`, `resid-mid`, `resid-pre`)
+- **Figure 8 Reproduction**: fw-medium only (requires both `mlp-in` and `mlp-out` SAEs)
+  - Features **3834** (not-good), **751** (not-bad) - tutorial example
+  - Paper's ts-medium features (1882/1179) not reproducible without internal SAE checkpoints
+- **Figure 9 Reproduction**: All 3 models work (only needs `mlp-out` SAEs)
+  - ts-medium (6L, layer 4, expansion=4)
+  - fw-small (12L, layer 8, expansion=4)
+  - fw-medium (16L, layer 7, expansion=8)
+- **Opposing directions**: Cosine similarity < 0 (verified in fw-medium)
+
+---
+
+## wandb Integration
+
+**Project URL**: https://wandb.ai/itayerlich96-student/fact-bilinear
+
+**Tags for filtering**:
+- Vision: `["vision", "mnist"]` or `["vision", "fashion_mnist"]`
+- Language: `["language", "sae"]`, `["language", "negation"]`, `["language", "interaction"]`
+
+**Required summary metrics**:
+```python
+wandb.summary["effective_rank"] = eff_rank
+wandb.summary["wall_time_hours"] = wall_time
+wandb.summary["gpu_hours"] = gpu_hours
+wandb.summary["co2_kg"] = emissions_kg
+```
+
+---
+
+## Effective Rank Formula
+
+Use the paper's ratio-based formula (NOT entropy-based):
+```python
+# Correct formula from src/analysis/spectral.py
+def effective_rank(eigenvalues):
+    """Paper's ratio-based formula: (L1/L2)^2"""
+    L1 = eigenvalues.abs().sum(dim=-1)
+    L2 = (eigenvalues ** 2).sum(dim=-1).sqrt()
+    return (L1 / L2) ** 2
+```
+
+---
+
+## Quick Reference: Analysis
+
+```python
+from src.analysis.spectral import (
+    effective_rank,
+    top_k_coverage,
+    spectral_summary,
+    load_checkpoint_eigenvalues,
+    load_all_checkpoints,
+    aggregate_by_config,
+    compute_rank_ratio,
+)
+
+# Load single checkpoint
+vals, vecs = load_checkpoint_eigenvalues("path/to/checkpoint.pt")
+summary = spectral_summary(vals)
+print(f"Effective Rank: {summary['effective_rank_mean']:.2f}")
+
+# Visualize eigenvector as 28x28 image
+img = vecs[0, 0].reshape(28, 28)  # First eigenvector of class 0
+
+# Load all checkpoints into DataFrame
+df = load_all_checkpoints("results/phase1/checkpoints", dataset="mnist")
+agg = aggregate_by_config(df)  # Mean/std per config
+ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
+```
+
+---
+
+## Before Making Changes
+
+1. **Check CONTEXT.md** for current project state
+2. **Read relevant PROMPT_PERSON_*.md** for role-specific context
+3. **Test locally** before cluster submission
+4. **Use existing utilities** in `src/utils.py` and `src/analysis/`
+5. **Follow checkpoint format** for cross-team compatibility
+6. **Log to wandb** with appropriate tags
+7. **Track CO2** via codecarbon
+
+---
+
+## Common Pitfalls
+
+1. **Don't reimplement** - wrap original code
+2. **Don't modify** `bilinear-decomposition-main/`
+3. **Use ratio-based** effective rank formula (not entropy)
+4. **Handle both** `train_acc` and `train/acc` column formats
+5. **Language experiments** are slow on MPS (~4-6 hours)
+6. **Use pretrained SAEs** from HuggingFace when available
+7. **Model name mismatch** - Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
+8. **SAE expansion** - fw-small-scope only has expansion=4 available (not 8)
+9. **SAE Limitation** - ts-medium layer 4 lacks mlp-in SAEs. Figure 8 must use fw-medium (tutorial features 3834/751)
