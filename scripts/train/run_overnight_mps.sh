@@ -1,6 +1,8 @@
 #!/bin/bash
 # Overnight training script for Apple Silicon (MPS)
 #
+# NOW USES UNIFIED SCRIPTS: run_vision.sh and run_language.sh
+#
 # Runs ALL experiments locally with wandb logging enabled.
 # All results will appear at: https://wandb.ai/itayerlich96-student/fact-bilinear
 #
@@ -23,8 +25,8 @@
 # Total estimated time: ~9-12 hours on M1/M2/M3/M4 Mac
 #
 # Usage:
-#   chmod +x scripts/run_overnight_mps.sh
-#   ./scripts/run_overnight_mps.sh
+#   chmod +x scripts/train/run_overnight_mps.sh
+#   ./scripts/train/run_overnight_mps.sh
 #
 # Options:
 #   --skip-vision     Skip Phase 1 (Vision experiments)
@@ -33,9 +35,13 @@
 #   --quick           Quick test mode (2 epochs, 100 samples)
 #
 # To run in background with logging:
-#   nohup ./scripts/run_overnight_mps.sh > logs/overnight_$(date +%Y%m%d_%H%M%S).log 2>&1 &
+#   nohup ./scripts/train/run_overnight_mps.sh > logs/overnight_$(date +%Y%m%d_%H%M%S).log 2>&1 &
 #
 # Note: Requires wandb login first (run: wandb login)
+#
+# PREFERRED (new unified scripts):
+#   ./scripts/train/run_vision.sh all        # All vision experiments
+#   ./scripts/train/run_language.sh all      # All language experiments (except Figure 8)
 
 set -e  # Exit on error
 
@@ -276,7 +282,7 @@ if ! $SKIP_SWEEP; then
 
     # Generate Figure 4
     echo "Generating Figure 4..."
-    python scripts/generate_figures.py --sweep-only || echo "Warning: Figure 4 generation failed"
+    python scripts/figures/generate_vision_figures.py --section regularization || echo "Warning: Figure 4 generation failed"
 else
     echo ""
     echo ">>> Skipping Phase 2 (Noise Sweep) as requested"
@@ -526,8 +532,8 @@ done
 echo ""
 echo "=============================================="
 echo "Next steps:"
-echo "  1. Generate vision figures:   python scripts/generate_figures.py"
-echo "  2. Generate language figures: python scripts/generate_language_figures.py"
+echo "  1. Generate vision figures:   ./scripts/train/run_vision.sh figures"
+echo "  2. Generate language figures: ./scripts/train/run_language.sh figures"
 echo "  3. View wandb dashboard:      https://wandb.ai/itayerlich96-student/fact-bilinear"
 echo "  4. Check language results:    cat results/language/*.json"
 echo "=============================================="

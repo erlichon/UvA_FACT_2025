@@ -2,7 +2,7 @@
 """
 Train MNIST challenge-task variants (none/noise/wd/full) and save checkpoints.
 
-This is intentionally separate from vision_analysis.py: analysis should not train.
+This is intentionally separate from generate_vision_figures.py: analysis should not train.
 """
 
 import sys

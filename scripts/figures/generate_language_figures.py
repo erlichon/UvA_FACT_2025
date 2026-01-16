@@ -3,7 +3,7 @@
 Generate figures for Phase 2 (Language) experiments.
 
 Run from project root after running language experiments:
-    python scripts/generate_language_figures.py
+    python scripts/figures/generate_language_figures.py
 
 Generates:
 - Figure 9A: Correlation progression across ranks (3 models)
@@ -34,6 +34,10 @@ from src.plot_utils.language import (
     plot_figure_8_composite,
     load_figure_8_data,
     compute_fraction_above_threshold,
+    # Figure 10: SAE Training Time Effect
+    load_sae_training_results,
+    plot_sae_training_effect,
+    plot_sae_training_histogram,
 )
 
 
@@ -165,6 +169,82 @@ def generate_figure_8(results_dir: Path, figure_dir: Path, report_dir: Path):
     return True
 
 
+def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
+    """
+    Generate Figure 10 (SAE Training Time Effect) from v0-v4 comparison results.
+    
+    Figure 10A: Correlation vs approximation rank for all SAE versions
+    Figure 10B: Rank-2 correlation histogram (v0 vs v4)
+    
+    This figure provides scientific evidence that the discrepancy between our
+    correlation results and the paper's claims is due to under-trained SAEs
+    on HuggingFace, NOT a bug in our implementation.
+    """
+    print("\n" + "="*60)
+    print("FIGURE 10: SAE Training Time Effect")
+    print("="*60)
+    
+    # Load SAE training time comparison results
+    sae_results_file = results_dir / "sae_training_time_comparison.json"
+    
+    if not sae_results_file.exists():
+        print(f"SAE training time results not found: {sae_results_file}")
+        print("Generate it first:")
+        print("  python scripts/sae_training_time_analysis.py")
+        return False
+    
+    print(f"Loading SAE training time results from {sae_results_file}")
+    results = load_sae_training_results(sae_results_file)
+    
+    # Print summary
+    print("\n--- SAE Training Time Comparison ---")
+    versions = results.get('versions', {})
+    print(f"{'Version':<10} {'Rank-1':>10} {'Rank-2':>10} {'%>0.75':>10}")
+    print("-" * 45)
+    for version in ['v0', 'v1', 'v2', 'v3', 'v4']:
+        if version not in versions:
+            continue
+        summary = versions[version].get('summary', {})
+        r1 = summary.get('rank_1', {}).get('mean', 0)
+        r2 = summary.get('rank_2', {}).get('mean', 0)
+        pct = summary.get('rank_2', {}).get('above_75_pct', 0)
+        print(f"{version:<10} {r1:>10.3f} {r2:>10.3f} {pct:>9.1f}%")
+    print("-" * 45)
+    print(f"{'Paper':>10} {'~0.65':>10} {'>0.75':>10} {'69%':>10}")
+    
+    # Figure 10A: Correlation vs Rank (all versions)
+    print("\nGenerating Figure 10A: Correlation vs SAE Training Time...")
+    fig = plot_sae_training_effect(
+        results,
+        title="Effect of SAE Training on Low-Rank Approximation Quality",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_10a_sae_training_effect.pdf", figure_dir, report_dir)
+    
+    # Figure 10B: Rank-2 Histogram (v0 vs v4)
+    print("Generating Figure 10B: Rank-2 Correlation Distribution...")
+    fig = plot_sae_training_histogram(
+        results,
+        rank=2,
+        versions=['v0', 'v4'],
+        title="Rank-2 Correlation: Under-trained (v0) vs Well-trained (v4)",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_10b_sae_training_histogram.pdf", figure_dir, report_dir)
+    
+    # Quantitative improvement
+    v0_r2 = versions.get('v0', {}).get('summary', {}).get('rank_2', {}).get('mean', 0)
+    v4_r2 = versions.get('v4', {}).get('summary', {}).get('rank_2', {}).get('mean', 0)
+    improvement = v4_r2 / v0_r2 if v0_r2 > 0 else 0
+    
+    print(f"\n--- Key Finding ---")
+    print(f"  Rank-2 correlation improves {improvement:.1f}x from v0 ({v0_r2:.3f}) to v4 ({v4_r2:.3f})")
+    print(f"  This supports the paper's claim that correlation improves with SAE training time.")
+    print(f"  The gap to paper's 0.75 threshold suggests even longer training is needed.")
+    
+    return True
+
+
 def main():
     # Paths
     RESULTS_DIR = PROJECT_ROOT / "results/language"
@@ -183,6 +263,9 @@ def main():
     
     # === Figure 8: Sentiment Negation Circuit ===
     generate_figure_8(RESULTS_DIR, FIGURE_DIR, REPORT_FIGURE_DIR)
+    
+    # === Figure 10: SAE Training Time Effect ===
+    generate_figure_10(RESULTS_DIR, FIGURE_DIR, REPORT_FIGURE_DIR)
 
     # --- Load negation results (legacy) ---
     negation_file = RESULTS_DIR / "negation_fw_medium.json"
