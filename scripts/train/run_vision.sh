@@ -219,6 +219,63 @@ train_size() {
     echo "To generate Figure 5: ./scripts/train/run_vision.sh figures --section truncation_similarity"
 }
 
+# --- TRAIN CHALLENGE (Figure 6) ---
+train_challenge() {
+    print_header
+    activate_conda
+    
+    local ckpt_dir="results/challenge/checkpoints"
+    mkdir -p "$ckpt_dir"
+    
+    echo ">>> Challenge Task Training (Figure 6)"
+    echo "    Seeds: ${SEEDS[*]}"
+    echo ""
+    
+    for seed in "${SEEDS[@]}"; do
+        echo ">>> Training challenge task, seed = $seed"
+        
+        python src/train.py \
+            --config "configs/mnist_challenge.yaml" \
+            --seed "$seed" \
+            --checkpoint-dir "$ckpt_dir" \
+            $WANDB_FLAG \
+            $EPOCHS_OVERRIDE
+    done
+    
+    echo ""
+    echo "Challenge training complete!"
+    echo "To generate Figure 6: ./scripts/train/run_vision.sh figures --section challenge"
+}
+
+# --- TRAIN ADVERSARIAL (Figure 7) ---
+train_adversarial() {
+    print_header
+    activate_conda
+    
+    local ckpt_dir="results/phase1/checkpoints"
+    mkdir -p "$ckpt_dir"
+    
+    echo ">>> Adversarial Training (Figure 7)"
+    echo "    Config: noise_std=0.15"
+    echo "    Seeds: ${SEEDS[*]}"
+    echo ""
+    
+    for seed in "${SEEDS[@]}"; do
+        echo ">>> Training noise015, seed = $seed"
+        
+        python src/train.py \
+            --config "configs/mnist_dense_noise015.yaml" \
+            --seed "$seed" \
+            --checkpoint-dir "$ckpt_dir" \
+            $WANDB_FLAG \
+            $EPOCHS_OVERRIDE
+    done
+    
+    echo ""
+    echo "Adversarial training complete!"
+    echo "To generate Figure 7: ./scripts/train/run_vision.sh figures --section adversarial"
+}
+
 # --- TRAIN ALL ---
 train_all() {
     echo ">>> Running all training experiments..."
@@ -228,6 +285,10 @@ train_all() {
     train_noise
     echo ""
     train_size
+    echo ""
+    train_challenge
+    echo ""
+    train_adversarial
     echo ""
     echo "All training complete!"
 }
@@ -309,10 +370,12 @@ show_help() {
     echo "Usage: ./scripts/train/run_vision.sh <command> [subcommand] [options]"
     echo ""
     echo "Commands:"
-    echo "  train base     Train 4 configs (none/noise/wd/full) x 5 seeds"
-    echo "  train noise    Noise sweep for Figure 4 (6 noise levels)"
-    echo "  train size     Model size sweep for Figure 5 (6 sizes x 5 seeds)"
-    echo "  train all      All training experiments"
+    echo "  train base       Train 4 configs (none/noise/wd/full) x 5 seeds"
+    echo "  train noise      Noise sweep for Figure 4 (6 noise levels)"
+    echo "  train size       Model size sweep for Figure 5 (6 sizes x 5 seeds)"
+    echo "  train challenge  Challenge task for Figure 6"
+    echo "  train adversarial Noise015 models for Figure 7"
+    echo "  train all        All training experiments (base + noise + size + challenge + adversarial)"
     echo "  figures        Generate all figures from checkpoints"
     echo "  test           Quick 2-epoch MPS verification"
     echo "  all            Full pipeline (train all + figures)"
@@ -342,13 +405,15 @@ case $COMMAND in
     train)
         SUBCOMMAND=${SUBCOMMAND:-base}
         case $SUBCOMMAND in
-            base)  train_base ;;
-            noise) train_noise ;;
-            size)  train_size ;;
-            all)   train_all ;;
+            base)       train_base ;;
+            noise)      train_noise ;;
+            size)       train_size ;;
+            challenge)  train_challenge ;;
+            adversarial) train_adversarial ;;
+            all)        train_all ;;
             *)
                 echo "Unknown train subcommand: $SUBCOMMAND"
-                echo "Valid subcommands: base, noise, size, all"
+                echo "Valid subcommands: base, noise, size, challenge, adversarial, all"
                 exit 1
                 ;;
         esac
