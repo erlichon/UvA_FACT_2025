@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>FACT-AI Paper Hub</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; }
+    .layout { display: grid; grid-template-columns: 360px 1fr; height: 100vh; }
+    .sidebar { border-right: 1px solid #e5e7eb; padding: 14px; overflow:auto; }
+    .content { padding: 14px; overflow:hidden; display:flex; flex-direction:column; gap:12px; }
+    .title { font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+    .navSection { margin-top: 14px; font-size: 12px; font-weight: 700; color: #374151; }
+    .navItem { width: 100%; text-align:left; padding: 8px 10px; margin-top: 6px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }
+    .navItem:hover { background: #f9fafb; }
+    .navItem:disabled { opacity: 0.55; cursor: not-allowed; background: #f9fafb; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-top: 12px; background: #fff; }
+    .pdfCard { flex: 1; min-height: 0; margin-top: 0; display:flex; flex-direction:column; gap:8px; }
+    iframe { width: 100%; flex: 1; min-height: 0; border: 1px solid #e5e7eb; border-radius: 12px; }
+    .muted { color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="title">Paper Hub</div>
+      <div class="muted">Organized by paper sections/keywords</div>
+      <div class="muted">Build: 2026-01-16 13:07:36</div>
+      <div class="navSection">Vision / Regularization</div><button class="navItem" onclick="loadPdf('figures/eigenspectrum_comparison.pdf', 'Eigenspectrum comparison')" >Eigenspectrum comparison</button><button class="navItem" onclick="loadPdf('figures/eigenvalue_decay.pdf', 'Eigenvalue decay')" >Eigenvalue decay</button><button class="navItem" onclick="loadPdf('figures/eigenvectors_noreg.pdf', 'Eigenvectors (no reg)')" >Eigenvectors (no reg)</button><button class="navItem" onclick="loadPdf('figures/eigenvectors_noise.pdf', 'Update: Eigenvectors (noise only, σ=0.5)')" >Update: Eigenvectors (noise only, σ=0.5)</button><button class="navItem" onclick="loadPdf('figures/eigenvectors_reg.pdf', 'Eigenvectors (full reg)')" >Eigenvectors (full reg)</button><button class="navItem" onclick="loadPdf('figures/fashion_eigenvectors_noise.pdf', 'Update: Fashion eigenvectors (noise only, σ=0.5)')" >Update: Fashion eigenvectors (noise only, σ=0.5)</button><button class="navItem" onclick="loadPdf('figures/mnist_ablation.pdf', 'Ablation (MNIST)')" >Ablation (MNIST)</button><button class="navItem" onclick="loadPdf('figures/accuracy_vs_effrank_mnist.pdf', 'Tradeoff (MNIST)')" >Tradeoff (MNIST)</button><div class="navSection">Vision / Noise sweep (Figure 4)</div><button class="navItem" onclick="loadPdf('figures/figure_4_noise_eigenvectors.pdf', 'Figure 4a: noise eigenvectors')" >Figure 4a: noise eigenvectors</button><button class="navItem" onclick="loadPdf('figures/figure_4_noise_vs_rank.pdf', 'Figure 4b: noise vs rank')" >Figure 4b: noise vs rank</button><button class="navItem" onclick="loadPdf('figures/figure_4_noise_vs_accuracy.pdf', 'Figure 4c: noise vs accuracy')" >Figure 4c: noise vs accuracy</button><div class="navSection">Vision / Truncation & similarity</div><button class="navItem" onclick="loadPdf('figures/figure_5a_similarity.pdf', 'Figure 5a: similarity')" >Figure 5a: similarity</button><button class="navItem" onclick="loadPdf('figures/figure_5b_truncation.pdf', 'Figure 5b: truncation')" >Figure 5b: truncation</button><div class="navSection">Vision / Challenge task</div><button class="navItem" onclick="loadPdf('figures/figure_6_challenge.pdf', 'Figure 6: challenge')" >Figure 6: challenge</button><button class="navItem" onclick="loadPdf('figures/figure_6_challenge_eigenvalue_decay_by_reg.pdf', 'Update: Challenge decay by regularization (none/noise/wd/full)')" >Update: Challenge decay by regularization (none/noise/wd/full)</button><button class="navItem" onclick="loadPdf('figures/figure_6_challenge_none.pdf', 'Figure 6 (no reg)')" >Figure 6 (no reg)</button><button class="navItem" onclick="loadPdf('figures/figure_6_challenge_noise.pdf', 'Figure 6 (noise only σ=0.5)')" >Figure 6 (noise only σ=0.5)</button><button class="navItem" onclick="loadPdf('figures/figure_6_challenge_wd.pdf', 'Figure 6 (weight decay only λ=1.0)')" >Figure 6 (weight decay only λ=1.0)</button><button class="navItem" onclick="loadPdf('figures/figure_6_challenge_full.pdf', 'Figure 6 (full reg σ=0.5, λ=1.0)')" >Figure 6 (full reg σ=0.5, λ=1.0)</button><div class="navSection">Vision / Adversarial masks</div><button class="navItem" onclick="loadPdf('figures/figure_7_adversarial.pdf', 'Figure 7: adversarial masks')" >Figure 7: adversarial masks</button><div class="navSection">Vision / Explanations</div><button class="navItem" onclick="loadPdf('figures/sample_explanation.pdf', 'Sample explanation')" >Sample explanation</button><div class="navSection">Vision / Appendix</div><button class="navItem" onclick="loadPdf('figures/appendix_mnist_eigenspectrum_digit2.pdf', 'Appendix: eigenspectrum digit 2')" >Appendix: eigenspectrum digit 2</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_eigenspectrum_digit4.pdf', 'Appendix: eigenspectrum digit 4')" >Appendix: eigenspectrum digit 4</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_eigenspectrum_digit6.pdf', 'Appendix: eigenspectrum digit 6')" >Appendix: eigenspectrum digit 6</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_acc_drop.pdf', 'Appendix: truncation acc drop')" >Appendix: truncation acc drop</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_inter_similarity.pdf', 'Appendix: inter-size similarity (ref=300, top-1)')" >Appendix: inter-size similarity (ref=300, top-1)</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_inter_size_similarity.pdf', 'Appendix: inter-size similarity matrix')" >Appendix: inter-size similarity matrix</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_eigenvec_sparsity.pdf', 'Appendix: eigenvector sparsity')" >Appendix: eigenvector sparsity</button><button class="navItem" onclick="loadPdf('figures/appendix_mnist_eigenval_sparsity.pdf', 'Appendix: eigenvalue sparsity')" >Appendix: eigenvalue sparsity</button><button class="navItem" onclick="loadPdf('figures/appendix_adversarial_encoders.pdf', 'Appendix: adversarial masks (more examples)')" >Appendix: adversarial masks (more examples)</button><div class="navSection">Language / Correlation (Figure 9)</div><button class="navItem" onclick="loadPdf('figures/figure_9a_correlation_progression.pdf', 'Figure 9A: correlation progression')" >Figure 9A: correlation progression</button><button class="navItem" onclick="loadPdf('figures/figure_9b_correlation_histogram.pdf', 'Figure 9B: correlation histogram')" >Figure 9B: correlation histogram</button><button class="navItem"  disabled>Figure 9C: scatter plots (fw-medium) (missing)</button>
+    </div>
+    <div class="content">
+      <div class="card pdfCard">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div id="pdfTitle" style="font-weight:700;">Figure</div>
+          <div class="muted" id="pdfPath"></div>
+        </div>
+        <iframe id="pdfFrame" src=""></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function loadPdf(path, title) {
+      const frame = document.getElementById('pdfFrame');
+      const t = document.getElementById('pdfTitle');
+      const p = document.getElementById('pdfPath');
+      t.textContent = title;
+      p.textContent = path;
+      frame.src = path;
+    }
+
+    // init iframe
+    const initial = 'figures/eigenspectrum_comparison.pdf';
+    if (initial) {
+      loadPdf(initial, "Overview");
+    }
+  </script>
+</body>
+</html>
