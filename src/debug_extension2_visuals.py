@@ -71,9 +71,9 @@ def load_eigenvectors_from_checkpoint(checkpoint_path, device):
 
 
 def plot_eigenvector_comparison(mnist_vecs, emnist_vecs, mnist_vals, emnist_vals, 
-                                 mnist_class=0, emnist_class=14, k=3, output_path=None):
+                                 mnist_class=0, emnist_class=14, k=5, output_path=None):
     """
-    Plot top-k eigenvectors for MNIST digit and EMNIST letter side by side.
+    Plot top-k positive and top-k negative eigenvectors for MNIST digit and EMNIST letter.
     
     Args:
         mnist_vecs: MNIST eigenvectors [n_classes, n_components, 784]
@@ -82,134 +82,145 @@ def plot_eigenvector_comparison(mnist_vecs, emnist_vecs, mnist_vals, emnist_vals
         emnist_vals: EMNIST eigenvalues [n_classes, n_components]
         mnist_class: MNIST class index (0 for digit '0')
         emnist_class: EMNIST class index (14 for letter 'O')
-        k: Number of top eigenvectors to plot
+        k: Number of top eigenvectors to plot per sign (positive/negative)
         output_path: Path to save figure (optional)
     """
-    # Extract top-k eigenvectors
-    mnist_k_vecs = mnist_vecs[mnist_class, :k].cpu().numpy()  # [k, 784]
-    emnist_k_vecs = emnist_vecs[emnist_class, :k].cpu().numpy()  # [k, 784]
+    # Get all eigenvectors and eigenvalues for this class
+    mnist_class_vals = mnist_vals[mnist_class].cpu().numpy()  # [n_components]
+    mnist_class_vecs = mnist_vecs[mnist_class].cpu().numpy()  # [n_components, 784]
+    emnist_class_vals = emnist_vals[emnist_class].cpu().numpy()
+    emnist_class_vecs = emnist_vecs[emnist_class].cpu().numpy()
     
-    # Get corresponding eigenvalues
-    mnist_k_vals = mnist_vals[mnist_class, :k].cpu().numpy()
-    emnist_k_vals = emnist_vals[emnist_class, :k].cpu().numpy()
+    # Separate by sign and sort
+    def get_top_k_by_sign(vals, vecs, k):
+        # Positive eigenvalues (sorted descending)
+        pos_mask = vals > 0
+        if pos_mask.sum() > 0:
+            pos_vals = vals[pos_mask]
+            pos_vecs = vecs[pos_mask]
+            pos_sorted = np.argsort(pos_vals)[::-1]  # Descending
+            pos_vals = pos_vals[pos_sorted][:k]
+            pos_vecs = pos_vecs[pos_sorted][:k]
+        else:
+            pos_vals = np.array([])
+            pos_vecs = np.array([]).reshape(0, 784)
+        
+        # Negative eigenvalues (sorted by most negative)
+        neg_mask = vals < 0
+        if neg_mask.sum() > 0:
+            neg_vals = vals[neg_mask]
+            neg_vecs = vecs[neg_mask]
+            neg_sorted = np.argsort(neg_vals)  # Ascending (most negative first)
+            neg_vals = neg_vals[neg_sorted][:k]
+            neg_vecs = neg_vecs[neg_sorted][:k]
+        else:
+            neg_vals = np.array([])
+            neg_vecs = np.array([]).reshape(0, 784)
+        
+        return pos_vals, pos_vecs, neg_vals, neg_vecs
+    
+    mnist_pos_vals, mnist_pos_vecs, mnist_neg_vals, mnist_neg_vecs = get_top_k_by_sign(
+        mnist_class_vals, mnist_class_vecs, k
+    )
+    emnist_pos_vals, emnist_pos_vecs, emnist_neg_vals, emnist_neg_vecs = get_top_k_by_sign(
+        emnist_class_vals, emnist_class_vecs, k
+    )
     
     # Determine labels
     mnist_label = str(mnist_class)
     emnist_label = chr(ord('A') + emnist_class)
     
-    # Create figure
-    fig = plt.figure(figsize=(15, 10))
-    gs = GridSpec(3, k, figure=fig, hspace=0.4, wspace=0.3)
+    # Create figure with 4 rows: MNIST+, EMNIST+, MNIST-, EMNIST-
+    fig = plt.figure(figsize=(k*3, 16))
+    gs = GridSpec(4, k, figure=fig, hspace=0.5, wspace=0.3)
     
     # Title
     fig.suptitle(f"Eigenvector Comparison: MNIST Digit '{mnist_label}' vs EMNIST Letter '{emnist_label}'\n"
-                 f"Top-{k} Eigenvectors (Sorted by Magnitude)",
-                 fontsize=16, fontweight='bold', y=0.98)
+                 f"Top-{k} Positive and Top-{k} Negative Eigenvectors",
+                 fontsize=16, fontweight='bold', y=0.99)
     
     print("\n" + "=" * 80)
     print(f"EIGENVECTOR COMPARISON: MNIST '{mnist_label}' vs EMNIST '{emnist_label}'")
     print("=" * 80)
     
-    # Plot MNIST eigenvectors (Row 0)
-    print(f"\nMNIST Digit '{mnist_label}' (Class {mnist_class}):")
+    # ---- Row 0: MNIST Positive Eigenvectors ----
+    print(f"\nMNIST Digit '{mnist_label}' - Top {len(mnist_pos_vals)} POSITIVE Eigenvectors:")
     print("-" * 80)
-    for i in range(k):
+    for i in range(len(mnist_pos_vals)):
         ax = fig.add_subplot(gs[0, i])
-        
-        # Reshape to 28x28
-        img = mnist_k_vecs[i].reshape(28, 28)
-        
-        # Compute center of mass
+        img = mnist_pos_vecs[i].reshape(28, 28)
         y_com, x_com = compute_center_of_mass(img)
         
-        # Plot
         im = ax.imshow(img, cmap='RdBu_r', vmin=-np.abs(img).max(), vmax=np.abs(img).max())
-        
-        # Mark center of mass
-        ax.plot(x_com, y_com, 'g*', markersize=15, markeredgecolor='yellow', markeredgewidth=1.5)
-        
-        ax.set_title(f"MNIST '{mnist_label}' Eigenvec #{i+1}\nλ={mnist_k_vals[i]:.3f}\n"
-                     f"CoM=({x_com:.1f}, {y_com:.1f})",
-                     fontsize=10, fontweight='bold')
+        ax.plot(x_com, y_com, 'g*', markersize=12, markeredgecolor='yellow', markeredgewidth=1.5)
+        ax.set_title(f"MNIST+ #{i+1}\nλ={mnist_pos_vals[i]:.3f}\nCoM=({x_com:.1f}, {y_com:.1f})",
+                     fontsize=9, fontweight='bold')
         ax.axis('off')
         
-        print(f"  Eigenvec #{i+1}: λ={mnist_k_vals[i]:.4f}, "
-              f"CoM=({x_com:.2f}, {y_com:.2f}), "
-              f"Range=[{img.min():.3f}, {img.max():.3f}]")
+        print(f"  Pos #{i+1}: λ={mnist_pos_vals[i]:.6f}, CoM=({x_com:.2f}, {y_com:.2f})")
     
-    # Plot EMNIST eigenvectors (Row 1)
-    print(f"\nEMNIST Letter '{emnist_label}' (Class {emnist_class}):")
+    # ---- Row 1: EMNIST Positive Eigenvectors ----
+    print(f"\nEMNIST Letter '{emnist_label}' - Top {len(emnist_pos_vals)} POSITIVE Eigenvectors:")
     print("-" * 80)
-    for i in range(k):
+    for i in range(len(emnist_pos_vals)):
         ax = fig.add_subplot(gs[1, i])
-        
-        # Reshape to 28x28
-        img = emnist_k_vecs[i].reshape(28, 28)
-        
-        # Compute center of mass
+        img = emnist_pos_vecs[i].reshape(28, 28)
         y_com, x_com = compute_center_of_mass(img)
         
-        # Plot
         im = ax.imshow(img, cmap='RdBu_r', vmin=-np.abs(img).max(), vmax=np.abs(img).max())
-        
-        # Mark center of mass
-        ax.plot(x_com, y_com, 'g*', markersize=15, markeredgecolor='yellow', markeredgewidth=1.5)
-        
-        ax.set_title(f"EMNIST '{emnist_label}' Eigenvec #{i+1}\nλ={emnist_k_vals[i]:.3f}\n"
-                     f"CoM=({x_com:.1f}, {y_com:.1f})",
-                     fontsize=10, fontweight='bold')
+        ax.plot(x_com, y_com, 'g*', markersize=12, markeredgecolor='yellow', markeredgewidth=1.5)
+        ax.set_title(f"EMNIST+ #{i+1}\nλ={emnist_pos_vals[i]:.3f}\nCoM=({x_com:.1f}, {y_com:.1f})",
+                     fontsize=9, fontweight='bold')
         ax.axis('off')
         
-        print(f"  Eigenvec #{i+1}: λ={emnist_k_vals[i]:.4f}, "
-              f"CoM=({x_com:.2f}, {y_com:.2f}), "
-              f"Range=[{img.min():.3f}, {img.max():.3f}]")
+        print(f"  Pos #{i+1}: λ={emnist_pos_vals[i]:.6f}, CoM=({x_com:.2f}, {y_com:.2f})")
     
-    # Plot differences (Row 2)
-    print("\nDifferences (MNIST - EMNIST):")
+    # ---- Row 2: MNIST Negative Eigenvectors ----
+    print(f"\nMNIST Digit '{mnist_label}' - Top {len(mnist_neg_vals)} NEGATIVE Eigenvectors:")
     print("-" * 80)
-    for i in range(k):
+    for i in range(len(mnist_neg_vals)):
         ax = fig.add_subplot(gs[2, i])
+        img = mnist_neg_vecs[i].reshape(28, 28)
+        y_com, x_com = compute_center_of_mass(img)
         
-        # Compute difference
-        diff = mnist_k_vecs[i] - emnist_k_vecs[i]
-        diff_img = diff.reshape(28, 28)
-        
-        # Compute CoM for difference
-        y_com, x_com = compute_center_of_mass(np.abs(diff_img))
-        
-        # Plot
-        max_abs = np.abs(diff_img).max()
-        im = ax.imshow(diff_img, cmap='RdBu_r', vmin=-max_abs, vmax=max_abs)
-        
-        # Mark center of mass of difference
-        ax.plot(x_com, y_com, 'm*', markersize=15, markeredgecolor='cyan', markeredgewidth=1.5)
-        
-        # Compute L2 norm of difference
-        l2_norm = np.linalg.norm(diff)
-        
-        ax.set_title(f"Difference #{i+1}\nL2={l2_norm:.3f}\n"
-                     f"CoM=({x_com:.1f}, {y_com:.1f})",
-                     fontsize=10, fontweight='bold')
+        im = ax.imshow(img, cmap='RdBu_r', vmin=-np.abs(img).max(), vmax=np.abs(img).max())
+        ax.plot(x_com, y_com, 'r*', markersize=12, markeredgecolor='cyan', markeredgewidth=1.5)
+        ax.set_title(f"MNIST- #{i+1}\nλ={mnist_neg_vals[i]:.3f}\nCoM=({x_com:.1f}, {y_com:.1f})",
+                     fontsize=9, fontweight='bold')
         ax.axis('off')
         
-        print(f"  Difference #{i+1}: L2_norm={l2_norm:.4f}, "
-              f"Max_abs={max_abs:.3f}, "
-              f"CoM_of_diff=({x_com:.2f}, {y_com:.2f})")
+        print(f"  Neg #{i+1}: λ={mnist_neg_vals[i]:.6f}, CoM=({x_com:.2f}, {y_com:.2f})")
+    
+    # ---- Row 3: EMNIST Negative Eigenvectors ----
+    print(f"\nEMNIST Letter '{emnist_label}' - Top {len(emnist_neg_vals)} NEGATIVE Eigenvectors:")
+    print("-" * 80)
+    for i in range(len(emnist_neg_vals)):
+        ax = fig.add_subplot(gs[3, i])
+        img = emnist_neg_vecs[i].reshape(28, 28)
+        y_com, x_com = compute_center_of_mass(img)
+        
+        im = ax.imshow(img, cmap='RdBu_r', vmin=-np.abs(img).max(), vmax=np.abs(img).max())
+        ax.plot(x_com, y_com, 'r*', markersize=12, markeredgecolor='cyan', markeredgewidth=1.5)
+        ax.set_title(f"EMNIST- #{i+1}\nλ={emnist_neg_vals[i]:.3f}\nCoM=({x_com:.1f}, {y_com:.1f})",
+                     fontsize=9, fontweight='bold')
+        ax.axis('off')
+        
+        print(f"  Neg #{i+1}: λ={emnist_neg_vals[i]:.6f}, CoM=({x_com:.2f}, {y_com:.2f})")
     
     # Add colorbar
-    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+    cbar_ax = fig.add_axes([0.92, 0.1, 0.015, 0.8])
     plt.colorbar(im, cax=cbar_ax, label='Eigenvector Value')
     
     # Add legend for CoM markers
     from matplotlib.lines import Line2D
     legend_elements = [
         Line2D([0], [0], marker='*', color='w', markerfacecolor='g', 
-               markeredgecolor='yellow', markersize=12, label='Center of Mass'),
-        Line2D([0], [0], marker='*', color='w', markerfacecolor='m', 
-               markeredgecolor='cyan', markersize=12, label='CoM of Difference'),
+               markeredgecolor='yellow', markersize=12, label='CoM (Positive)'),
+        Line2D([0], [0], marker='*', color='w', markerfacecolor='r', 
+               markeredgecolor='cyan', markersize=12, label='CoM (Negative)'),
     ]
     fig.legend(handles=legend_elements, loc='lower center', ncol=2, 
-               fontsize=11, frameon=True, bbox_to_anchor=(0.5, 0.02))
+               fontsize=11, frameon=True, bbox_to_anchor=(0.5, 0.01))
     
     # Save figure
     if output_path:
@@ -219,46 +230,84 @@ def plot_eigenvector_comparison(mnist_vecs, emnist_vecs, mnist_vals, emnist_vals
     return fig
 
 
-def compute_pairwise_cosine_similarity(mnist_vecs, emnist_vecs, mnist_class=0, emnist_class=14, k=3):
+def compute_pairwise_cosine_similarity(mnist_vecs, emnist_vecs, mnist_vals, emnist_vals, 
+                                        mnist_class=0, emnist_class=14, k=5):
     """
-    Compute pairwise cosine similarities between MNIST and EMNIST eigenvectors.
+    Compute pairwise cosine similarities between MNIST and EMNIST eigenvectors,
+    separated by positive and negative eigenvalues.
     """
+    import torch
+    
+    # Get eigenvectors and eigenvalues for this class
+    mnist_class_vals = mnist_vals[mnist_class].cpu().numpy()
+    mnist_class_vecs = mnist_vecs[mnist_class].cpu()
+    emnist_class_vals = emnist_vals[emnist_class].cpu().numpy()
+    emnist_class_vecs = emnist_vecs[emnist_class].cpu()
+    
+    # Separate by sign
+    def get_pos_neg(vals, vecs, k):
+        pos_mask = vals > 0
+        neg_mask = vals < 0
+        
+        pos_vals = vals[pos_mask]
+        pos_vecs = vecs[pos_mask]
+        neg_vals = vals[neg_mask]
+        neg_vecs = vecs[neg_mask]
+        
+        # Sort and take top k (use list indexing to avoid negative strides)
+        if len(pos_vals) > 0:
+            pos_sorted = np.argsort(pos_vals)[::-1][:k].copy()  # Make a copy to avoid negative strides
+            pos_vecs = pos_vecs[torch.from_numpy(pos_sorted)]
+        if len(neg_vals) > 0:
+            neg_sorted = np.argsort(neg_vals)[:k].copy()
+            neg_vecs = neg_vecs[torch.from_numpy(neg_sorted)]
+        
+        return pos_vecs, neg_vecs
+    
+    mnist_pos, mnist_neg = get_pos_neg(mnist_class_vals, mnist_class_vecs, k)
+    emnist_pos, emnist_neg = get_pos_neg(emnist_class_vals, emnist_class_vecs, k)
+    
     print("\n" + "=" * 80)
-    print("PAIRWISE COSINE SIMILARITY")
+    print("PAIRWISE COSINE SIMILARITY (Positive Eigenvectors)")
     print("=" * 80)
     
-    mnist_k = mnist_vecs[mnist_class, :k].cpu()  # [k, 784]
-    emnist_k = emnist_vecs[emnist_class, :k].cpu()  # [k, 784]
+    if len(mnist_pos) > 0 and len(emnist_pos) > 0:
+        # Normalize
+        mnist_pos_norm = mnist_pos / (mnist_pos.norm(dim=1, keepdim=True) + 1e-10)
+        emnist_pos_norm = emnist_pos / (emnist_pos.norm(dim=1, keepdim=True) + 1e-10)
+        
+        cos_sim_pos = mnist_pos_norm @ emnist_pos_norm.T
+        
+        print(f"\nPositive Cosine Similarity Matrix ({len(mnist_pos)}x{len(emnist_pos)}):")
+        print("         " + "  ".join([f"E+{i+1}" for i in range(len(emnist_pos))]))
+        for i in range(len(mnist_pos)):
+            row_str = f"M+{i+1}  "
+            for j in range(len(emnist_pos)):
+                row_str += f"{cos_sim_pos[i, j].item():7.3f}  "
+            print(row_str)
+        
+        print(f"\nMean similarity (positive): {cos_sim_pos.mean().item():.4f}")
     
-    # Normalize
-    mnist_k_norm = mnist_k / (mnist_k.norm(dim=1, keepdim=True) + 1e-10)
-    emnist_k_norm = emnist_k / (emnist_k.norm(dim=1, keepdim=True) + 1e-10)
+    print("\n" + "=" * 80)
+    print("PAIRWISE COSINE SIMILARITY (Negative Eigenvectors)")
+    print("=" * 80)
     
-    # Compute pairwise cosine similarity
-    cos_sim_matrix = mnist_k_norm @ emnist_k_norm.T
-    
-    print(f"\nCosine Similarity Matrix ({k}x{k}):")
-    print("         " + "  ".join([f"EMNIST_{i+1}" for i in range(k)]))
-    for i in range(k):
-        row_str = f"MNIST_{i+1}  "
-        for j in range(k):
-            row_str += f"{cos_sim_matrix[i, j].item():8.4f}  "
-        print(row_str)
-    
-    # Best matches
-    print(f"\nBest matches:")
-    for i in range(k):
-        best_j = cos_sim_matrix[i].argmax().item()
-        best_sim = cos_sim_matrix[i, best_j].item()
-        print(f"  MNIST_{i+1} ↔ EMNIST_{best_j+1}: {best_sim:.4f}")
-    
-    # Diagonal (corresponding eigenvectors)
-    print(f"\nDiagonal similarities (corresponding eigenvectors):")
-    for i in range(k):
-        print(f"  MNIST_{i+1} ↔ EMNIST_{i+1}: {cos_sim_matrix[i, i].item():.4f}")
-    
-    print(f"\nMean diagonal similarity: {cos_sim_matrix.diag().mean().item():.4f}")
-    print(f"Mean off-diagonal similarity: {(cos_sim_matrix.sum() - cos_sim_matrix.diag().sum()).item() / (k*k - k):.4f}")
+    if len(mnist_neg) > 0 and len(emnist_neg) > 0:
+        # Normalize
+        mnist_neg_norm = mnist_neg / (mnist_neg.norm(dim=1, keepdim=True) + 1e-10)
+        emnist_neg_norm = emnist_neg / (emnist_neg.norm(dim=1, keepdim=True) + 1e-10)
+        
+        cos_sim_neg = mnist_neg_norm @ emnist_neg_norm.T
+        
+        print(f"\nNegative Cosine Similarity Matrix ({len(mnist_neg)}x{len(emnist_neg)}):")
+        print("         " + "  ".join([f"E-{i+1}" for i in range(len(emnist_neg))]))
+        for i in range(len(mnist_neg)):
+            row_str = f"M-{i+1}  "
+            for j in range(len(emnist_neg)):
+                row_str += f"{cos_sim_neg[i, j].item():7.3f}  "
+            print(row_str)
+        
+        print(f"\nMean similarity (negative): {cos_sim_neg.mean().item():.4f}")
 
 
 def main():
@@ -270,8 +319,8 @@ def main():
                         help="MNIST digit to compare (0-9)")
     parser.add_argument("--emnist-letter", type=str, default="O", 
                         help="EMNIST letter to compare (A-Z)")
-    parser.add_argument("--k", type=int, default=3,
-                        help="Number of top eigenvectors to compare")
+    parser.add_argument("--k", type=int, default=5,
+                        help="Number of top eigenvectors to compare per sign (positive/negative)")
     args = parser.parse_args()
     
     # Map digit/letter to class indices
@@ -331,7 +380,7 @@ def main():
     
     # Compute pairwise cosine similarities
     compute_pairwise_cosine_similarity(
-        mnist_vecs, emnist_vecs,
+        mnist_vecs, emnist_vecs, mnist_vals, emnist_vals,
         mnist_class=mnist_class, emnist_class=emnist_class, k=args.k
     )
     

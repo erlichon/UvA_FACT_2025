@@ -96,7 +96,8 @@ UvA_FACT_2025/
 │   │   ├── style.py              # Publication style, colors
 │   │   ├── eigenspectrum.py      # Eigenvalue plots
 │   │   ├── eigenvectors.py       # Eigenvector visualizations
-│   │   └── ablation.py           # Ablation study plots
+│   │   ├── ablation.py           # Ablation study plots
+│   │   └── extension2.py         # Extension 2 robustness plots
 │   ├── language/                 # Section 5 wrappers
 │   │   ├── verify_correlation.py # Correlation verification (CLI: --model, --layer, --expansion, --k)
 │   │   └── ...                   # Other language modules
