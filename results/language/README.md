@@ -81,7 +81,7 @@ python src/language/negation_visualization.py \
 
 ### Generate Figures
 ```bash
-python scripts/generate_language_figures.py
+python scripts/figures/generate_language_figures.py
 ```
 
 ## Why Both Models?
