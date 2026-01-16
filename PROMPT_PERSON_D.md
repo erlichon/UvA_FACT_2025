@@ -29,7 +29,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 ### Dependencies
 - **Person F** provides: Working `BilinearCP` class and `CPImageModel` (verified via XOR gate)
 - **Person A** provides: Training infrastructure (`src/train.py` pattern)
-- **Person B** provides: Analysis utilities (`src/analysis/spectral.py`)
+- **Person B** provides: Analysis utilities (`src/vision/spectral.py`)
 - Phase 1 checkpoints: `results/phase1/checkpoints/` (for comparison)
 
 ---
@@ -161,7 +161,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bilinear-decomposition-ma
 
 from image.datasets import MNIST
 from src.models.cp_model import CPImageModel
-from src.analysis.spectral import compute_all_metrics
+from src.vision.spectral import compute_all_metrics
 
 
 def set_seed(seed: int):
@@ -549,8 +549,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from src.analysis.spectral import extract_from_checkpoint, compute_all_metrics
-from src.analysis.visualization import (
+from src.vision.spectral import extract_from_checkpoint, compute_all_metrics
+from src.vision.visualization import (
     plot_eigenspectrum_comparison,
     plot_eigenvectors_grid,
     plot_accuracy_vs_effective_rank,

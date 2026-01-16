@@ -1,6 +1,5 @@
 *.pyc
 **/.DS_Store
-*.pt
 data/
 
 Report/*.aux

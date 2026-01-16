@@ -15,7 +15,7 @@ We are reproducing "Bilinear MLPs enable weight-based mechanistic interpretabili
 Person A has delivered:
 - Training script (`src/train.py`) - verified working
 - Bilinear layer (`src/models/bilinear_layer.py`) - BilinearDense wrapper
-- Spectral utilities (`src/analysis/spectral.py`) - effective_rank, top_k_coverage
+- Spectral utilities (`src/vision/spectral.py`) - effective_rank, top_k_coverage
 - Config files (`configs/mnist_dense_*.yaml`) - 4 ablation configurations
 - SLURM jobs (`jobs/train_array.job`) - array job for 20 runs
 
@@ -27,7 +27,7 @@ Person A has delivered:
 - Verify reproduction matches paper claims
 
 ### Your Tasks
-1. Create `src/analysis/visualization.py` with plotting functions
+1. Create `src/vision/visualization.py` with plotting functions
 2. Create `notebooks/01_reproduction.ipynb` for analysis
 3. Generate all figures once checkpoints are ready
 4. Write statistical comparison with paper baselines
@@ -75,7 +75,7 @@ checkpoint = {
 ### Loading Checkpoints
 
 ```python
-from src.analysis.spectral import load_checkpoint_eigenvalues
+from src.vision.spectral import load_checkpoint_eigenvalues
 
 # Load eigenvalues/eigenvectors directly
 eigenvalues, eigenvectors = load_checkpoint_eigenvalues(
@@ -88,7 +88,7 @@ print(f"Eigenvectors shape: {eigenvectors.shape}")  # [10, 256, 784]
 ### Using Existing Spectral Functions
 
 ```python
-from src.analysis.spectral import effective_rank, top_k_coverage, spectral_summary
+from src.vision.spectral import effective_rank, top_k_coverage, spectral_summary
 
 # Compute effective rank per class
 eff_rank = effective_rank(eigenvalues)  # [10]
@@ -205,12 +205,12 @@ UvA_FACT_2025/
 
 ## FILE SPECIFICATIONS
 
-### 1. `src/analysis/spectral.py` [ALREADY IMPLEMENTED BY PERSON A]
+### 1. `src/vision/spectral.py` [ALREADY IMPLEMENTED BY PERSON A]
 
 The following functions are already available:
 
 ```python
-from src.analysis.spectral import (
+from src.vision.spectral import (
     effective_rank,           # Entropy-based effective rank
     top_k_coverage,           # Fraction of variance in top-k eigenvalues
     eigenvalue_decay_rate,    # Ratio of 2nd to 1st eigenvalue
@@ -261,7 +261,7 @@ def compare_configurations(
 
 ---
 
-### 2. `src/analysis/visualization.py`
+### 2. `src/vision/visualization.py`
 
 ```python
 """
@@ -652,7 +652,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from src.analysis.spectral import (
+from src.vision.spectral import (
     extract_from_checkpoint,
     compute_all_metrics,
     compare_configurations,
@@ -660,7 +660,7 @@ from src.analysis.spectral import (
     effective_rank,
     top_k_coverage,
 )
-from src.analysis.visualization import (
+from src.vision.visualization import (
     plot_eigenspectrum_comparison,
     plot_eigenspectrum_per_class,
     plot_eigenvectors_grid,
@@ -898,7 +898,7 @@ Note: Paper prioritizes interpretability over accuracy.
 ### Step 1: Verify Infrastructure (Person A Complete)
 ```bash
 # Verify directories exist
-ls src/analysis/spectral.py  # Should exist
+ls src/vision/spectral.py  # Should exist
 ls configs/mnist_dense_*.yaml  # 4 config files
 ls jobs/train_array.job  # SLURM array job
 ```
@@ -912,7 +912,7 @@ mkdir -p notebooks results/phase1/figures docs
 ```python
 # Test with existing checkpoint (after Person A runs training)
 import torch
-from src.analysis.spectral import load_checkpoint_eigenvalues, spectral_summary
+from src.vision.spectral import load_checkpoint_eigenvalues, spectral_summary
 
 vals, vecs = load_checkpoint_eigenvalues("results/phase1/checkpoints/mnist_dense_full_seed42.pt")
 print(f"Eigenvalues shape: {vals.shape}")  # [10, 256]
@@ -959,6 +959,6 @@ docs/paper_baselines.md            # Reference values
 
 ---
 
-**Now begin by creating `docs/paper_baselines.md`, then implement `src/analysis/spectral.py`. Show me each file and ask for confirmation before proceeding.**
+**Now begin by creating `docs/paper_baselines.md`, then implement `src/vision/spectral.py`. Show me each file and ask for confirmation before proceeding.**
 
 ## PROMPT END

@@ -14,7 +14,7 @@ import tempfile
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis.spectral import (
+from src.vision.spectral import (
     effective_rank,
     top_k_coverage,
     eigenvalue_decay_rate,

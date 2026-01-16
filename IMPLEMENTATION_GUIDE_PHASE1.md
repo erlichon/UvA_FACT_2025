@@ -220,7 +220,7 @@ class TrackedModel(OriginalModel):
 
 ---
 
-### 4.3 `src/analysis/spectral.py`
+### 4.3 `src/vision/spectral.py`
 
 **Purpose**: Eigenspectrum analysis utilities.
 

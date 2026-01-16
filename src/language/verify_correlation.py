@@ -56,6 +56,7 @@ from src.language.interaction_utils import (
     get_interaction_eigenpairs,
     predict_activation_from_eigenpairs,
 )
+from src.language.context import LanguageContext
 
 
 def plot_correlation_vs_rank(summary: dict, output_path: str):
@@ -460,9 +461,21 @@ def main():
     if args.layer is not None:
         config.setdefault("sae", {})["layer"] = args.layer
     if args.expansion is not None:
+        # Set both flat and nested expansion values
         config.setdefault("sae", {})["expansion"] = args.expansion
+        # Also update nested configs if they exist
+        if "input" in config.get("sae", {}):
+            config["sae"]["input"]["expansion"] = args.expansion
+        if "output" in config.get("sae", {}):
+            config["sae"]["output"]["expansion"] = args.expansion
     if args.k is not None:
+        # Set both flat and nested k values
         config.setdefault("sae", {})["k"] = args.k
+        # Also update nested configs if they exist
+        if "input" in config.get("sae", {}):
+            config["sae"]["input"]["k"] = args.k
+        if "output" in config.get("sae", {}):
+            config["sae"]["output"]["k"] = args.k
     
     # Initialize wandb
     wandb_enabled = init_wandb(
@@ -475,44 +488,19 @@ def main():
     
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model
-        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
-        print(f"\nLoading model: {model_name}")
-        model = Transformer.from_pretrained(model_name, device=device)
+        # Use LanguageContext for unified model/SAE loading
+        ctx = LanguageContext(config, device)
+        model = ctx.model
+        layer = ctx.layer
+        expansion = ctx.expansion
+        k = ctx.k
+        model_name = ctx.model_name
         
-        # Print model config
-        print(f"  d_model: {model.config.d_model}")
-        print(f"  d_hidden: {model.config.d_hidden}")
-        print(f"  n_layer: {model.config.n_layer}")
+        # Load output SAE via context
+        sae_out = ctx.get_sae("mlp-out")
         
-        # Load output SAE
-        sae_config = config.get("sae", {})
-        layer = sae_config.get("layer", 2)
-        
-        # Get expansion and k - check both nested (output.expansion) and flat (expansion)
-        out_config = sae_config.get("output", {})
-        expansion = sae_config.get("expansion") or out_config.get("expansion", 4)
-        k = sae_config.get("k") or out_config.get("k", 30)
-        point_name = out_config.get("name", "mlp-out")
-        
-        repo = f"{model.config.repo}-scope"
-        print(f"\nLoading output SAE from {repo}...")
-        print(f"  Point: ({point_name}, {layer})")
-        print(f"  Expansion: {expansion}, k: {k}")
-        
-        sae_out = SAE.from_pretrained(
-            repo,
-            point=(point_name, layer),
-            expansion=expansion,
-            k=k,
-        ).to(device)
-        
-        print(f"  SAE d_model: {sae_out.d_model}")
-        print(f"  SAE d_features: {sae_out.d_features}")
-        
-        # Create validation DataLoader (multiple batches for accumulation)
-        dataloader = create_validation_dataloader(
-            model.tokenizer, config, device, 
+        # Create validation DataLoader via context
+        dataloader = ctx.get_dataloader(
             n_samples=args.n_samples,
             batch_size=args.batch_size,
         )
