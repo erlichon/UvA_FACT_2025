@@ -1,0 +1,157 @@
+{
+  "summary": {
+    "model_name": "tdooms/fw-medium",
+    "layer": 7,
+    "expansion": 8,
+    "k": 30,
+    "n_features_requested": 10,
+    "n_features_analyzed": 10,
+    "ranks": [
+      1,
+      2,
+      4
+    ],
+    "correlation_by_rank": {
+      "1": {
+        "mean": 0.4216889888048172,
+        "std": 0.5449886396976223,
+        "median": 0.5568461716175079,
+        "n_features": 10
+      },
+      "2": {
+        "mean": 0.3111396849155426,
+        "std": 0.5751798759049763,
+        "median": 0.44596658647060394,
+        "n_features": 10
+      },
+      "4": {
+        "mean": 0.3729591593146324,
+        "std": 0.6154313440326544,
+        "median": 0.6163820773363113,
+        "n_features": 10
+      }
+    },
+    "scatter_data_saved": false,
+    "max_scatter_samples": null,
+    "paper_claim": "69% of features have >0.75 rank-2 correlation",
+    "wall_time_seconds": 14.123806953430176,
+    "co2_kg": 5.09241784778261e-05
+  },
+  "per_feature": [
+    {
+      "feat_idx": 24,
+      "n_active": 54,
+      "correlations": {
+        "1": 0.21987873315811157,
+        "2": 0.1613953709602356,
+        "4": 0.16545407474040985
+      }
+    },
+    {
+      "feat_idx": 54,
+      "n_active": 179,
+      "correlations": {
+        "1": 0.901180624961853,
+        "2": 0.9063515067100525,
+        "4": 0.9125099778175354
+      }
+    },
+    {
+      "feat_idx": 60,
+      "n_active": 361,
+      "correlations": {
+        "1": -0.7194457054138184,
+        "2": -0.29369285702705383,
+        "4": 0.15341296792030334
+      }
+    },
+    {
+      "feat_idx": 71,
+      "n_active": 53,
+      "correlations": {
+        "1": 0.8773389458656311,
+        "2": 0.878476083278656,
+        "4": 0.8865149021148682
+      }
+    },
+    {
+      "feat_idx": 78,
+      "n_active": 62,
+      "correlations": {
+        "1": -0.4061915874481201,
+        "2": -0.5279244780540466,
+        "4": -0.5555041432380676
+      }
+    },
+    {
+      "feat_idx": 80,
+      "n_active": 74,
+      "correlations": {
+        "1": 0.933926522731781,
+        "2": 0.932269275188446,
+        "4": 0.9382438659667969
+      }
+    },
+    {
+      "feat_idx": 94,
+      "n_active": 104,
+      "correlations": {
+        "1": 0.6022615432739258,
+        "2": 0.37372490763664246,
+        "4": 0.7632633447647095
+      }
+    },
+    {
+      "feat_idx": 109,
+      "n_active": 1849,
+      "correlations": {
+        "1": 0.5114307999610901,
+        "2": -0.6263929605484009,
+        "4": -0.8728652000427246
+      }
+    },
+    {
+      "feat_idx": 111,
+      "n_active": 80,
+      "correlations": {
+        "1": 0.8702723383903503,
+        "2": 0.7889817357063293,
+        "4": 0.8690609931945801
+      }
+    },
+    {
+      "feat_idx": 112,
+      "n_active": 70,
+      "correlations": {
+        "1": 0.42623767256736755,
+        "2": 0.5182082653045654,
+        "4": 0.4695008099079132
+      }
+    }
+  ],
+  "config": {
+    "name": "language_sae_layer7",
+    "experiment_id": "L5.1",
+    "model": {
+      "pretrained": "tdooms/fw-medium"
+    },
+    "sae": {
+      "point": "mlp-out",
+      "layer": 7,
+      "expansion": 8,
+      "k": 30,
+      "n_ctx": 512
+    },
+    "training": {
+      "lr": 0.0001,
+      "batch_size": 32,
+      "out_batch": 4096,
+      "n_batches": 256,
+      "n_buffers": 100
+    },
+    "data": {
+      "dataset": "fineweb-edu",
+      "n_samples": 100000
+    }
+  }
+}
