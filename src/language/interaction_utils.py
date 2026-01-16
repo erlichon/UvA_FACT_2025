@@ -13,7 +13,11 @@ Where:
 - z_c: Activation of SAE feature c
 
 The interaction matrix Q_c is computed by contracting the bilinear layer weights
-with the SAE decoder direction for feature c.
+with the SAE output direction for feature c.
+
+IMPORTANT: The paper's Tracer uses ENCODER directions by default (use_encoder=True).
+The SAE activation is z_c = ReLU(mlp_out · w_enc[c]), so to predict how a feature
+activates, we need the encoder direction w_enc.weight[c, :], NOT decoder.
 """
 
 import sys
@@ -54,7 +58,7 @@ def compute_interaction_matrix(
     w_l: Float[Tensor, "d_hidden d_model"],
     w_r: Float[Tensor, "d_hidden d_model"],
     w_p: Float[Tensor, "d_model d_hidden"],
-    out_decoder_direction: Float[Tensor, "d_model"],
+    out_direction: Float[Tensor, "d_model"],
     symmetrize: bool = True,
 ) -> Float[Tensor, "d_model d_model"]:
     """
@@ -63,25 +67,27 @@ def compute_interaction_matrix(
     The bilinear layer computes:
         mlp_out = w_p @ (w_l @ x * w_r @ x)
     
-    For output feature c with decoder direction d_c:
-        z_c = d_c^T @ mlp_out = x^T Q_c x
+    For output feature c with direction e_c (encoder direction for SAE):
+        z_c = e_c^T @ mlp_out = x^T Q_c x
     
-    Where Q_c is derived from contracting the weights with d_c:
-        Q[i,j] = sum_m sum_o d_c[o] * w_p[o,m] * w_l[m,i] * w_r[m,j]
+    Where Q_c is derived from contracting the weights with e_c:
+        Q[i,j] = sum_m sum_o e_c[o] * w_p[o,m] * w_l[m,i] * w_r[m,j]
     
     Args:
         w_l: Left projection weights [d_hidden, d_model]
         w_r: Right projection weights [d_hidden, d_model]
         w_p: Output projection weights [d_model, d_hidden]
-        out_decoder_direction: SAE decoder direction for the output feature [d_model]
+        out_direction: SAE direction for the output feature [d_model]
+            NOTE: For SAE features, use ENCODER direction w_enc.weight[feat_idx, :]
+            as per paper's Tracer (use_encoder=True by default).
         symmetrize: If True, return 0.5 * (Q + Q^T) for numerical stability
     
     Returns:
         Q: Interaction matrix [d_model, d_model]
     """
-    # Step 1: Contract decoder direction with output projection
-    # proj[m] = sum_o d_c[o] * w_p[o,m] = d_c^T @ w_p
-    proj = out_decoder_direction @ w_p  # [d_hidden]
+    # Step 1: Contract output direction with output projection
+    # proj[m] = sum_o e_c[o] * w_p[o,m] = e_c^T @ w_p
+    proj = out_direction @ w_p  # [d_hidden]
     
     # Step 2: Scale left weights by projection
     # scaled_l[m,i] = proj[m] * w_l[m,i]
@@ -104,7 +110,7 @@ def get_interaction_eigenpairs(
     model,
     layer: int,
     feat_idx: int,
-    out_decoder_direction: Float[Tensor, "d_model"],
+    out_direction: Float[Tensor, "d_model"],
     device: str = "cpu",
 ) -> InteractionEigenpairs:
     """
@@ -117,7 +123,9 @@ def get_interaction_eigenpairs(
         model: Transformer model with w_l, w_r, w_p properties
         layer: Layer index
         feat_idx: Feature index (used for logging only, direction is explicit)
-        out_decoder_direction: SAE decoder direction for the output feature [d_model]
+        out_direction: SAE direction for the output feature [d_model]
+            NOTE: For SAE features, use ENCODER direction w_enc.weight[feat_idx, :]
+            as per paper's Tracer (use_encoder=True by default).
         device: Device for computation (eigendecomposition done on CPU for MPS safety)
     
     Returns:
@@ -125,8 +133,9 @@ def get_interaction_eigenpairs(
         all sorted by descending eigenvalue magnitude.
     
     Example:
+        >>> # Use ENCODER direction (paper's default)
         >>> eigenpairs = get_interaction_eigenpairs(model, layer=2, feat_idx=0, 
-        ...                                          out_decoder_direction=sae.w_dec.weight[:, 0])
+        ...                                          out_direction=sae.w_enc.weight[0, :])
         >>> top_eigenvalue = eigenpairs.eigenvalues[0]
         >>> top_eigenvector = eigenpairs.eigenvectors[:, 0]
     """
@@ -134,7 +143,7 @@ def get_interaction_eigenpairs(
     w_l = model.w_l[layer].float().cpu()  # [d_hidden, d_model]
     w_r = model.w_r[layer].float().cpu()  # [d_hidden, d_model]
     w_p = model.w_p[layer].float().cpu()  # [d_model, d_hidden]
-    out_vec = out_decoder_direction.float().cpu()  # [d_model]
+    out_vec = out_direction.float().cpu()  # [d_model]
     
     # Compute interaction matrix (symmetrized)
     Q = compute_interaction_matrix(w_l, w_r, w_p, out_vec, symmetrize=True)
@@ -166,8 +175,9 @@ def get_interaction_eigenpairs_from_tracer(
     """
     Convenience function to get eigenpairs using an existing Tracer object.
     
-    This extracts the decoder direction from the tracer's output SAE and
-    calls get_interaction_eigenpairs.
+    This extracts the output direction from the tracer's out_latents and
+    calls get_interaction_eigenpairs. Note that tracer.out_latents uses
+    encoder directions by default (use_encoder=True in Tracer.__init__).
     
     Args:
         tracer: Tracer object with model, layer, and out_latents
@@ -182,7 +192,7 @@ def get_interaction_eigenpairs_from_tracer(
         model=tracer.model,
         layer=tracer.layer,
         feat_idx=feat_idx,
-        out_decoder_direction=out_direction,
+        out_direction=out_direction,
         device=device,
     )
 

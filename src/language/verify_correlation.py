@@ -144,46 +144,9 @@ def pearson_correlation(x: torch.Tensor, y: torch.Tensor) -> float:
     return (numerator / denominator).item()
 
 
-def get_validation_dataset(model_name: str, n_samples: int = 2000):
+def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32):
     """
-    Load appropriate validation dataset based on model type.
-    
-    TinyStories models (ts-*) use TinyStories dataset.
-    FineWeb models (fw-*) use FineWeb-EDU dataset.
-    
-    Args:
-        model_name: Model name (e.g., "tdooms/ts-tiny", "tdooms/fw-medium")
-        n_samples: Number of samples to load
-        
-    Returns:
-        HuggingFace dataset
-    """
-    if "ts-" in model_name:
-        print("Loading TinyStories validation data...")
-        try:
-            dataset = load_dataset("roneneldan/TinyStories", split="validation")
-        except Exception:
-            dataset = load_dataset("roneneldan/TinyStories", split="train")
-    else:
-        print("Loading FineWeb-EDU validation data...")
-        # Use the sample-10BT subset to avoid downloading full 10TB dataset
-        try:
-            dataset = load_dataset("HuggingFaceFW/fineweb-edu", name="sample-10BT", split="train")
-        except Exception:
-            # Fallback to TinyStories if FineWeb unavailable
-            print("  FineWeb-EDU unavailable, falling back to TinyStories...")
-            dataset = load_dataset("roneneldan/TinyStories", split="validation")
-    
-    # Sample if dataset is larger than needed
-    if len(dataset) > n_samples:
-        dataset = dataset.select(range(n_samples))
-    
-    return dataset
-
-
-def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32, model_name: str = None):
-    """
-    Create a DataLoader for validation data.
+    Create a DataLoader for validation data from TinyStories dataset.
     
     Args:
         tokenizer: Model tokenizer
@@ -191,16 +154,21 @@ def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples
         device: Device to use
         n_samples: Number of samples to load
         batch_size: Batch size for DataLoader
-        model_name: Model name for dataset selection (e.g., "tdooms/fw-medium")
     
     Returns:
         DataLoader yielding batches with input_ids and attention_mask
     """
-    # Determine model name for dataset selection
-    if model_name is None:
-        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
+    print("Loading TinyStories validation data...")
     
-    dataset = get_validation_dataset(model_name, n_samples)
+    # Load dataset (use validation split if available, else sample from train)
+    try:
+        dataset = load_dataset("roneneldan/TinyStories", split="validation")
+    except Exception:
+        dataset = load_dataset("roneneldan/TinyStories", split="train")
+    
+    # Sample if dataset is larger than needed
+    if len(dataset) > n_samples:
+        dataset = dataset.select(range(n_samples))
     
     n_ctx = config.get("sae", {}).get("n_ctx", 256)
     
@@ -261,6 +229,8 @@ def verify_correlation(
     target_samples_per_feature: int = 500,
     max_batches: int = 50,
     max_features: int = 50,
+    save_scatter: bool = False,
+    max_scatter_samples: int = 1000,
 ):
     """
     Compute correlation between weight-based predictions and actual SAE activations.
@@ -361,15 +331,16 @@ def verify_correlation(
         print(f"\nAnalyzing {n_features} features across ranks {ranks}...")
         
         for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
-            # Get decoder direction for this feature
-            out_direction = sae_out_device.w_dec.weight[:, feat_idx].cpu()
+            # Get encoder direction for this feature (as per paper's Tracer default)
+            # The SAE activation is z_c = ReLU(mlp_out · w_enc[c]), so we need encoder direction
+            out_direction = sae_out_device.w_enc.weight[feat_idx, :].cpu()
             
             # Get eigenpairs from weights (unprojected Q in residual stream space)
             eigenpairs = get_interaction_eigenpairs(
                 model=model,
                 layer=layer,
                 feat_idx=feat_idx,
-                out_decoder_direction=out_direction,
+                out_direction=out_direction,
                 device="cpu",
             )
             
@@ -388,6 +359,7 @@ def verify_correlation(
             z_active = z_true_feat[active_mask]  # [n_active]
             
             feature_corrs = {}
+            z_pred_rank2 = None  # Store rank-2 predictions for scatter plot
             
             # Compute correlation for each rank
             for k in ranks:
@@ -400,6 +372,10 @@ def verify_correlation(
                     x_active, eigenvalues_k, eigenvectors_k
                 )
                 
+                # Store rank-2 predictions for scatter plot
+                if k == 2 and save_scatter:
+                    z_pred_rank2 = z_pred
+                
                 # Pearson correlation on FULL accumulated data
                 corr = pearson_correlation(z_active, z_pred)
                 
@@ -407,11 +383,23 @@ def verify_correlation(
                     results[k].append(corr)
                     feature_corrs[k] = corr
             
-            feature_results.append({
+            # Build feature result dict
+            result_dict = {
                 "feat_idx": feat_idx,
                 "n_active": n_active,
                 "correlations": feature_corrs,
-            })
+            }
+            
+            # Add scatter data if requested (for Figure 9C)
+            if save_scatter and z_pred_rank2 is not None:
+                scatter_limit = max_scatter_samples if max_scatter_samples > 0 else len(z_active)
+                scatter_limit = min(scatter_limit, len(z_active))
+                result_dict["scatter_data"] = {
+                    "z_true": z_active[:scatter_limit].cpu().tolist(),
+                    "z_pred_rank2": z_pred_rank2[:scatter_limit].cpu().tolist(),
+                }
+            
+            feature_results.append(result_dict)
     
     return results, feature_results
 
@@ -422,19 +410,15 @@ def main():
     parser.add_argument("--output", type=str, default="results/language/correlation_analysis.json")
     parser.add_argument("--device", type=str, default=None)
     
-    # Model/SAE overrides (for multi-model sweep)
-    parser.add_argument("--model", type=str, default=None, 
-                        help="Override model name (e.g., tdooms/ts-tiny, tdooms/fw-medium)")
-    parser.add_argument("--layer", type=int, default=None, 
-                        help="Override layer index (e.g., 4 for ts-tiny, 11 for fw-medium)")
-    parser.add_argument("--expansion", type=int, default=None,
-                        help="Override SAE expansion factor (e.g., 4 for ts-tiny, 8 for fw-*)")
-    parser.add_argument("--k", type=int, default=None,
-                        help="Override SAE top-k sparsity (default: 30)")
+    # Model/SAE overrides (optional, overrides config values)
+    parser.add_argument("--model", type=str, default=None, help="Model name (overrides config)")
+    parser.add_argument("--layer", type=int, default=None, help="SAE layer (overrides config)")
+    parser.add_argument("--expansion", type=int, default=None, help="SAE expansion (overrides config)")
+    parser.add_argument("--k", type=int, default=None, help="SAE top-k (overrides config)")
     
     # Analysis parameters
-    parser.add_argument("--n-features", type=int, default=50, help="Number of features to analyze")
-    parser.add_argument("--ranks", type=str, default="1,2,4,8,16", help="Ranks to evaluate (comma-separated)")
+    parser.add_argument("--n-features", type=int, default=50, help="Number of features to analyze (-1 for all)")
+    parser.add_argument("--ranks", type=str, default="1,2,4,8,16", help="Ranks to evaluate (comma-separated or range like 1-60)")
     parser.add_argument("--n-samples", type=int, default=2000, help="Number of validation samples")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for DataLoader")
     parser.add_argument("--max-batches", type=int, default=50, help="Maximum batches to process")
@@ -442,10 +426,21 @@ def main():
     parser.add_argument("--target-samples", type=int, default=500, help="Target active samples per feature")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     parser.add_argument("--plot", type=str, default=None, help="Path to save correlation plot (PNG)")
+    
+    # Figure 9C scatter data options
+    parser.add_argument("--save-scatter", action="store_true", help="Save scatter data (z_true, z_pred) for Figure 9C")
+    parser.add_argument("--max-scatter-samples", type=int, default=1000, help="Max scatter samples per feature (-1 for all)")
+    
     args = parser.parse_args()
     
-    # Parse ranks
-    ranks = [int(r.strip()) for r in args.ranks.split(",")]
+    # Parse ranks - support both comma-separated and range syntax
+    if "-" in args.ranks and "," not in args.ranks:
+        # Range syntax: "1-60"
+        start, end = map(int, args.ranks.split("-"))
+        ranks = list(range(start, end + 1))
+    else:
+        # Comma-separated syntax: "1,2,4,8,16"
+        ranks = [int(r.strip()) for r in args.ranks.split(",")]
     
     # Setup device
     device = get_device(args.device)
@@ -459,6 +454,16 @@ def main():
     config = load_config(args.config)
     config_name = config.get("name", Path(args.config).stem)
     
+    # Apply CLI overrides to config
+    if args.model is not None:
+        config.setdefault("model", {})["pretrained"] = args.model
+    if args.layer is not None:
+        config.setdefault("sae", {})["layer"] = args.layer
+    if args.expansion is not None:
+        config.setdefault("sae", {})["expansion"] = args.expansion
+    if args.k is not None:
+        config.setdefault("sae", {})["k"] = args.k
+    
     # Initialize wandb
     wandb_enabled = init_wandb(
         name=f"correlation_{config_name}",
@@ -470,8 +475,8 @@ def main():
     
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model (CLI override takes precedence)
-        model_name = args.model or config.get("model", {}).get("pretrained", "tdooms/fw-medium")
+        # Load model
+        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
         print(f"\nLoading model: {model_name}")
         model = Transformer.from_pretrained(model_name, device=device)
         
@@ -480,23 +485,24 @@ def main():
         print(f"  d_hidden: {model.config.d_hidden}")
         print(f"  n_layer: {model.config.n_layer}")
         
-        # Load output SAE (CLI overrides take precedence)
+        # Load output SAE
         sae_config = config.get("sae", {})
-        out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 8, "k": 30})
+        layer = sae_config.get("layer", 2)
         
-        # Apply CLI overrides
-        layer = args.layer if args.layer is not None else sae_config.get("layer", 7)
-        expansion = args.expansion if args.expansion is not None else out_config.get("expansion", 8)
-        k = args.k if args.k is not None else out_config.get("k", 30)
+        # Get expansion and k - check both nested (output.expansion) and flat (expansion)
+        out_config = sae_config.get("output", {})
+        expansion = sae_config.get("expansion") or out_config.get("expansion", 4)
+        k = sae_config.get("k") or out_config.get("k", 30)
+        point_name = out_config.get("name", "mlp-out")
         
         repo = f"{model.config.repo}-scope"
         print(f"\nLoading output SAE from {repo}...")
-        print(f"  Point: (mlp-out, {layer})")
+        print(f"  Point: ({point_name}, {layer})")
         print(f"  Expansion: {expansion}, k: {k}")
         
         sae_out = SAE.from_pretrained(
             repo,
-            point=("mlp-out", layer),
+            point=(point_name, layer),
             expansion=expansion,
             k=k,
         ).to(device)
@@ -509,7 +515,6 @@ def main():
             model.tokenizer, config, device, 
             n_samples=args.n_samples,
             batch_size=args.batch_size,
-            model_name=model_name,
         )
         
         # Select features to analyze
@@ -529,6 +534,8 @@ def main():
             target_samples_per_feature=args.target_samples,
             max_batches=args.max_batches,
             max_features=args.n_features,
+            save_scatter=args.save_scatter,
+            max_scatter_samples=args.max_scatter_samples,
         )
     
     # Compute summary statistics
@@ -537,11 +544,13 @@ def main():
         "layer": layer,
         "expansion": expansion,
         "k": k,
-        "n_features_requested": args.n_features,
+        "n_features_requested": args.n_features if args.n_features != -1 else "all",
         "n_features_analyzed": len(feature_results),
         "ranks": ranks,
         "correlation_by_rank": {},
-        "paper_claim": "rank-2 captures >75% variance",
+        "scatter_data_saved": args.save_scatter,
+        "max_scatter_samples": args.max_scatter_samples if args.save_scatter else None,
+        "paper_claim": "69% of features have >0.75 rank-2 correlation",
         "wall_time_seconds": tracker.result.wall_time_seconds,
         "co2_kg": tracker.result.emissions_kg,
     }

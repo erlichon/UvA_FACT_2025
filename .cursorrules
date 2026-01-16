@@ -193,17 +193,25 @@ set_publication_style()  # Call once at start
 
 ## Current Status
 
-**Phase 1 (Vision)**: COMPLETE
-- 40/40 MNIST checkpoints (4 configs x 5 seeds x 2 datasets)
-- All figures generated in `Report/figures/`
+**Phase 1 (Vision)**: COMPLETE + EXTENDED
+- 40/40 base MNIST checkpoints (4 configs x 5 seeds x 2 datasets)
+- 30/30 model size sweep checkpoints (6 sizes x 5 seeds) for Figure 5
+- 5/5 noise σ=0.15 checkpoints for Figure 7
+- 1/1 challenge task checkpoint for Figure 6
+- All figures (1-7, 9) generated in `Report/figures/`
 - Gate check: WD effective rank ratio 0.555 (close to <0.5 target)
 
 **Phase 2 (Language)**: ~95% COMPLETE
 - Correlation sweep infrastructure complete (`scripts/run_language_sweep.sh`)
 - Centralized plotting module (`src/plot_utils/language.py`) for Figure 9
 - **CRITICAL**: Paper's negation features (3834/751) come from fw-medium, NOT ts-medium
-- Overnight script: `./scripts/run_overnight_mps.sh` (runs all experiments)
+- Overnight script: `./scripts/run_overnight_mps.sh` (runs all 4 phases)
 - Figure generation: `python scripts/generate_language_figures.py`
+
+**Advanced Vision Experiments (Figures 5-7)**: COMPLETE
+- Figure 5: Eigenvector similarity and truncation accuracy across model sizes
+- Figure 6: Challenge task (similarity classification from eigenvector similarity)
+- Figure 7: Adversarial mask robustness (no-reg vs noise-reg with error bars)
 
 ---
 
@@ -359,12 +367,16 @@ data:
 - **~10 eigenvalues** per class capture digit structure
 
 ### Section 5 (Language)
-- **Primary Model**: `fw-medium` (16L, layer 7, expansion 8) - ALL main results!
-- **Negation features**: 3834 (not+negative), 751 (not+positive)
-- **Opposing directions**: Cosine similarity < 0
-- **Low-rank interactions**: >69% features with >0.75 rank-2 correlation
-- **Models for Figure 9**: ts-medium (6L, layer 4), fw-small (12L, layer 8), fw-medium (16L, layer 7)
-- **Note**: Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
+- **VERIFIED** (2026-01-14): `tdooms/ts-medium` IS the paper's "ts-tiny" (6L, 512d, 29.4M params)
+- ⚠️ **SAE LIMITATION**: ts-medium layer 4 lacks `mlp-in` SAEs on HuggingFace (only `mlp-out`, `resid-mid`, `resid-pre`)
+- **Figure 8 Reproduction**: fw-medium only (requires both `mlp-in` and `mlp-out` SAEs)
+  - Features **3834** (not-good), **751** (not-bad) - tutorial example
+  - Paper's ts-medium features (1882/1179) not reproducible without internal SAE checkpoints
+- **Figure 9 Reproduction**: All 3 models work (only needs `mlp-out` SAEs)
+  - ts-medium (6L, layer 4, expansion=4)
+  - fw-small (12L, layer 8, expansion=4)
+  - fw-medium (16L, layer 7, expansion=8)
+- **Opposing directions**: Cosine similarity < 0 (verified in fw-medium)
 
 ---
 
@@ -451,4 +463,4 @@ ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
 6. **Use pretrained SAEs** from HuggingFace when available
 7. **Model name mismatch** - Paper's "ts-tiny" is `tdooms/ts-medium` on HuggingFace
 8. **SAE expansion** - fw-small-scope only has expansion=4 available (not 8)
-9. **Negation model** - Paper's negation features (3834/751) are from **fw-medium**, NOT ts-medium!
+9. **SAE Limitation** - ts-medium layer 4 lacks mlp-in SAEs. Figure 8 must use fw-medium (tutorial features 3834/751)

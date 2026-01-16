@@ -3,8 +3,11 @@
 Generate all figures for Phase 1 (Vision) reproduction.
 
 Run from project root:
-    python scripts/generate_figures.py              # All Phase 1 figures
-    python scripts/generate_figures.py --sweep-only # Only noise sweep (Figure 4)
+    python scripts/vision_analysis.py                          # All vision figures (recommended)
+    python scripts/vision_analysis.py --sections regularization # Core regularization figures
+    python scripts/vision_analysis.py --sections truncation_similarity challenge adversarial appendix hub
+
+NOTE: This legacy script is kept for backwards compatibility but is no longer the recommended entrypoint.
 """
 
 import sys
@@ -271,49 +274,95 @@ def main():
         title="MNIST: Normalized Eigenvalue Decay",
         save_path=str(FIGURE_DIR / "eigenvalue_decay.pdf"),
     )
+    fig.savefig(REPORT_FIGURE_DIR / "eigenvalue_decay.pdf")
     plt.close(fig)
 
-    # --- Figure 3: Per-class Eigenspectrum ---
-    print("Generating per-class eigenspectrum...")
+    # --- Figure 3: Per-class Eigenspectrum (combined with envelope) ---
+    print("Generating per-class eigenspectrum (combined with envelope)...")
     vals_full, _ = load_checkpoint_eigenvalues(
         str(MNIST_CHECKPOINT_DIR / "mnist_dense_full_seed42.pt")
     )
     fig = plot_eigenspectrum_per_class(
         vals_full,
-        title="MNIST (Full Reg): Eigenspectrum by Digit Class",
+        title="MNIST (Full Reg): Eigenspectrum Across Digit Classes",
         save_path=str(FIGURE_DIR / "eigenspectrum_per_class.pdf"),
+        combined=True,  # Use single graph with envelope
     )
+    fig.savefig(REPORT_FIGURE_DIR / "eigenspectrum_per_class.pdf")
     plt.close(fig)
 
-    # --- Figure 4: Eigenvectors (No Reg) ---
-    print("Generating eigenvector plots...")
+    # --- Figure 4: Eigenvectors (Paper style: top-5 positive AND top-5 negative) ---
+    print("Generating eigenvector plots (5 positive + 5 negative per class)...")
     vals_none, vecs_none = load_checkpoint_eigenvalues(
         str(MNIST_CHECKPOINT_DIR / "mnist_dense_none_seed42.pt")
     )
-    vals_full, vecs_full = load_checkpoint_eigenvalues(
+    # Use FULL regularization (paper params: noise_std=0.5, weight_decay=1.0)
+    vals_reg, vecs_reg = load_checkpoint_eigenvalues(
         str(MNIST_CHECKPOINT_DIR / "mnist_dense_full_seed42.pt")
     )
 
+    # No regularization: show both positive and negative eigenvectors
     fig = plot_eigenvectors_grid(
         vecs_none,
         vals_none,
-        n_top=5,
+        n_top=5,  # 5 per sign = 10 total columns
         title="MNIST (No Reg): Top Eigenvectors",
         save_path=str(FIGURE_DIR / "eigenvectors_noreg.pdf"),
+        show_both_signs=True,
     )
-    fig.savefig(REPORT_FIGURE_DIR / "eigenvectors_noreg.pdf")
+    fig.savefig(REPORT_FIGURE_DIR / "eigenvectors_noreg.pdf", bbox_inches='tight')
     plt.close(fig)
 
-    # --- Figure 5: Eigenvectors (Full Reg) ---
+    # --- Figure 5: Eigenvectors (With Weight Decay for better interpretability) ---
     fig = plot_eigenvectors_grid(
-        vecs_full,
-        vals_full,
-        n_top=5,
-        title="MNIST (Full Reg): Top Eigenvectors",
+        vecs_reg,
+        vals_reg,
+        n_top=5,  # 5 per sign = 10 total columns
+        title="MNIST (Full Regularization: σ=0.5, λ=1.0): Top Eigenvectors",
         save_path=str(FIGURE_DIR / "eigenvectors_reg.pdf"),
+        show_both_signs=True,
     )
-    fig.savefig(REPORT_FIGURE_DIR / "eigenvectors_reg.pdf")
+    fig.savefig(REPORT_FIGURE_DIR / "eigenvectors_reg.pdf", bbox_inches='tight')
     plt.close(fig)
+
+    # --- Fashion-MNIST Eigenvectors (5 positive + 5 negative per class) ---
+    print("Generating Fashion-MNIST eigenvector plots...")
+    fashion_none_path = FASHION_CHECKPOINT_DIR / "fashion_dense_none_seed42.pt"
+    fashion_full_path = FASHION_CHECKPOINT_DIR / "fashion_dense_full_seed42.pt"
+    
+    if fashion_none_path.exists() and fashion_full_path.exists():
+        vals_fashion_none, vecs_fashion_none = load_checkpoint_eigenvalues(str(fashion_none_path))
+        vals_fashion_reg, vecs_fashion_reg = load_checkpoint_eigenvalues(str(fashion_full_path))
+        
+        # Fashion-MNIST class names
+        fashion_classes = ["T-shirt", "Trouser", "Pullover", "Dress", "Coat",
+                          "Sandal", "Shirt", "Sneaker", "Bag", "Boot"]
+        
+        fig = plot_eigenvectors_grid(
+            vecs_fashion_none,
+            vals_fashion_none,
+            n_top=5,  # 5 per sign = 10 total columns
+            title="Fashion-MNIST (No Reg): Top Eigenvectors",
+            save_path=str(FIGURE_DIR / "fashion_eigenvectors_noreg.pdf"),
+            class_names=fashion_classes,
+            show_both_signs=True,
+        )
+        fig.savefig(REPORT_FIGURE_DIR / "fashion_eigenvectors_noreg.pdf", bbox_inches='tight')
+        plt.close(fig)
+        
+        fig = plot_eigenvectors_grid(
+            vecs_fashion_reg,
+            vals_fashion_reg,
+            n_top=5,  # 5 per sign = 10 total columns
+            title="Fashion-MNIST (Full Regularization: σ=0.5, λ=1.0): Top Eigenvectors",
+            save_path=str(FIGURE_DIR / "fashion_eigenvectors_reg.pdf"),
+            class_names=fashion_classes,
+            show_both_signs=True,
+        )
+        fig.savefig(REPORT_FIGURE_DIR / "fashion_eigenvectors_reg.pdf", bbox_inches='tight')
+        plt.close(fig)
+    else:
+        print("  WARNING: Fashion-MNIST checkpoints not found, skipping eigenvector plots")
 
     # --- Figure 6: MNIST Ablation ---
     print("Generating ablation plots...")

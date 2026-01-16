@@ -1,19 +1,21 @@
-# Language Negation Discovery - FineWeb-Medium (Paper's Primary Model)
+# Language Negation Discovery - FineWeb-Medium (TUTORIAL EXAMPLE)
 # 
-# This is the correct configuration for reproducing Section 5.1 negation features.
-# The paper's features 3834 (not+negative) and 751 (not+positive) are from this model.
+# This is the TUTORIAL example from tutorials/2_language.ipynb, NOT the paper's Figure 8.
+# The paper's Figure 8 uses ts-medium (features 1882/1179).
+# This fw-medium example shows the SAME technique on a larger, clearer model.
+#
+# VERIFIED (2026-01-14): Paper's Figure 8 is ts-medium, this is tutorial demonstration
 #
 # From tutorials/2_language.ipynb:
-#   model = Transformer.from_pretrained("tdooms/fw-medium")
+#   model = Transformer.from_pretrained("tdooms/fw-medium")  # 16L, 335M params, FineWeb
 #   tracer = Tracer(model, layer=7, inp=dict(expansion=8), out=dict(expansion=8))
-#   out_vis(3834, 751, dark=True)  # The negation features
+#   out_vis(3834, 751, dark=True)  # Tutorial negation features
 #
-# Paper claims: "The first feature fires on negative words that have recently been 
-# negated (not lost, no interference). The second feature does the inverse; it fires 
-# on positive words that were negated (not free, little relief)."
+# Features: 3834 (not+negative: "not lost", "no interference")
+#           751 (not+positive: "not free", "little relief")
 
 name: language_negation_fw_medium
-experiment_id: L5.1_fw
+experiment_id: L5.1_TUTORIAL
 
 model:
   pretrained: "tdooms/fw-medium"  # 16 layers, ~300M params, trained on FineWeb-EDU
@@ -29,10 +31,14 @@ analysis:
   n_samples: 50000   # Number of text samples to analyze
   top_k: 20          # Number of top features to report
   
-  # Paper's expected features (for verification)
-  expected_not_positive_feature: 751   # "not + positive words"
-  expected_not_negative_feature: 3834  # "not + negative words"
+  # Tutorial example features (analogous to paper's 1882/1179)
+  expected_not_good_feature: 3834   # "not + negative words"
+  expected_not_bad_feature: 751     # "not + positive words"
+  
+  # For Figure 8 visualization (tutorial version)
+  figure_8_feature: 3834  # Primary feature for detailed analysis
 
-# Paper claims these features should have:
+# Expected properties (both paper and tutorial):
 # - Negative cosine similarity (opposing directions)
 # - Form a linear subspace
+# - Low-rank interaction matrices

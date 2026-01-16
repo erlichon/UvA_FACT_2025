@@ -17,28 +17,30 @@ We trained bilinear MLPs on MNIST under four regularization configurations (none
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_comparison.pdf}
-    \caption{Eigenspectrum comparison across regularization configurations on MNIST.
-    Weight decay (WD) produces the sharpest spectral decay, while noise augmentation alone increases effective rank.
-    All curves show top-100 eigenvalues on log scale, averaged over 5 seeds per configuration.}
-    \label{fig:eigenspectrum}
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/eigenspectrum_comparison.pdf}
+        \caption{Eigenspectrum by regularization type}
+        \label{fig:eigenspectrum}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/eigenvalue_decay.pdf}
+        \caption{Normalized decay rates}
+        \label{fig:eigenvalue_decay}
+    \end{subfigure}
+    \caption{Eigenspectrum analysis on MNIST. 
+    (a) Eigenvalue magnitudes (sorted, top-100) averaged across digit classes. The \textbf{shaded envelope} shows the 90\% confidence interval across the 10 classes, indicating variance in eigenspectrum shape.
+    Weight decay (WD) produces the sharpest spectral decay.
+    (b) Normalized decay rates (relative to largest eigenvalue). Weight decay shows the steepest decay, concentrating variance in fewer eigenvectors.}
+    \label{fig:eigenspectrum_combined}
 \end{figure}
 
 \begin{figure}[h]
     \centering
-    \includegraphics[width=0.85\linewidth]{figures/eigenvalue_decay.pdf}
-    \caption{Normalized eigenvalue decay for top-30 eigenvalues.
-    Values are normalized by the maximum eigenvalue per configuration.
-    Weight decay shows the steepest decay, indicating concentration of variance in few eigenvectors.}
-    \label{fig:eigenvalue_decay}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/eigenspectrum_per_class.pdf}
+    \includegraphics[width=0.7\linewidth]{figures/eigenspectrum_per_class.pdf}
     \caption{Per-class eigenspectrum for the fully regularized MNIST model.
-    Each line represents a digit class (0--9).
-    All classes show similar low-rank structure, consistent with the paper's claims about class-specific interpretability.}
+    The solid line shows the mean across all 10 digit classes; the dark shaded region shows the 90\% confidence interval; the light shaded region shows the min--max range.
+    All classes exhibit similar low-rank structure, consistent with the paper's claims about class-specific interpretability.}
     \label{fig:eigenspectrum_per_class}
 \end{figure}
 
@@ -46,20 +48,63 @@ We trained bilinear MLPs on MNIST under four regularization configurations (none
 
 \begin{figure}[h]
     \centering
-    \begin{subfigure}{0.48\textwidth}
+    \begin{subfigure}{0.95\textwidth}
         \includegraphics[width=\linewidth]{figures/eigenvectors_noreg.pdf}
-        \caption{Without noise: memorized outlying pixels}
+        \caption{No regularization: memorized outlying pixel patterns}
+    \end{subfigure}
+    \\[1em]
+    \begin{subfigure}{0.95\textwidth}
+        \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
+        \caption{With weight decay: recognizable digit strokes}
+    \end{subfigure}
+    \caption{Top eigenvectors for each digit class (0--9), showing \textbf{5 positive} (left) and \textbf{5 negative} (right) eigenvectors sorted by eigenvalue magnitude.
+    (a) Without regularization, the model memorizes specific outlying pixel patterns, resulting in diffuse, uninterpretable eigenvectors.
+    (b) With weight decay, the model learns more generalizable features, producing eigenvectors that resemble recognizable digit strokes and edge detectors.
+    This matches Paper Figure 3's format of showing both positive and negative eigenvectors.}
+    \label{fig:eigenvectors}
+\end{figure}
+
+\subsubsection{Fashion-MNIST Eigenvectors}
+
+We repeat the eigenvector analysis on Fashion-MNIST to verify generalization to a more complex dataset.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.95\textwidth}
+        \includegraphics[width=\linewidth]{figures/fashion_eigenvectors_noreg.pdf}
+        \caption{No regularization: diffuse patterns}
+    \end{subfigure}
+    \\[1em]
+    \begin{subfigure}{0.95\textwidth}
+        \includegraphics[width=\linewidth]{figures/fashion_eigenvectors_reg.pdf}
+        \caption{With weight decay: garment-like edge detectors}
+    \end{subfigure}
+    \caption{Top eigenvectors for Fashion-MNIST classes, showing \textbf{5 positive} (left) and \textbf{5 negative} (right) eigenvectors.
+    Similar to MNIST, weight decay produces more interpretable eigenvectors that capture garment edges and shapes, while no regularization leads to scattered patterns.}
+    \label{fig:fashion_eigenvectors}
+\end{figure}
+
+\subsubsection{Effect of Input Noise (Paper Figure 4)}
+
+We reproduce the paper's Figure 4, which shows how increasing input noise affects both accuracy and eigenvector quality.
+Models were trained for 20 epochs with noise std $\in \{0.0, 0.1, 0.2, 0.3, 0.4, 0.5\}$.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.55\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_4_noise_eigenvectors.pdf}
+        \caption{Top eigenvector for digit 5 at each noise level}
     \end{subfigure}
     \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/eigenvectors_reg.pdf}
-        \caption{With noise: recognizable digit patterns}
+    \begin{subfigure}{0.42\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_4_noise_vs_rank.pdf}
+        \caption{Effective rank increases with noise}
     \end{subfigure}
-    \caption{Top-5 eigenvectors (by eigenvalue magnitude) for each digit class (0--9).
-    Without noise augmentation, the model memorizes specific outlying pixel patterns that rarely occur, resulting in diffuse, uninterpretable eigenvectors.
-    With noise augmentation, the model learns generalizable features, producing eigenvectors that resemble recognizable digit strokes.
-    Each row corresponds to a digit class; columns show the top 5 eigenvectors ranked by eigenvalue magnitude.}
-    \label{fig:eigenvectors}
+    \caption{Effect of input noise on eigenvector interpretability (reproducing paper Figure 4).
+    (a) As noise increases, the top eigenvector transitions from scattered pixel patterns to a recognizable digit shape.
+    (b) Effective rank increases monotonically with noise, indicating that noise encourages distributed representations.
+    Accuracy also improves with noise (from 97.5\% at 0.0 to 98.4\% at 0.5), confirming that noise regularization improves generalization.}
+    \label{fig:noise_sweep}
 \end{figure}
 
 \subsubsection{Ablation Study}
@@ -147,6 +192,57 @@ We also replicate these experiments on Fashion-MNIST to test generalization acro
     \label{fig:tradeoff}
 \end{figure}
 
+\subsubsection{Model Size and Truncation Analysis (Paper Figure 5)}
+
+We investigate how eigenvector consistency varies across model sizes (d\_hidden $\in \{30, 50, 100, 300, 500, 1000\}$) and how classification accuracy degrades when using only a truncated set of eigenvalues.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_5a_similarity.pdf}
+        \caption{Eigenvector similarity across seeds}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_5b_truncation.pdf}
+        \caption{Accuracy vs truncation level}
+    \end{subfigure}
+    \caption{Model size analysis (reproducing Paper Figure 5).
+    (a) Mean cosine similarity between top eigenvectors across different random seeds for each model size. Larger models show more consistent eigenvectors.
+    (b) Classification accuracy when using only the top-$k$ eigenvalues per class. Performance plateaus around $k=10$--$20$, confirming that a small number of eigenvectors capture most of the discriminative information.}
+    \label{fig:model_size}
+\end{figure}
+
+\subsubsection{Challenge Task Ground Truth (Paper Figure 6)}
+
+We train a bilinear model on a binary similarity classification task from a mechanistic interpretability challenge \citep{casper2023challenge}.
+The label is True if the input has high cosine similarity to a target digit or its complement, False otherwise.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/figure_6_challenge.pdf}
+    \caption{Challenge task eigendecomposition (reproducing Paper Figure 6).
+    The model is trained to classify MNIST images based on similarity to a target ``1'' digit.
+    Decomposition on the True--False direction reveals a dominant positive eigenvalue; the top eigenvector resembles the target digit.
+    The learned bias encodes the similarity threshold for classification.
+    This demonstrates that bilinear decomposition can recover the exact algorithm used for classification.}
+    \label{fig:challenge}
+\end{figure}
+
+\subsubsection{Adversarial Mask Attacks (Paper Figure 7)}
+
+We construct adversarial perturbations from the eigenvector pseudoinverse to test whether the learned eigenstructure can be exploited for targeted attacks.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/figure_7_adversarial.pdf}
+    \caption{Adversarial mask attacks (reproducing Paper Figure 7).
+    Top row: The adversarial mask (computed from the pseudoinverse of top eigenvectors) targets a specific digit class.
+    Bottom row: Example images perturbed with increasing attack strength $\alpha$.
+    The accuracy plot shows that adversarial masks cause slightly more accuracy degradation than random baselines, though the effect is modest with our fully-regularized model.}
+    \label{fig:adversarial}
+\end{figure}
+
 \subsubsection{Cross-Dataset Comparison}
 
 To assess generalization of our findings, we compare MNIST and Fashion-MNIST results.
@@ -217,6 +313,23 @@ The paper claims that 69\% of features achieve $>$0.75 correlation with just 2 e
 \textbf{Key finding:} We do \emph{not} reproduce the low-rank interaction structure claimed by the paper.
 Across three model variants (ts-medium, fw-small, fw-medium), the mean rank-2 correlations range from 0.37 to 0.55---far below the paper's claim that 69\% of features achieve $>$0.75 correlation.
 The high standard deviations ($\sim$0.35) indicate substantial variability across features.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_9a_correlation_progression.pdf}
+        \caption{Correlation vs approximation rank}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/figure_9b_correlation_histogram.pdf}
+        \caption{Rank-2 correlation distribution}
+    \end{subfigure}
+    \caption{Language model interaction matrix analysis (reproducing Paper Figure 9).
+    (a) Mean correlation between interaction matrices and their low-rank approximations across three models. Correlation improves with rank but remains below the paper's claimed threshold.
+    (b) Histogram of rank-2 correlation across SAE features. Most features have low correlation with their rank-2 approximation, contrary to the paper's claim of 69\% $>$ 0.75 (dashed line).}
+    \label{fig:language_analysis}
+\end{figure}
 
 \subsubsection{Possible Explanations for Discrepancy}
 
