@@ -1,9 +1,12 @@
 """
 Training script for Bilinear MLP experiments (Section 4: Vision).
 
+Supports: MNIST, Fashion-MNIST, EMNIST Letters/Digits with optional CoM normalization.
+
 Usage:
     python src/train.py --config configs/mnist_dense_full.yaml --seed 42
     python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb --epochs 2
+    python src/train.py --config configs/emnist_letters_regularized.yaml --seed 42
 """
 
 import sys
@@ -18,7 +21,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
-from image.datasets import FMNIST
 
 from src.utils import (
     get_device,
@@ -27,46 +29,15 @@ from src.utils import (
     track_emissions,
     init_wandb,
     finish_wandb,
-    get_history_column,
 )
-from src.training import train_model
-from src.analysis.spectral import effective_rank, spectral_summary, top_k_coverage
-import wandb
-
-
-def apply_variance_corrected_init(model, enabled: bool = True):
-    """
-    Apply variance-corrected initialization to push model into Rich Training regime.
-
-    Computes per-layer scaling based on input dimension: scale = d_in^0.25
-    This prevents the "Lazy Training" pathology where the baseline collapses to low rank.
-
-    Similar to how nn.Linear uses fan_in for Kaiming initialization, but adapted
-    for bilinear layers where output variance ~ input_variance^2.
-
-    Args:
-        model: Model instance with w_lr (bilinear weights) and w_e (embedding)
-        enabled: If False, skip scaling (equivalent to init_scale=1.0)
-    """
-    if not enabled:
-        return
-
-    with torch.no_grad():
-        # Scale embedding layer: w_e has shape [d_hidden, d_input]
-        # d_input = 784 for MNIST/Fashion-MNIST
-        if hasattr(model, 'w_e') and model.w_e is not None:
-            d_in = model.w_e.shape[-1]  # Input dimension (784)
-            scale = d_in ** 0.25
-            model.w_e.data *= scale
-            print(f"  w_e: d_in={d_in}, scale={scale:.2f}")
-
-        # Scale bilinear layer: w_lr has shape [n_layers, 2, d_hidden, d_hidden]
-        # The bilinear layer input is d_hidden (after embedding)
-        if hasattr(model, 'w_lr') and model.w_lr is not None:
-            d_in = model.w_lr.shape[-1]  # Input dimension (256)
-            scale = d_in ** 0.25
-            model.w_lr.data *= scale
-            print(f"  w_lr: d_in={d_in}, scale={scale:.2f}")
+from src.training import (
+    apply_variance_corrected_init,
+    create_noise_transform,
+    log_training_history,
+    log_spectral_metrics,
+    save_checkpoint,
+)
+from src.vision.spectral import effective_rank
 
 
 def train_vision_model(config: dict, seed: int, device: str, epochs: int):
@@ -82,32 +53,35 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     Returns:
         Tuple of (model, history, eigenvalues, eigenvectors)
     """
+    set_seed(seed)
+    
     # Get CoM normalization setting (default False for backward compatibility)
     apply_com = config.get('data', {}).get('apply_com', False)
     
-    # Load dataset
+    # Load dataset using unified data module
     dataset_name = config.get('data', {}).get('dataset', 'mnist')
+    
     if dataset_name == 'mnist':
         print("Loading MNIST data...")
-        from src.data.mnist_wrapper import MNIST
+        from src.data import MNIST
         train_data = MNIST(train=True, device=device, apply_com=apply_com)
         test_data = MNIST(train=False, device=device, apply_com=apply_com)
         d_output = 10
     elif dataset_name == 'fashion_mnist':
         print("Loading Fashion-MNIST data...")
-        train_data = FMNIST(train=True, device=device)
-        test_data = FMNIST(train=False, device=device)
+        from src.data import FashionMNIST
+        train_data = FashionMNIST(train=True, device=device, apply_com=apply_com)
+        test_data = FashionMNIST(train=False, device=device, apply_com=apply_com)
         d_output = 10
-        # Note: Fashion-MNIST doesn't support CoM yet
     elif dataset_name == 'emnist_letters':
         print("Loading EMNIST Letters data...")
-        from src.data.emnist import EMNISTLetters
+        from src.data import EMNISTLetters
         train_data = EMNISTLetters(train=True, device=device, apply_com=apply_com)
         test_data = EMNISTLetters(train=False, device=device, apply_com=apply_com)
         d_output = 26
     elif dataset_name == 'emnist_digits':
         print("Loading EMNIST Digits data...")
-        from src.data.emnist import EMNISTDigits
+        from src.data import EMNISTDigits
         train_data = EMNISTDigits(train=True, device=device, apply_com=apply_com)
         test_data = EMNISTDigits(train=False, device=device, apply_com=apply_com)
         d_output = 10
@@ -115,7 +89,7 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
     if apply_com:
-        print(f"  ✓ Center-of-Mass normalization applied")
+        print(f"  Center-of-Mass normalization applied")
 
     # Create model
     model_config = Config(
@@ -129,9 +103,6 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     model = Model(model_config).to(device)
 
     # Apply variance-corrected initialization for Rich Training regime
-    # This cures the "Lazy Training" pathology where the baseline "No Reg" model
-    # would collapse to rank ~38 instead of ~150
-    # Set variance_corrected_init: true in config to enable (disabled by default for paper reproduction)
     variance_corrected = config.get('model', {}).get('variance_corrected_init', False)
     if variance_corrected:
         print("Applying variance-corrected initialization (Rich Training regime):")
@@ -139,120 +110,17 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
 
     # Create transform (noise augmentation)
     noise_std = config['regularization']['noise_std']
-    transform = None
-    if noise_std > 0:
-        transform = kornia.augmentation.RandomGaussianNoise(
-            mean=0.0, std=noise_std, p=1.0
-        )
+    transform = create_noise_transform(noise_std)
 
     # Train
     print(f"Training for {epochs} epochs...")
     history = model.fit(train_data, test_data, transform=transform)
 
-    # Compute eigendecomposition (original code is now MPS-safe)
+    # Compute eigendecomposition (original code is MPS-safe)
     print("Computing eigendecomposition...")
     eigenvalues, eigenvectors = model.decompose()
 
     return model, history, eigenvalues, eigenvectors
-
-
-def save_checkpoint(
-    path: Path,
-    config: dict,
-    model,
-    history,
-    eigenvalues: torch.Tensor,
-    eigenvectors: torch.Tensor,
-    seed: int,
-    epochs: int,
-):
-    """Save model checkpoint with eigenspectrum."""
-    # Extract final metrics from history
-    final_train_acc = get_history_column(history, 'train_acc', 'train/acc')
-    final_val_acc = get_history_column(history, 'val_acc', 'val/acc', 'test_acc', 'test/acc')
-    final_train_loss = get_history_column(history, 'train_loss', 'train/loss')
-    final_val_loss = get_history_column(history, 'val_loss', 'val/loss', 'test_loss', 'test/loss')
-
-    # Compute effective rank
-    eff_rank = effective_rank(eigenvalues).mean().item()
-
-    dataset_name = config.get('data', {}).get('dataset', 'mnist')
-
-    checkpoint = {
-        'config': {
-            'mode': 'dense',
-            'd_hidden': config['model']['d_hidden'],
-            'epochs': epochs,
-            'lr': config['training'].get('lr', 1e-3),
-            'noise_std': config['regularization']['noise_std'],
-            'weight_decay': config['regularization']['weight_decay'],
-            'dataset': dataset_name,
-            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
-        },
-        'model_state_dict': model.state_dict(),
-        'metrics': {
-            'train_acc': float(final_train_acc),
-            'val_acc': float(final_val_acc),
-            'train_loss': float(final_train_loss),
-            'val_loss': float(final_val_loss),
-            'effective_rank': float(eff_rank),
-        },
-        'seed': seed,
-        'eigenvalues': eigenvalues.cpu(),
-        'eigenvectors': eigenvectors.cpu(),
-    }
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(checkpoint, path)
-    return checkpoint
-
-
-def log_training_history(history, wandb_enabled: bool):
-    """Log per-epoch training metrics to wandb."""
-    if not wandb_enabled or wandb.run is None:
-        return
-
-    # Get column names (handle both naming conventions)
-    train_acc_col = 'train/acc' if 'train/acc' in history.columns else 'train_acc'
-    val_acc_col = 'val/acc' if 'val/acc' in history.columns else ('test/acc' if 'test/acc' in history.columns else 'val_acc')
-    train_loss_col = 'train/loss' if 'train/loss' in history.columns else 'train_loss'
-    val_loss_col = 'val/loss' if 'val/loss' in history.columns else ('test/loss' if 'test/loss' in history.columns else 'val_loss')
-
-    # Log each epoch
-    for epoch in range(len(history)):
-        metrics = {"epoch": epoch}
-        if train_acc_col in history.columns:
-            metrics["train/acc"] = history[train_acc_col].iloc[epoch]
-        if val_acc_col in history.columns:
-            metrics["val/acc"] = history[val_acc_col].iloc[epoch]
-        if train_loss_col in history.columns:
-            metrics["train/loss"] = history[train_loss_col].iloc[epoch]
-        if val_loss_col in history.columns:
-            metrics["val/loss"] = history[val_loss_col].iloc[epoch]
-        wandb.log(metrics, step=epoch)
-
-
-def log_spectral_metrics(eigenvalues: torch.Tensor, wandb_enabled: bool):
-    """Log comprehensive spectral metrics to wandb summary."""
-    if not wandb_enabled or wandb.run is None:
-        return {}
-
-    # Compute full spectral summary
-    summary = spectral_summary(eigenvalues)
-
-    # Compute per-class effective rank
-    per_class_eff_rank = effective_rank(eigenvalues)
-
-    # Add per-class metrics
-    for cls_idx in range(len(per_class_eff_rank)):
-        summary[f"effective_rank_class_{cls_idx}"] = per_class_eff_rank[cls_idx].item()
-
-    # Log eigenvalue histogram for each class (first 3 classes to avoid clutter)
-    for cls_idx in range(min(3, eigenvalues.shape[0])):
-        cls_eigenvalues = eigenvalues[cls_idx].abs().cpu().numpy()
-        wandb.run.summary[f"eigenvalues_class_{cls_idx}"] = wandb.Histogram(cls_eigenvalues)
-
-    return summary
 
 
 def main():
@@ -299,7 +167,7 @@ def main():
     # Log spectral metrics (comprehensive)
     spectral_metrics = log_spectral_metrics(eigenvalues, wandb_enabled)
 
-    # Save checkpoint
+    # Save checkpoint using consolidated function
     checkpoint_path = Path(args.checkpoint_dir) / f"{config_name}_seed{args.seed}.pt"
     checkpoint = save_checkpoint(
         checkpoint_path, config, model, history,

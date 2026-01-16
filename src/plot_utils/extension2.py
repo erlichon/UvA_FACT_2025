@@ -14,7 +14,7 @@ from typing import Dict, Optional, Tuple
 from pathlib import Path
 
 from src.plot_utils.style import COLORS
-from src.analysis.spectral import effective_rank
+from src.vision.spectral import effective_rank
 
 
 def plot_usps_transfer_comparison(

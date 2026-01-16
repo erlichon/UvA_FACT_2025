@@ -70,22 +70,23 @@ sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
 
-from src.data.cross_dataset import (
-    load_mnist_normalized,
+from src.data import (
+    MNIST,
     load_emnist_letters_normalized,
+    load_emnist_digits_normalized,
     load_usps_normalized,
     extract_emnist_letters,
     get_emnist_letter_indices,
     LETTER_DIGIT_SIMILARITY,
     EMNIST_CLASS_NAMES,
 )
-from src.analysis.subspace import (
+from src.vision.subspace import (
     compute_subspace_overlap,
     principal_angles,
     pairwise_class_similarity,
     semantic_similarity_score,
 )
-from src.analysis.spectral import effective_rank, spectral_summary
+from src.vision.spectral import effective_rank, spectral_summary
 from src.utils import get_device, set_seed, setup_mps_fallbacks, is_mps_device
 
 
@@ -121,7 +122,7 @@ def train_mnist_model(
     
     # Load data
     if use_com_normalization:
-        from src.data.cross_dataset import load_mnist_normalized
+        from src.data import MNIST
         train_data, test_data = load_mnist_normalized(device=device)
     else:
         from image.datasets import MNIST
@@ -234,7 +235,7 @@ def train_emnist_digits_model(
     set_seed(seed)
     
     # Load data
-    from src.data.cross_dataset import load_emnist_digits_normalized
+    from src.data import load_emnist_digits_normalized
     train_data, test_data = load_emnist_digits_normalized(device=device)
     
     # Create model with 10 output classes
@@ -319,7 +320,7 @@ def cross_dataset_accuracy_test(
     Returns:
         Dictionary with bidirectional accuracy metrics
     """
-    from src.data.cross_dataset import load_mnist_normalized, load_emnist_digits_normalized
+    from src.data import MNIST, load_emnist_digits_normalized
     
     print("\nA. Functional Similarity (Cross-Dataset Accuracy):")
     print("-" * 60)
@@ -711,7 +712,7 @@ def mechanism_stability_test(
     Returns:
         Dictionary with functional and representational similarity metrics
     """
-    from src.analysis.subspace import compute_subspace_overlap, select_balanced_eigenvectors
+    from src.vision.subspace import compute_subspace_overlap, select_balanced_eigenvectors
     
     print("\n" + "=" * 60)
     print("STEP 1: MECHANISM STABILITY TEST")
@@ -846,7 +847,7 @@ def run_subspace_geometry_test(
     Returns:
         Dictionary with subspace overlap metrics
     """
-    from src.analysis.subspace import select_balanced_eigenvectors
+    from src.vision.subspace import select_balanced_eigenvectors
     
     print("\n" + "=" * 60)
     print("STEP 3: SUBSPACE GEOMETRY METRIC")

@@ -16,7 +16,7 @@ The principal angles between two subspaces measure how "aligned" they are:
 - θ = 90° means orthogonal (no similarity)
 
 Usage:
-    from src.analysis.subspace import compute_subspace_overlap, principal_angles
+    from src.vision.subspace import compute_subspace_overlap, principal_angles
     
     # Compare top-10 eigenvectors of MNIST '0' and EMNIST 'O'
     overlap = compute_subspace_overlap(mnist_vecs_0, emnist_vecs_O, k=10)
