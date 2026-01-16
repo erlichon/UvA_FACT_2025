@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """
+DEPRECATED: Use src/train.py with --config configs/emnist_letters_regularized.yaml
+
+This file is kept for backward compatibility but should not be used for new experiments.
+The unified training infrastructure in src/train.py now supports EMNIST datasets
+and uses the original paper's model.decompose() method for proper eigenvector extraction.
+
+LEGACY DOCUMENTATION:
 Train EMNIST models for Extension 2.
 
 This script trains regularized bilinear models on EMNIST letters dataset,
@@ -83,8 +90,20 @@ def log_spectral_metrics(eigenvalues: torch.Tensor, wandb_enabled: bool):
 
 
 def main():
+    import warnings
+    warnings.warn(
+        "train_emnist.py is DEPRECATED. Use 'python src/train.py --config configs/emnist_letters_regularized.yaml' instead. "
+        "This script uses custom decomposition which produces less interpretable eigenvectors.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    print("\n" + "="*80)
+    print("WARNING: This script is deprecated!")
+    print("Use: python src/train.py --config configs/emnist_letters_regularized.yaml")
+    print("="*80 + "\n")
+    
     parser = argparse.ArgumentParser(
-        description="Train EMNIST model for Extension 2",
+        description="Train EMNIST model for Extension 2 (DEPRECATED - use src/train.py)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     

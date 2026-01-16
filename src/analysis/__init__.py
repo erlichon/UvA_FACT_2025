@@ -26,6 +26,7 @@ from .subspace import (
     pairwise_class_similarity,
     semantic_similarity_score,
     sort_eigenvectors_by_magnitude,
+    select_balanced_eigenvectors,
 )
 
 __all__ = [
@@ -49,4 +50,5 @@ __all__ = [
     "pairwise_class_similarity",
     "semantic_similarity_score",
     "sort_eigenvectors_by_magnitude",
+    "select_balanced_eigenvectors",
 ]
