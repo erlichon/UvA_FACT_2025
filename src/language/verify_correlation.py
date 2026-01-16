@@ -461,9 +461,21 @@ def main():
     if args.layer is not None:
         config.setdefault("sae", {})["layer"] = args.layer
     if args.expansion is not None:
+        # Set both flat and nested expansion values
         config.setdefault("sae", {})["expansion"] = args.expansion
+        # Also update nested configs if they exist
+        if "input" in config.get("sae", {}):
+            config["sae"]["input"]["expansion"] = args.expansion
+        if "output" in config.get("sae", {}):
+            config["sae"]["output"]["expansion"] = args.expansion
     if args.k is not None:
+        # Set both flat and nested k values
         config.setdefault("sae", {})["k"] = args.k
+        # Also update nested configs if they exist
+        if "input" in config.get("sae", {}):
+            config["sae"]["input"]["k"] = args.k
+        if "output" in config.get("sae", {}):
+            config["sae"]["output"]["k"] = args.k
     
     # Initialize wandb
     wandb_enabled = init_wandb(

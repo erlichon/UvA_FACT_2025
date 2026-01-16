@@ -26,7 +26,7 @@
 set -e  # Exit on error
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$PROJECT_ROOT"
 
 # Default values
@@ -238,7 +238,7 @@ generate_figures() {
     activate_conda
     
     echo ">>> Generating figures..."
-    python scripts/figures/generate_vision_figures.py "${REMAINING_ARGS[@]}"
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/generate_vision_figures.py "${REMAINING_ARGS[@]}"
     
     echo ""
     echo "Figure generation complete!"

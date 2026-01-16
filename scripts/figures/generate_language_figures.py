@@ -16,8 +16,8 @@ import sys
 from pathlib import Path
 import json
 
-# Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent
+# Add project root to path (scripts/figures/ -> scripts/ -> project root)
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np

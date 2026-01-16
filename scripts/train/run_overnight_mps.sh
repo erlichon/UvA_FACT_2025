@@ -47,7 +47,7 @@ set -e  # Exit on error
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$PROJECT_ROOT"
 
 # Parse arguments
@@ -282,7 +282,7 @@ if ! $SKIP_SWEEP; then
 
     # Generate Figure 4
     echo "Generating Figure 4..."
-    python scripts/figures/generate_vision_figures.py --section regularization || echo "Warning: Figure 4 generation failed"
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/generate_vision_figures.py --section regularization || echo "Warning: Figure 4 generation failed"
 else
     echo ""
     echo ">>> Skipping Phase 2 (Noise Sweep) as requested"

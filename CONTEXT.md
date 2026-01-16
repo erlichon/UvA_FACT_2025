@@ -114,20 +114,21 @@ After verifying model specifications and SAE availability, we discovered:
 - All pretrained SAEs use k=30 (paper uses k=32, minor difference)
 
 **Commands**:
-- Run fw-medium negation (Section 5.1 PRIMARY): `python src/language/negation_discovery.py --config configs/language_negation_fw.yaml --use-pretrained`
-- Run fw-medium correlation (Figure 9): `python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml`
-- Run correlation sweep (all 3 models): `./scripts/run_language_sweep.sh [mps|cuda|cpu]`
-- Generate Figure 9: `python scripts/figures/generate_language_figures.py`
+- Run vision experiments: `./scripts/train/run_vision.sh train all`
+- Run language experiments: `./scripts/train/run_language.sh all`
+- Run correlation sweep (all 3 models): `./scripts/train/run_language.sh figure9`
+- Generate all figures: `./scripts/train/run_vision.sh figures && ./scripts/train/run_language.sh figures`
 - Run overnight (all experiments): `./scripts/train/run_overnight_mps.sh`
 - Run on GPU: `sbatch jobs/language_fwmedium.job`
 
 **Section 5 (Language) Components** (IMPLEMENTED):
+- `src/language/context.py` - LanguageContext class for unified model/SAE loading (DRY)
 - `src/language/run_sae_training.py` - SAE training wrapper (uses original paper code)
 - `src/language/negation_discovery.py` - Negation circuit discovery
 - `src/language/interaction_analysis.py` - Interaction matrix analysis
 - `src/language/verify_correlation.py` - Correlation verification (CLI: `--model`, `--layer`, `--expansion`, `--k`)
-- `src/plot_utils/language.py` - Centralized plotting for Figure 9 (progression, histogram, scatters)
-- `scripts/run_language_sweep.sh` - Run correlation sweep across ts-medium, fw-small, fw-medium
+- `src/plot_utils/language.py` - Centralized plotting for Figure 9 & 10 (progression, histogram, scatters)
+- `scripts/train/run_language.sh` - Unified language experiment runner
 - `scripts/figures/generate_language_figures.py` - Generate all language figures from results
 - `configs/language_sae.yaml` - SAE training config
 - `configs/language_negation.yaml` - Negation discovery config
@@ -146,44 +147,50 @@ UvA_FACT_2025/
 │   │   └── bilinear_layer.py     # BilinearDense + BilinearCP [COMPLETE]
 │   ├── data/
 │   │   ├── __init__.py
-│   │   └── challenge_dataset.py  # Challenge dataset (Figure 6) [NEW]
-│   ├── analysis/
+│   │   └── challenge_dataset.py  # Challenge dataset (Figure 6)
+│   ├── vision/                   # Section 4 vision analysis (renamed from analysis/)
 │   │   ├── __init__.py
-│   │   ├── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints [COMPLETE]
-│   │   ├── truncation.py         # Truncation accuracy, similarity (Figure 5) [NEW]
-│   │   └── adversarial.py        # Adversarial mask generation (Figure 7) [NEW]
-│   ├── plot_utils/               # Reusable plotting functions [COMPLETE]
+│   │   ├── context.py            # VisionContext - unified experiment setup (DRY)
+│   │   ├── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints
+│   │   ├── truncation.py         # Truncation accuracy, similarity (Figure 5)
+│   │   └── adversarial.py        # Adversarial mask generation (Figure 7)
+│   ├── plot_utils/               # Reusable plotting functions
 │   │   ├── __init__.py
 │   │   ├── style.py              # Publication style, colors, constants
 │   │   ├── eigenspectrum.py      # Eigenspectrum visualization
-│   │   ├── eigenvectors.py       # Eigenvector image visualization
+│   │   ├── eigenvectors.py       # Eigenvector visualization (with λ labels)
 │   │   ├── ablation.py           # Ablation and trade-off plots
-│   │   └── language.py           # Language Figure 9 plots
-│   ├── language/
+│   │   └── language.py           # Language Figure 9 & 10 plots
+│   ├── language/                 # Section 5 language experiments
 │   │   ├── __init__.py
-│   │   ├── run_sae_training.py   # SAE training wrapper [COMPLETE]
-│   │   ├── negation_discovery.py # Negation circuit analysis [COMPLETE]
-│   │   ├── interaction_analysis.py # Interaction matrix analysis [COMPLETE]
-│   │   └── verify_correlation.py # Correlation verification [COMPLETE]
-│   └── train.py                  # Vision training script [COMPLETE]
+│   │   ├── context.py            # LanguageContext - unified experiment setup (DRY)
+│   │   ├── run_sae_training.py   # SAE training wrapper
+│   │   ├── negation_discovery.py # Negation circuit analysis
+│   │   ├── interaction_analysis.py # Interaction matrix analysis
+│   │   └── verify_correlation.py # Correlation verification
+│   └── train.py                  # Vision training script
 ├── configs/
 │   ├── mnist_dense_{none,noise,wd,full,noise015}.yaml  # MNIST vision configs
 │   ├── fashion_dense_{none,noise,wd,full}.yaml  # Fashion-MNIST configs
-│   ├── mnist_challenge.yaml      # Challenge task config [NEW]
+│   ├── mnist_challenge.yaml      # Challenge task config
 │   ├── sweeps/
-│   │   └── mnist_size_{30,50,100,300,500,1000}.yaml  # Model size sweep [NEW]
+│   │   └── mnist_size_{30,50,100,300,500,1000}.yaml  # Model size sweep
 │   ├── language_sae.yaml         # SAE training config (supports model/layer overrides)
 │   ├── language_negation_{fw,ts}.yaml  # Negation discovery configs
 │   └── language_interaction.yaml # Interaction analysis config
 ├── scripts/
-│   ├── run_overnight_mps.sh      # Full 4-phase overnight run (vision + language + advanced)
-│   ├── run_model_size_sweep.sh   # Model size sweep automation [NEW]
-│   ├── run_language_sweep.sh     # Correlation sweep for 3 models
-│   ├── generate_vision_figures.py        # Unified vision analysis + all figures + appendix + hub
-│   ├── generate_figures.py       # Legacy (kept for backwards compatibility)
-│   ├── generate_language_figures.py # Generate language Figure 9
-│   ├── test_mps_quick.sh         # Quick vision test
-│   └── test_mps_language.sh      # Quick language test
+│   ├── train/                    # Training & experiment runners
+│   │   ├── run_vision.sh         # Unified vision experiments
+│   │   ├── run_language.sh       # Unified language experiments
+│   │   └── run_overnight_mps.sh  # Full overnight pipeline
+│   └── figures/                  # Figure generation
+│       ├── generate_vision_figures.py   # All vision figures (1-7)
+│       ├── generate_language_figures.py # Figure 9 & 10
+│       └── paper_hub.py          # Interactive figure viewer
+├── tools/                        # Operational utilities
+│   ├── sync_to_snellius.sh       # Upload code to cluster
+│   ├── sync_from_snellius.sh     # Download results
+│   └── monitor_memory.sh         # Memory monitoring
 ├── jobs/
 │   ├── train_array.job           # MNIST 20 runs (Snellius)
 │   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
@@ -219,37 +226,42 @@ UvA_FACT_2025/
 *Section 4 (Vision) - COMPLETE + EXTENDED*:
 1. `src/models/bilinear_layer.py` - BilinearDense (wraps original) + BilinearCP (extension)
 2. `src/train.py` - Vision training with wandb + codecarbon tracking
-3. `src/vision/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
-4. `src/vision/truncation.py` - Truncation accuracy, eigenvector similarity (Figure 5)
-5. `src/vision/adversarial.py` - Adversarial mask generation (Figure 7)
-6. `src/data/challenge_dataset.py` - Challenge dataset (Figure 6)
-7. `src/plot_utils/` - Reusable plotting module (style, eigenspectrum, eigenvectors, ablation)
-8. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
-9. 9 vision config files (4 MNIST + 4 Fashion-MNIST + 1 noise015)
-10. 6 model size sweep configs (30, 50, 100, 300, 500, 1000)
-11. SLURM job scripts for Snellius
-12. `scripts/figures/generate_vision_figures.py` - Unified vision analysis + all vision figures (core + appendix) + section-based HTML hub
-13. `scripts/generate_figures.py` - Legacy vision figure generation script (kept for backwards compatibility)
-16. `scripts/run_model_size_sweep.sh` - Automate model size training
-17. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
-18. **16 publication figures** in `Report/figures/` (Figures 1-7, 9 complete)
+3. `src/vision/context.py` - VisionContext class for unified experiment setup (DRY)
+4. `src/vision/spectral.py` - effective_rank, top_k_coverage, spectral_summary, load_all_checkpoints
+5. `src/vision/truncation.py` - Truncation accuracy, eigenvector similarity (Figure 5)
+6. `src/vision/adversarial.py` - Adversarial mask generation (Figure 7)
+7. `src/data/challenge_dataset.py` - Challenge dataset (Figure 6)
+8. `src/plot_utils/` - Reusable plotting module (style, eigenspectrum, eigenvectors with λ labels, ablation)
+9. `src/utils.py` - Shared utilities (device detection, wandb init, MPS fallbacks)
+10. 9 vision config files (4 MNIST + 4 Fashion-MNIST + 1 noise015)
+11. 6 model size sweep configs (30, 50, 100, 300, 500, 1000)
+12. SLURM job scripts for Snellius
+13. `scripts/train/run_vision.sh` - Unified vision experiment runner (train, figures, all)
+14. `scripts/figures/generate_vision_figures.py` - All vision figures (1-7)
+15. `notebooks/01_reproduction.ipynb` - Complete analysis notebook
+16. **16 publication figures** in `Report/figures/` (Figures 1-7, 9, 10 complete)
 
 *Section 5 (Language)*:
-19. `src/language/run_sae_training.py` - SAE training wrapper
-20. `src/language/negation_discovery.py` - Negation circuit discovery
-21. `src/language/interaction_analysis.py` - Interaction matrix analysis
-22. `src/language/verify_correlation.py` - Correlation verification with CLI overrides
-23. `src/plot_utils/language.py` - Centralized plotting for Figure 9 (DRY architecture)
-24. `scripts/run_language_sweep.sh` - Correlation sweep across 3 models
-25. `scripts/figures/generate_language_figures.py` - Generate all language figures
-26. 3 language config files (supports model/layer/expansion overrides)
-27. `scripts/train/run_overnight_mps.sh` - Complete 4-phase overnight pipeline
+17. `src/language/context.py` - LanguageContext class for unified model/SAE loading (DRY)
+18. `src/language/run_sae_training.py` - SAE training wrapper
+19. `src/language/negation_discovery.py` - Negation circuit discovery
+20. `src/language/interaction_analysis.py` - Interaction matrix analysis
+21. `src/language/verify_correlation.py` - Correlation verification with CLI overrides
+22. `src/plot_utils/language.py` - Centralized plotting for Figure 9 & 10 (DRY architecture)
+23. `scripts/train/run_language.sh` - Unified language experiment runner (figure9, figure8, negation, interaction, figures, all)
+24. `scripts/figures/generate_language_figures.py` - Generate all language figures
+25. 3 language config files (supports model/layer/expansion overrides)
+
+*Unified Infrastructure*:
+26. `scripts/train/run_overnight_mps.sh` - Complete overnight pipeline (vision + language)
+27. `scripts/figures/paper_hub.py` - Interactive figure viewer
+28. `tools/` - Operational utilities (sync_to_snellius.sh, sync_from_snellius.sh, monitor_memory.sh)
 
 *Testing & Tracking*:
-28. 82 unit tests in `tests/`
-29. wandb integration with single project: `itayerlich96-student/fact-bilinear`
-30. CO2 tracking via codecarbon for all experiments
-31. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
+29. 82 unit tests in `tests/`
+30. wandb integration with single project: `itayerlich96-student/fact-bilinear`
+31. CO2 tracking via codecarbon for all experiments
+32. `docs/WANDB_GUIDE.md` - Comprehensive wandb usage guide
 
 **Critical Agreements Standardized**:
 1. **CP Factor Names**: A=[d_in,rank], B=[d_in,rank], C=[d_out,rank]
@@ -262,13 +274,13 @@ UvA_FACT_2025/
 **Next Actions**:
 1. ~~Person B: Create visualization code and notebook~~ **DONE**
 2. ~~Generate figures for report from checkpoints~~ **DONE** (16 figures in Report/figures/)
-3. ~~Language correlation sweep infrastructure~~ **DONE** (scripts/run_language_sweep.sh + src/plot_utils/language.py)
+3. ~~Language correlation sweep infrastructure~~ **DONE** (scripts/train/run_language.sh + src/plot_utils/language.py)
 4. ~~Figure 5: Model size sweep experiments~~ **DONE** (30 models trained, figures generated)
 5. ~~Figure 6: Challenge task~~ **DONE** (similarity classification implemented)
 6. ~~Figure 7: Adversarial masks~~ **DONE** (no-reg vs noise-reg with error bars)
-7. **Run language correlation sweep**: `./scripts/run_language_sweep.sh` (ts-medium, fw-small, fw-medium)
-8. **Generate language figures**: `python scripts/figures/generate_language_figures.py`
-9. Run fw-medium interaction + negation experiments (Figure 8)
+7. **Run language correlation sweep**: `./scripts/train/run_language.sh figure9`
+8. **Generate language figures (9 & 10)**: `./scripts/train/run_language.sh figures`
+9. Run fw-medium interaction + negation experiments (Figure 8): `./scripts/train/run_language.sh figure8`
 10. Update Report LaTeX with all figures and tables
 11. Start Phase 2 extensions (CP implementation, robustness testing)
 12. Review wandb results at https://wandb.ai/itayerlich96-student/fact-bilinear

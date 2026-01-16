@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 

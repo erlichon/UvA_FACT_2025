@@ -73,11 +73,28 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 # Interaction analysis
 ./scripts/train/run_language.sh interaction
 
-# Generate all language figures
+# Generate all language figures (Figure 9 & 10)
 ./scripts/train/run_language.sh figures
 
 # Full pipeline (except Figure 8)
 ./scripts/train/run_language.sh all
+```
+
+### Full Overnight Pipeline
+
+```bash
+# Run ALL experiments (vision + language)
+./scripts/train/run_overnight_mps.sh
+```
+
+### Figure Generation Only
+
+```bash
+# Vision figures (Figures 1-7)
+python scripts/figures/generate_vision_figures.py
+
+# Language figures (Figure 9 & 10)
+python scripts/figures/generate_language_figures.py
 ```
 
 ### Legacy Commands (still work, but deprecated)
@@ -89,9 +106,6 @@ python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb 
 # Language correlation verification (direct Python)
 python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml \
     --model tdooms/fw-medium --layer 7 --expansion 8 --k 30
-
-# Run ALL experiments overnight (vision + language)
-./scripts/train/run_overnight_mps.sh
 ```
 
 ### Testing
@@ -101,23 +115,6 @@ python -m pytest tests/ -v                          # Run all tests
 python -m pytest tests/test_bilinear_layer.py -v    # Specific file
 python -m pytest tests/ -v -k "test_effective_rank" # By name
 python -m pytest tests/ --cov=src --cov-report=term-missing  # With coverage
-```
-
-### Analysis & Figures
-
-```bash
-# Vision figures - PREFERRED
-./scripts/train/run_vision.sh figures                          # All figures
-./scripts/train/run_vision.sh figures --section regularization # Specific section
-
-# Language figures - PREFERRED
-./scripts/train/run_language.sh figure9           # Run correlation sweep
-./scripts/train/run_language.sh figures           # Generate figures from results
-
-# Direct Python (still works)
-python scripts/figures/generate_vision_figures.py
-python scripts/figures/generate_vision_figures.py --sections regularization truncation_similarity
-python scripts/figures/generate_language_figures.py
 ```
 
 ### Snellius HPC
@@ -152,11 +149,19 @@ squeue -u scur0075  # Monitor jobs
 | `src/vision/adversarial.py` | `compute_adversarial_mask()`, `apply_adversarial_perturbation()` (Figure 7) |
 | `src/data/challenge_dataset.py` | `ChallengeDataset` for similarity classification (Figure 6) |
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
-| `src/plot_utils/language.py` | Figure 9 plots: `plot_correlation_progression()`, `plot_correlation_histogram()`, `plot_correlation_scatters()` |
+| `src/plot_utils/language.py` | Figure 9 & 10 plots: `plot_correlation_progression()`, `plot_correlation_histogram()` |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
 | `src/language/context.py` | `LanguageContext` - unified context for language experiments |
 | `src/language/` | SAE training, negation discovery, interaction analysis, correlation verification |
 | `src/language/verify_correlation.py` | Correlation verification with CLI: `--model`, `--layer`, `--expansion`, `--k` |
+
+### Scripts Organization
+
+| Directory | Purpose |
+|-----------|---------|
+| `scripts/train/` | Training & experiment runners (`run_vision.sh`, `run_language.sh`, `run_overnight_mps.sh`) |
+| `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `paper_hub.py`) |
+| `tools/` | Operational utilities (`sync_to_snellius.sh`, `sync_from_snellius.sh`, `monitor_memory.sh`) |
 
 ### Original Paper Code
 
@@ -183,6 +188,23 @@ Key files used by our wrappers:
 ```
 
 ## Critical Notes
+
+### Context Classes (DRY Pattern)
+
+Use context classes to avoid code duplication:
+```python
+# Vision experiments
+from src.vision import VisionContext
+ctx = VisionContext()
+eigenvalues, eigenvectors = ctx.load_checkpoint("path/to/checkpoint.pt")
+ctx.save_figure(fig, "figure_name")
+
+# Language experiments
+from src.language import LanguageContext
+ctx = LanguageContext(model_name="tdooms/fw-medium", layer=7, expansion=8)
+model = ctx.get_model()
+sae = ctx.get_sae(position="mlp-out")
+```
 
 ### MPS Device Bugs
 

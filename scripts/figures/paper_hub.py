@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 @dataclass(frozen=True)
