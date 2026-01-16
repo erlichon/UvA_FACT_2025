@@ -81,6 +81,17 @@ source activate fact
 ### 5. Reproducibility
 - All experiments use 5 seeds: \`[42, 43, 44, 45, 46]\`
 - Configs stored in \`configs/\` as YAML
+- Use \`set_seed()\` from \`src/utils.py\` (handles Python, NumPy, PyTorch, CUDA)
+- Use \`seed_worker()\` as \`DataLoader(..., worker_init_fn=seed_worker)\` for multi-process data loading
+
+### 6. MPS Device Compatibility
+- \`model.decompose()\` is MPS-safe (uses CPU fallback for \`torch.linalg.eigh\` internally)
+- Do NOT create custom MPS decomposition functions - use the original code
+
+### 7. Data Pipeline Conventions
+- **CoM Transform**: Apply to raw tensor (0-1 range) BEFORE normalization
+- **USPS Upscaling**: 16x16 → 28x28 happens BEFORE CoM transform (avoid interpolation artifacts)
+- **Dataset Interface**: All wrappers (\`MNIST\`, \`EMNISTLetters\`, etc.) accept \`apply_com=True/False\`
 
 ---
 
@@ -90,14 +101,21 @@ source activate fact
 UvA_FACT_2025/
 ├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
 ├── src/
+│   ├── data/                     # Data loading & preprocessing
+│   │   ├── transforms.py         # CenterOfMassTransform (apply BEFORE normalization)
+│   │   ├── mnist.py              # MNIST/FashionMNIST with CoM support
+│   │   ├── emnist.py             # EMNISTLetters/EMNISTDigits + semantic mapping
+│   │   └── usps.py               # USPS (16x16→28x28 upscaling BEFORE CoM)
+│   ├── training/                 # Training utilities
+│   │   └── core.py               # log_training_history, log_spectral_metrics, save_checkpoint
 │   ├── vision/                   # Section 4 vision analysis
 │   │   ├── context.py            # VisionContext - unified experiment setup
 │   │   ├── spectral.py           # effective_rank, top_k_coverage, data loading
+│   │   ├── subspace.py           # Subspace overlap metrics (cosine, Grassmann, projection)
 │   │   ├── truncation.py         # Figure 5 analysis
 │   │   └── adversarial.py        # Figure 7 analysis
 │   ├── language/                 # Section 5 language experiments
 │   │   ├── context.py            # LanguageContext - unified experiment setup
-│   │   ├── verify_correlation.py # Correlation verification
 │   │   └── ...                   # Other language modules
 │   ├── models/bilinear_layer.py  # BilinearDense (wrapper) + BilinearCP (extension)
 │   ├── plot_utils/               # Reusable plotting functions
@@ -107,18 +125,19 @@ UvA_FACT_2025/
 │   │   ├── ablation.py           # Ablation study plots
 │   │   ├── extension2.py         # Extension 2 robustness plots
 │   │   └── language.py           # Figure 9 & 10 plots
-│   ├── language/                 # Section 5 wrappers
-│   │   ├── verify_correlation.py # Correlation verification (CLI: --model, --layer, --expansion, --k)
-│   │   └── ...                   # Other language modules
-│   ├── train.py                  # Vision training
-│   └── utils.py                  # Shared utilities
+│   ├── train.py                  # Vision training (unified for all datasets)
+│   └── utils.py                  # Shared utilities (set_seed, seed_worker)
 ├── configs/                      # YAML experiment configs
 ├── jobs/                         # SLURM scripts
 ├── scripts/
 │   ├── train/                    # Training & experiment runners
 │   │   ├── run_vision.sh         # Unified vision experiments
 │   │   ├── run_language.sh       # Unified language experiments
+│   │   ├── run_extension2.sh     # Extension 2 (train/eval/aggregate)
 │   │   └── run_overnight_mps.sh  # Full overnight pipeline
+│   ├── extension2/               # Extension 2 analysis scripts
+│   │   ├── aggregate_results.py  # load_subspace_results, aggregate_subspace_metrics
+│   │   └── check_similarity.py   # Subspace similarity analysis
 │   └── figures/                  # Figure generation
 │       ├── generate_vision_figures.py   # All vision figures (1-7)
 │       ├── generate_language_figures.py # Figure 9 & 10
@@ -295,6 +314,21 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 
 # Full pipeline
 ./scripts/train/run_language.sh all
+\`\`\`
+
+### Extension 2: Cross-Dataset Robustness
+\`\`\`bash
+# Train EMNIST models with/without CoM
+./scripts/train/run_extension2.sh train
+
+# Run subspace evaluation
+./scripts/train/run_extension2.sh eval
+
+# Aggregate results across seeds
+./scripts/train/run_extension2.sh aggregate
+
+# Full pipeline (train + eval + aggregate)
+./scripts/train/run_extension2.sh all
 \`\`\`
 
 ### Full Overnight Pipeline

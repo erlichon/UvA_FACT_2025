@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis.subspace import compute_subspace_overlap, select_balanced_eigenvectors
+from src.vision.subspace import compute_subspace_overlap, select_balanced_eigenvectors
 from src.utils import get_device, setup_mps_fallbacks, is_mps_device
 
 

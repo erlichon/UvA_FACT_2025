@@ -1,6 +1,6 @@
 *.pyc
 **/.DS_Store
-data/
+/data/
 
 Report/*.aux
 Report/*.log

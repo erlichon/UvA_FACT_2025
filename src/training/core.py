@@ -1,59 +1,23 @@
 """
 Core training utilities shared across vision experiments.
 
-This module provides reusable training functions for both MNIST and EMNIST
-to avoid code duplication between src/train.py and src/train_emnist.py.
+This module provides reusable training functions for MNIST, EMNIST, and USPS
+to avoid code duplication. All training scripts should use these utilities.
 """
 
 import torch
-from einops import einsum
 import kornia
-from typing import Optional, Tuple
+from pathlib import Path
+from typing import Optional, Tuple, Dict, Any
+import wandb
 
-from src.utils import set_seed, setup_mps_fallbacks, is_mps_device
+from src.utils import set_seed, setup_mps_fallbacks, is_mps_device, get_history_column
+from src.vision.spectral import effective_rank, spectral_summary
 
 
-def decompose_model_mps_safe(model) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Decompose model into eigenvalues and eigenvectors with MPS compatibility.
-
-    This is a reimplementation of model.decompose() that handles MPS devices
-    by moving tensors to CPU for eigendecomposition.
-
-    Args:
-        model: Trained bilinear Model instance
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors)
-    """
-    device = next(model.parameters()).device
-
-    # Get model weights
-    w_u = model.w_u  # [cls, out]
-    w_lr = model.w_lr[0]  # [2, out, hidden]
-    w_e = model.w_e  # [hidden, input]
-
-    l, r = w_lr.unbind(0)  # Each: [out, hidden]
-
-    # Compute third-order tensor: b[cls, in1, in2]
-    b = einsum(w_u, l, r, "cls out, out in1, out in2 -> cls in1 in2")
-
-    # Symmetrize
-    b = 0.5 * (b + b.mT)
-
-    # Eigendecomposition - move to CPU for MPS compatibility
-    if device.type == "mps":
-        b_cpu = b.cpu()
-        vals, vecs = torch.linalg.eigh(b_cpu)
-        vals = vals.to(device)
-        vecs = vecs.to(device)
-    else:
-        vals, vecs = torch.linalg.eigh(b)
-
-    # Project eigenvectors back to input space
-    vecs = einsum(vecs, w_e, "cls emb comp, emb inp -> cls comp inp")
-
-    return vals, vecs
+# NOTE: decompose_model_mps_safe() was removed - use model.decompose() directly.
+# The original paper code (bilinear-decomposition-main/image/model.py) already
+# handles MPS by moving to CPU for torch.linalg.eigh() operations.
 
 
 def apply_variance_corrected_init(model, enabled: bool = True):
@@ -153,3 +117,133 @@ def train_model(
     eigenvalues, eigenvectors = model.decompose()
     
     return eigenvalues, eigenvectors, history
+
+
+def log_training_history(history, wandb_enabled: bool) -> None:
+    """
+    Log per-epoch training metrics to wandb.
+    
+    Args:
+        history: Training history DataFrame from model.fit()
+        wandb_enabled: Whether wandb logging is active
+    """
+    if not wandb_enabled or wandb.run is None:
+        return
+
+    # Get column names (handle both naming conventions)
+    train_acc_col = 'train/acc' if 'train/acc' in history.columns else 'train_acc'
+    val_acc_col = 'val/acc' if 'val/acc' in history.columns else ('test/acc' if 'test/acc' in history.columns else 'val_acc')
+    train_loss_col = 'train/loss' if 'train/loss' in history.columns else 'train_loss'
+    val_loss_col = 'val/loss' if 'val/loss' in history.columns else ('test/loss' if 'test/loss' in history.columns else 'val_loss')
+
+    # Log each epoch
+    for epoch in range(len(history)):
+        metrics = {"epoch": epoch}
+        if train_acc_col in history.columns:
+            metrics["train/acc"] = history[train_acc_col].iloc[epoch]
+        if val_acc_col in history.columns:
+            metrics["val/acc"] = history[val_acc_col].iloc[epoch]
+        if train_loss_col in history.columns:
+            metrics["train/loss"] = history[train_loss_col].iloc[epoch]
+        if val_loss_col in history.columns:
+            metrics["val/loss"] = history[val_loss_col].iloc[epoch]
+        wandb.log(metrics, step=epoch)
+
+
+def log_spectral_metrics(eigenvalues: torch.Tensor, wandb_enabled: bool) -> Dict[str, float]:
+    """
+    Log comprehensive spectral metrics to wandb summary.
+    
+    Args:
+        eigenvalues: Eigenvalues tensor [n_classes, d_hidden]
+        wandb_enabled: Whether wandb logging is active
+        
+    Returns:
+        Dictionary of spectral metrics (for use in checkpoint)
+    """
+    if not wandb_enabled or wandb.run is None:
+        return {}
+
+    # Compute full spectral summary
+    summary = spectral_summary(eigenvalues)
+
+    # Compute per-class effective rank
+    per_class_eff_rank = effective_rank(eigenvalues)
+
+    # Add per-class metrics
+    for cls_idx in range(len(per_class_eff_rank)):
+        summary[f"effective_rank_class_{cls_idx}"] = per_class_eff_rank[cls_idx].item()
+
+    # Log eigenvalue histogram for each class (first 3 classes to avoid clutter)
+    for cls_idx in range(min(3, eigenvalues.shape[0])):
+        cls_eigenvalues = eigenvalues[cls_idx].abs().cpu().numpy()
+        wandb.run.summary[f"eigenvalues_class_{cls_idx}"] = wandb.Histogram(cls_eigenvalues)
+
+    return summary
+
+
+def save_checkpoint(
+    path: Path,
+    config: dict,
+    model,
+    history,
+    eigenvalues: torch.Tensor,
+    eigenvectors: torch.Tensor,
+    seed: int,
+    epochs: int,
+) -> Dict[str, Any]:
+    """
+    Save model checkpoint with eigenspectrum data.
+    
+    Args:
+        path: Output path for checkpoint file
+        config: Experiment configuration dict
+        model: Trained model instance
+        history: Training history DataFrame
+        eigenvalues: Eigenvalues tensor [n_classes, d_hidden]
+        eigenvectors: Eigenvectors tensor [n_classes, d_hidden, d_input]
+        seed: Random seed used
+        epochs: Number of training epochs
+        
+    Returns:
+        Checkpoint dictionary (also saved to disk)
+    """
+    # Extract final metrics from history
+    final_train_acc = get_history_column(history, 'train_acc', 'train/acc')
+    final_val_acc = get_history_column(history, 'val_acc', 'val/acc', 'test_acc', 'test/acc')
+    final_train_loss = get_history_column(history, 'train_loss', 'train/loss')
+    final_val_loss = get_history_column(history, 'val_loss', 'val/loss', 'test_loss', 'test/loss')
+
+    # Compute effective rank
+    eff_rank = effective_rank(eigenvalues).mean().item()
+
+    dataset_name = config.get('data', {}).get('dataset', 'mnist')
+
+    checkpoint = {
+        'config': {
+            'mode': config.get('model', {}).get('mode', 'dense'),
+            'd_hidden': config['model']['d_hidden'],
+            'epochs': epochs,
+            'lr': config['training'].get('lr', 1e-3),
+            'noise_std': config['regularization']['noise_std'],
+            'weight_decay': config['regularization']['weight_decay'],
+            'dataset': dataset_name,
+            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
+            'apply_com': config.get('data', {}).get('apply_com', False),
+        },
+        'model_state_dict': model.state_dict(),
+        'metrics': {
+            'train_acc': float(final_train_acc),
+            'val_acc': float(final_val_acc),
+            'train_loss': float(final_train_loss),
+            'val_loss': float(final_val_loss),
+            'effective_rank': float(eff_rank),
+        },
+        'seed': seed,
+        'eigenvalues': eigenvalues.cpu(),
+        'eigenvectors': eigenvectors.cpu(),
+    }
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(checkpoint, path)
+    return checkpoint

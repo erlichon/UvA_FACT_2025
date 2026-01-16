@@ -376,10 +376,11 @@ show_help() {
     echo "  train challenge  Challenge task for Figure 6"
     echo "  train adversarial Noise015 models for Figure 7"
     echo "  train all        All training experiments (base + noise + size + challenge + adversarial)"
-    echo "  figures        Generate all figures from checkpoints"
-    echo "  test           Quick 2-epoch MPS verification"
-    echo "  all            Full pipeline (train all + figures)"
-    echo "  help           Show this help message"
+    echo "  figures          Generate all figures from checkpoints"
+    echo "  extension2       Run Extension 2 experiments (delegates to run_extension2.sh)"
+    echo "  test             Quick 2-epoch MPS verification"
+    echo "  all              Full pipeline (train all + figures)"
+    echo "  help             Show this help message"
     echo ""
     echo "Options:"
     echo "  --quick        2 epochs, 1 seed (for testing)"
@@ -398,6 +399,12 @@ show_help() {
     echo "  --section <name>  Generate specific section:"
     echo "                    regularization, truncation_similarity,"
     echo "                    challenge, adversarial, appendix, hub"
+}
+
+# --- EXTENSION 2 ---
+run_extension2() {
+    echo ">>> Delegating to Extension 2 runner..."
+    exec "$SCRIPT_DIR/run_extension2.sh" "${REMAINING_ARGS[@]}"
 }
 
 # --- MAIN ---
@@ -426,6 +433,9 @@ case $COMMAND in
         ;;
     all)
         run_all
+        ;;
+    extension2)
+        run_extension2
         ;;
     help|*)
         show_help

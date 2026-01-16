@@ -57,7 +57,7 @@ def load_eigenvectors_from_checkpoint(checkpoint_path, device):
     Uses the same approach as vision_analysis.py: load directly without pre-sorting,
     since plot_eigenvectors_grid handles sorting internally.
     """
-    from src.analysis.spectral import load_checkpoint_eigenvalues
+    from src.vision.spectral import load_checkpoint_eigenvalues
     
     print(f"Loading: {checkpoint_path.name}")
     eigenvalues, eigenvectors = load_checkpoint_eigenvalues(str(checkpoint_path))

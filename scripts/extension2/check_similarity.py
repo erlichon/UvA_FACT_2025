@@ -3,6 +3,10 @@
 Check subspace similarity between different datasets/classes.
 
 Computes subspace overlap using top-k eigenvectors with multiple metrics.
+
+Usage:
+    python scripts/extension2/check_similarity.py --k 30
+    python scripts/extension2/check_similarity.py --with-com
 """
 
 import sys
@@ -10,11 +14,11 @@ from pathlib import Path
 import torch
 
 # Add project paths
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis.spectral import load_checkpoint_eigenvalues
-from src.analysis.subspace import compute_subspace_overlap
+from src.vision.spectral import load_checkpoint_eigenvalues
+from src.vision.subspace import compute_subspace_overlap
 from src.utils import get_device, setup_mps_fallbacks, is_mps_device
 
 
@@ -241,11 +245,11 @@ def main():
         if results1['mean_cos'] > results2['mean_cos']:
             diff = results1['mean_cos'] - results2['mean_cos']
             print(f"  MNIST 0 vs EMNIST 0 has {diff:.4f} higher similarity than MNIST 0 vs EMNIST O")
-            print("  → Digit-to-digit similarity is stronger than digit-to-letter similarity")
+            print("  -> Digit-to-digit similarity is stronger than digit-to-letter similarity")
         else:
             diff = results2['mean_cos'] - results1['mean_cos']
             print(f"  MNIST 0 vs EMNIST O has {diff:.4f} higher similarity than MNIST 0 vs EMNIST 0")
-            print("  → Shape similarity (circular) may be more important than dataset match")
+            print("  -> Shape similarity (circular) may be more important than dataset match")
     else:
         print(f"{'Metric':<20} {'MNIST 0 vs EMNIST O':<25}")
         print("-" * 80)

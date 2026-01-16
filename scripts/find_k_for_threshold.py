@@ -11,8 +11,8 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis.spectral import load_checkpoint_eigenvalues
-from src.analysis.subspace import compute_subspace_overlap
+from src.vision.spectral import load_checkpoint_eigenvalues
+from src.vision.subspace import compute_subspace_overlap
 from src.utils import get_device, setup_mps_fallbacks, is_mps_device
 
 
@@ -131,7 +131,7 @@ def main():
     print(f"{'k':<6} {'Mean Cosine':<15} {'Grassmann':<15} {'Projection':<15} {'Status':<15}")
     print("-" * 80)
     
-    from src.analysis.subspace import select_balanced_eigenvectors
+    from src.vision.subspace import select_balanced_eigenvectors
     
     # Get balanced selection for all classes
     mnist_balanced = select_balanced_eigenvectors(
