@@ -18,7 +18,10 @@ sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
-from src.data.cross_dataset import load_emnist_letters_normalized
+from src.data.cross_dataset import (
+    load_emnist_letters_normalized,
+    load_emnist_digits_normalized,
+)
 from src.utils import (
     get_device,
     get_history_column,
@@ -85,6 +88,11 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     
+    # Dataset selection
+    parser.add_argument("--dataset", type=str, default="emnist_letters",
+                       choices=["emnist_letters", "emnist_digits"],
+                       help="EMNIST dataset variant to train on")
+    
     # Training parameters
     parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
     parser.add_argument("--noise-std", type=float, default=0.15, help="Input noise std dev")
@@ -118,6 +126,7 @@ def main():
     device = get_device(args.device)
     
     print(f"Training EMNIST model:")
+    print(f"  Dataset: {args.dataset}")
     print(f"  Device: {device}")
     print(f"  Seed: {args.seed}")
     print(f"  Epochs: {args.epochs}")
@@ -129,9 +138,9 @@ def main():
     
     # Initialize wandb
     wandb_enabled = init_wandb(
-        name=f"emnist_regularized_seed{args.seed}",
+        name=f"{args.dataset}_regularized_seed{args.seed}",
         config={
-            "dataset": "emnist_letters",
+            "dataset": args.dataset,
             "d_hidden": args.d_hidden,
             "noise_std": args.noise_std,
             "weight_decay": args.weight_decay,
@@ -142,24 +151,36 @@ def main():
         },
         device=device,
         enabled=not args.no_wandb,
-        tags=["extension2", "emnist_letters"],
+        tags=["extension2", args.dataset],
     )
     
-    # Load EMNIST data
-    print("Loading EMNIST letters data...")
-    train_data, test_data = load_emnist_letters_normalized(device=device)
+    # Load EMNIST data based on dataset argument
+    if args.dataset == "emnist_letters":
+        print("Loading EMNIST letters data...")
+        train_data, test_data = load_emnist_letters_normalized(device=device)
+        d_output = 26
+        num_classes_desc = "letters A-Z"
+    elif args.dataset == "emnist_digits":
+        print("Loading EMNIST digits data...")
+        train_data, test_data = load_emnist_digits_normalized(device=device)
+        d_output = 10
+        num_classes_desc = "digits 0-9"
+    else:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
+    
     print(f"  Train: {len(train_data)} samples")
     print(f"  Test: {len(test_data)} samples")
-    print(f"  Classes: {train_data.num_classes} (letters A-Z)")
+    print(f"  Classes: {train_data.num_classes} ({num_classes_desc})")
     print()
     
-    # Create model
+    # Create model with appropriate number of output classes
     model_config = Config(
         epochs=args.epochs,
         d_hidden=args.d_hidden,
         wd=args.weight_decay,
         lr=args.lr,
         seed=args.seed,
+        d_output=d_output,
     )
     model = Model(model_config).to(device)
     
@@ -192,7 +213,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    checkpoint_name = args.checkpoint_name or f"emnist_regularized_seed{args.seed}.pt"
+    checkpoint_name = args.checkpoint_name or f"{args.dataset}_regularized_seed{args.seed}.pt"
     checkpoint_path = output_dir / checkpoint_name
     
     checkpoint = {
@@ -201,8 +222,9 @@ def main():
         'eigenvectors': eigenvectors.cpu(),
         'seed': args.seed,
         'config': {
-            'dataset': 'emnist_letters',
+            'dataset': args.dataset,
             'd_hidden': args.d_hidden,
+            'd_output': d_output,
             'noise_std': args.noise_std,
             'weight_decay': args.weight_decay,
             'epochs': args.epochs,
@@ -235,7 +257,7 @@ def main():
     metrics = checkpoint['metrics']
     result = tracker.result
     print(f"\n{'='*50}")
-    print(f"EMNIST Training Complete")
+    print(f"EMNIST Training Complete ({args.dataset})")
     print(f"Seed: {args.seed}")
     print(f"Final Val Accuracy: {metrics['val_acc']:.4f}")
     print(f"Effective Rank: {metrics['effective_rank']:.2f}")

@@ -4,36 +4,53 @@ Extension 2: Cross-Dataset Structural Robustness Evaluation
 Objective: Prove that regularized Bilinear MLPs learn universal geometric shapes
 (e.g., "circularity") rather than dataset-specific pixel artifacts.
 
-This script implements a THREE-step validation:
+This script implements a FOUR-step validation:
 
-Step 1: USPS Transfer Test (NEW)
+Step 1: Mechanism Stability Test
+- Train MNIST (60k) and EMNIST-Digits (240k) models
+- A. Functional: Cross-dataset accuracy (MNIST→EMNIST-Digits, EMNIST-Digits→MNIST)
+- B. Representational: Eigenvector subspace overlap
+- Success: High scores on both prove writer-independent mechanisms
+
+Step 2: USPS Transfer Test
 - Train two models on MNIST: Baseline (no noise) and Regularized (noise σ=0.15)
 - Evaluate both on USPS (different digit dataset, same classes 0-9)
 - Success: High accuracy on USPS proves eigenvectors capture universal digit features,
   not MNIST-specific pixel artifacts
 
-Step 2: Semantic Confusion Test
+Step 3: Semantic Confusion Test
 - Evaluate both MNIST-trained models on EMNIST letters 'O', 'I', 'Z', 'S', 'B'
 - Success: Regularized model classifies 'O' as '0', etc., proving shape-based learning
 
-Step 3: Subspace Geometry Metric
+Step 4: Universal Geometry Proof
 - Train a Bilinear MLP on EMNIST-Letters
-- Extract top-10 eigenvectors for MNIST '0' and EMNIST 'O'
+- Extract top-3 eigenvectors for MNIST '0' and EMNIST 'O'
 - Compute subspace overlap to quantify mechanism similarity
 - Goal: High similarity proves universal shape learning
 
 Usage:
-    # Full pipeline
+    # Full pipeline (all 4 steps)
     python src/evaluate_extension2.py --full-pipeline
     
-    # Just USPS transfer test with existing checkpoints
-    python src/evaluate_extension2.py --usps-test --checkpoint-baseline path/to/baseline.pt
+    # Step 1: Mechanism stability test
+    python src/evaluate_extension2.py --mechanism-test \
+        --checkpoint-regularized path/to/mnist.pt \
+        --checkpoint-emnist-digits path/to/emnist_digits.pt
     
-    # Just semantic confusion test
-    python src/evaluate_extension2.py --semantic-test --checkpoint-baseline path/to/baseline.pt
+    # Step 2: USPS transfer test
+    python src/evaluate_extension2.py --usps-test \
+        --checkpoint-baseline path/to/baseline.pt \
+        --checkpoint-regularized path/to/regularized.pt
     
-    # Just subspace geometry
-    python src/evaluate_extension2.py --subspace-test --checkpoint-regularized path/to/mnist.pt
+    # Step 3: Semantic confusion test
+    python src/evaluate_extension2.py --semantic-test \
+        --checkpoint-baseline path/to/baseline.pt \
+        --checkpoint-regularized path/to/regularized.pt
+    
+    # Step 4: Subspace geometry test
+    python src/evaluate_extension2.py --subspace-test \
+        --checkpoint-regularized path/to/mnist.pt \
+        --checkpoint-emnist path/to/emnist_letters.pt
 """
 
 import sys
@@ -197,6 +214,62 @@ def train_emnist_model(
     return model, eigenvalues, eigenvectors
 
 
+def train_emnist_digits_model(
+    device: str,
+    noise_std: float = 0.15,
+    weight_decay: float = 0.5,
+    epochs: int = 100,
+    d_hidden: int = 256,
+    seed: int = 42,
+) -> Tuple[Model, torch.Tensor, torch.Tensor]:
+    """
+    Train a bilinear model on EMNIST-Digits.
+    
+    EMNIST-Digits: 240k samples, 10 classes (0-9), different writers than MNIST.
+    Used for Step 1 (Mechanism Stability Test) to prove writer-independent learning.
+    
+    Returns:
+        (model, eigenvalues, eigenvectors)
+    """
+    set_seed(seed)
+    
+    # Load data
+    from src.data.cross_dataset import load_emnist_digits_normalized
+    train_data, test_data = load_emnist_digits_normalized(device=device)
+    
+    # Create model with 10 output classes
+    model_config = Config(
+        epochs=epochs,
+        d_hidden=d_hidden,
+        wd=weight_decay,
+        lr=1e-3,
+        seed=seed,
+        d_output=10,  # EMNIST-Digits has 10 digit classes (same as MNIST)
+    )
+    model = Model(model_config).to(device)
+    
+    # Create noise transform
+    transform = None
+    if noise_std > 0:
+        transform = kornia.augmentation.RandomGaussianNoise(
+            mean=0.0, std=noise_std, p=1.0
+        )
+    
+    # Train
+    print(f"Training EMNIST-Digits model (noise_std={noise_std}, wd={weight_decay})...")
+    history = model.fit(train_data, test_data, transform=transform)
+    
+    # Decompose
+    print("Computing eigendecomposition...")
+    if is_mps_device(device):
+        setup_mps_fallbacks()
+        eigenvalues, eigenvectors = decompose_model_mps_safe(model)
+    else:
+        eigenvalues, eigenvectors = model.decompose()
+    
+    return model, eigenvalues, eigenvectors
+
+
 def decompose_model_mps_safe(model) -> Tuple[torch.Tensor, torch.Tensor]:
     """MPS-compatible eigendecomposition (same as in train.py)."""
     from einops import einsum
@@ -225,7 +298,84 @@ def decompose_model_mps_safe(model) -> Tuple[torch.Tensor, torch.Tensor]:
 
 
 # ============================================================================
-# Step 1: USPS Transfer Test (NEW)
+# Step 1: Mechanism Stability - Functional Similarity
+# ============================================================================
+
+def cross_dataset_accuracy_test(
+    mnist_model: Model,
+    emnist_digits_model: Model,
+    device: str,
+) -> Dict:
+    """
+    Evaluate cross-dataset accuracy between MNIST and EMNIST-Digits.
+    
+    Tests functional equivalence:
+    - MNIST model → EMNIST-Digits test data
+    - EMNIST-Digits model → MNIST test data
+    
+    High bidirectional accuracy proves models learn the same functional
+    mechanisms, not just similar internal representations.
+    
+    Returns:
+        Dictionary with bidirectional accuracy metrics
+    """
+    from src.data.cross_dataset import load_mnist_normalized, load_emnist_digits_normalized
+    
+    print("\nA. Functional Similarity (Cross-Dataset Accuracy):")
+    print("-" * 60)
+    
+    # Load test datasets
+    _, mnist_test = load_mnist_normalized(device=device)
+    _, emnist_digits_test = load_emnist_digits_normalized(device=device)
+    
+    mnist_model.eval()
+    emnist_digits_model.eval()
+    
+    # Test 1: MNIST model on EMNIST-Digits test
+    with torch.no_grad():
+        x_emnist = emnist_digits_test.x.view(emnist_digits_test.x.size(0), -1)
+        logits = mnist_model(x_emnist)
+        preds = logits.argmax(dim=-1)
+        mnist_on_emnist_acc = (preds == emnist_digits_test.y).float().mean().item()
+    
+    # Test 2: EMNIST-Digits model on MNIST test
+    with torch.no_grad():
+        x_mnist = mnist_test.x.view(mnist_test.x.size(0), -1)
+        logits = emnist_digits_model(x_mnist)
+        preds = logits.argmax(dim=-1)
+        emnist_on_mnist_acc = (preds == mnist_test.y).float().mean().item()
+    
+    # Bidirectional average
+    avg_accuracy = (mnist_on_emnist_acc + emnist_on_mnist_acc) / 2
+    
+    print(f"  MNIST model → EMNIST-Digits test:     {mnist_on_emnist_acc:.2%}")
+    print(f"  EMNIST-Digits model → MNIST test:     {emnist_on_mnist_acc:.2%}")
+    print(f"  Bidirectional average:                 {avg_accuracy:.2%}")
+    
+    # Per-class accuracy for MNIST → EMNIST-Digits
+    per_class = {}
+    for digit in range(10):
+        mask = emnist_digits_test.y == digit
+        if mask.sum() > 0:
+            with torch.no_grad():
+                x_class = emnist_digits_test.x[mask].view(mask.sum(), -1)
+                logits = mnist_model(x_class)
+                preds = logits.argmax(dim=-1)
+                acc = (preds == digit).float().mean().item()
+                per_class[digit] = acc
+    
+    return {
+        'mnist_on_emnist': mnist_on_emnist_acc,
+        'emnist_on_mnist': emnist_on_mnist_acc,
+        'bidirectional_avg': avg_accuracy,
+        'per_class_mnist_on_emnist': per_class,
+        'mnist_test_size': len(mnist_test),
+        'emnist_test_size': len(emnist_digits_test),
+    }
+
+
+# ============================================================================
+# Step 2: USPS Transfer Test
 # ============================================================================
 
 def usps_transfer_test(
@@ -526,6 +676,151 @@ def run_semantic_confusion_comparison(
 
 
 # ============================================================================
+# Step 1: Mechanism Stability Test (MNIST vs EMNIST-Digits)
+# ============================================================================
+
+def mechanism_stability_test(
+    mnist_model: Model,
+    mnist_eigenvalues: torch.Tensor,
+    mnist_eigenvectors: torch.Tensor,
+    emnist_digits_model: Model,
+    emnist_digits_eigenvalues: torch.Tensor,
+    emnist_digits_eigenvectors: torch.Tensor,
+    device: str,
+    k: int = 3,
+) -> Dict:
+    """
+    Compare MNIST vs EMNIST-Digits using two complementary metrics.
+    
+    A. Functional Similarity: Cross-dataset classification accuracy
+    B. Representational Similarity: Eigenvector subspace overlap
+    
+    **Hypothesis:** If mechanisms are truly universal and not writer-specific,
+    both functional accuracy and eigenvector overlap should be high.
+    
+    Args:
+        mnist_model: Trained MNIST model
+        mnist_eigenvalues: MNIST model eigenvalues [10, n_components]
+        mnist_eigenvectors: MNIST model eigenvectors [10, n_components, 784]
+        emnist_digits_model: Trained EMNIST-Digits model
+        emnist_digits_eigenvalues: EMNIST-Digits eigenvalues [10, n_components]
+        emnist_digits_eigenvectors: EMNIST-Digits eigenvectors [10, n_components, 784]
+        device: Device for computation
+        k: Number of top eigenvectors to compare
+    
+    Returns:
+        Dictionary with functional and representational similarity metrics
+    """
+    from src.analysis.subspace import compute_subspace_overlap
+    
+    print("\n" + "=" * 60)
+    print("STEP 1: MECHANISM STABILITY TEST")
+    print("=" * 60)
+    print("Testing writer-independent mechanisms via:")
+    print("  A. Functional Similarity (cross-dataset accuracy)")
+    print("  B. Representational Similarity (eigenvector overlap)")
+    print("=" * 60)
+    
+    # A. Functional Similarity
+    functional_results = cross_dataset_accuracy_test(
+        mnist_model, emnist_digits_model, device
+    )
+    
+    # B. Representational Similarity
+    print("\nB. Representational Similarity (Eigenvector Subspace Overlap):")
+    print("-" * 60)
+    
+    # Sort eigenvectors by eigenvalue magnitude
+    from src.analysis.subspace import sort_eigenvectors_by_magnitude
+    mnist_vecs_sorted = sort_eigenvectors_by_magnitude(mnist_eigenvalues, mnist_eigenvectors)
+    emnist_vecs_sorted = sort_eigenvectors_by_magnitude(emnist_digits_eigenvalues, emnist_digits_eigenvectors)
+    
+    print(f"Comparing top-{k} eigenvector subspaces for each digit:")
+    print("-" * 60)
+    print(f"{'Digit':<8} {'Mean Cos':<12} {'Grassmann':<12} {'Projection':<12}")
+    print("-" * 60)
+    
+    per_class_results = {}
+    overlaps_mean_cos = []
+    overlaps_grassmann = []
+    overlaps_projection = []
+    
+    for digit in range(10):
+        vecs_mnist = mnist_vecs_sorted[digit, :k]  # [k, 784]
+        vecs_emnist = emnist_vecs_sorted[digit, :k]  # [k, 784]
+        
+        # Compute overlaps using different methods
+        mean_cos = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='mean_cos')
+        grassmann = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='grassmann')
+        projection = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='projection')
+        
+        per_class_results[digit] = {
+            'mean_cos': mean_cos,
+            'grassmann': grassmann,
+            'projection': projection,
+        }
+        
+        overlaps_mean_cos.append(mean_cos)
+        overlaps_grassmann.append(grassmann)
+        overlaps_projection.append(projection)
+        
+        print(f"{digit:<8} {mean_cos:<12.4f} {grassmann:<12.4f} {projection:<12.4f}")
+    
+    # Compute aggregate statistics
+    mean_overlap = np.mean(overlaps_mean_cos)
+    std_overlap = np.std(overlaps_mean_cos)
+    min_overlap = np.min(overlaps_mean_cos)
+    max_overlap = np.max(overlaps_mean_cos)
+    
+    print("-" * 60)
+    print(f"{'MEAN':<8} {mean_overlap:<12.4f} (±{std_overlap:.4f})")
+    print(f"{'RANGE':<8} [{min_overlap:.4f}, {max_overlap:.4f}]")
+    
+    # Combined conclusion
+    func_score = functional_results['bidirectional_avg']
+    repr_score = mean_overlap
+    
+    print("\n" + "=" * 60)
+    print("COMBINED CONCLUSION:")
+    print("=" * 60)
+    print(f"Functional similarity:       {func_score:.2%}")
+    print(f"Representational similarity: {repr_score:.4f}")
+    print()
+    
+    if func_score > 0.90 and repr_score > 0.8:
+        conclusion = "✓✓ STRONG: Both functional and representational evidence"
+        interpretation = "High cross-dataset accuracy AND eigenvector overlap prove universal mechanisms."
+    elif func_score > 0.85 or repr_score > 0.75:
+        conclusion = "✓ MODERATE: One metric shows strong evidence"
+        interpretation = "Partial evidence for universal mechanisms; one metric is strong."
+    else:
+        conclusion = "✗ WEAK: Insufficient evidence for universality"
+        interpretation = "Low scores suggest writer-specific artifacts."
+    
+    print(conclusion)
+    print(interpretation)
+    
+    results = {
+        'functional': functional_results,
+        'representational': {
+            'per_class_overlap': per_class_results,
+            'aggregate': {
+                'mean': mean_overlap,
+                'std': std_overlap,
+                'min': min_overlap,
+                'max': max_overlap,
+                'mean_grassmann': np.mean(overlaps_grassmann),
+                'mean_projection': np.mean(overlaps_projection),
+            }
+        },
+        'conclusion': conclusion,
+        'interpretation': interpretation,
+    }
+    
+    return results
+
+
+# ============================================================================
 # Step 3: Subspace Geometry Metric
 # ============================================================================
 
@@ -534,7 +829,7 @@ def run_subspace_geometry_test(
     mnist_eigenvectors: torch.Tensor,
     emnist_eigenvalues: torch.Tensor,
     emnist_eigenvectors: torch.Tensor,
-    k: int = 10,
+    k: int = 3,
 ) -> Dict:
     """
     Compare subspace geometry between MNIST and EMNIST models.
@@ -552,6 +847,8 @@ def run_subspace_geometry_test(
     Returns:
         Dictionary with subspace overlap metrics
     """
+    from src.analysis.subspace import sort_eigenvectors_by_magnitude
+    
     print("\n" + "=" * 60)
     print("STEP 3: SUBSPACE GEOMETRY METRIC")
     print("=" * 60)
@@ -561,17 +858,8 @@ def run_subspace_geometry_test(
     results = {}
     
     # Sort eigenvectors by eigenvalue magnitude
-    def get_sorted_vecs(eigenvalues, eigenvectors):
-        """Sort eigenvectors by eigenvalue magnitude."""
-        n_classes = eigenvalues.shape[0]
-        sorted_vecs = []
-        for c in range(n_classes):
-            _, indices = eigenvalues[c].abs().sort(descending=True)
-            sorted_vecs.append(eigenvectors[c, indices])
-        return torch.stack(sorted_vecs)
-    
-    mnist_vecs_sorted = get_sorted_vecs(mnist_eigenvalues, mnist_eigenvectors)
-    emnist_vecs_sorted = get_sorted_vecs(emnist_eigenvalues, emnist_eigenvectors)
+    mnist_vecs_sorted = sort_eigenvectors_by_magnitude(mnist_eigenvalues, mnist_eigenvectors)
+    emnist_vecs_sorted = sort_eigenvectors_by_magnitude(emnist_eigenvalues, emnist_eigenvectors)
     
     # Test specific pairs (digit, letter, mnist_idx, emnist_idx)
     test_pairs = [
@@ -579,7 +867,7 @@ def run_subspace_geometry_test(
         ('1', 'I', 1, 8),    # One vs I
         ('2', 'Z', 2, 25),   # Two vs Z
         ('5', 'S', 5, 18),   # Five vs S
-        ('8', 'B', 8, 1),    # Eight vs B
+        ('6', 'B', 6, 1),    # Six vs B
     ]
     
     print(f"\nComparing top-{k} eigenvector subspaces:")
@@ -663,15 +951,17 @@ def run_full_pipeline(
     seed: int = 42,
 ):
     """
-    Run the complete Extension 2 validation pipeline.
+    Run the complete Extension 2 validation pipeline (4 steps).
     
     1. Train baseline MNIST model (no noise)
     2. Train regularized MNIST model (noise σ=0.15)
-    3. Run USPS Transfer Test (Step 1) - NEW
-    4. Run Semantic Confusion Test (Step 2)
-    5. Train EMNIST model
-    6. Run Subspace Geometry Test (Step 3)
-    7. Save all results
+    3. Train EMNIST-Digits model (noise σ=0.15)
+    4. Step 1: Mechanism Stability (functional + representational)
+    5. Step 2: USPS Transfer Test
+    6. Step 3: Semantic Confusion Test
+    7. Train EMNIST-Letters model (noise σ=0.15)
+    8. Step 4: Universal Geometry Test
+    9. Save all results
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -690,13 +980,35 @@ def run_full_pipeline(
         device=device, noise_std=0.0, epochs=epochs, seed=seed
     )
     
-    print("\n[2/6] Training regularized MNIST model (noise σ=0.15)...")
+    print("\n[2/9] Training regularized MNIST model (noise σ=0.15)...")
     model_regularized, vals_regularized, vecs_regularized = train_mnist_model(
         device=device, noise_std=0.15, epochs=epochs, seed=seed
     )
     
-    # ---- Step 1: USPS Transfer Test ----
-    print("\n[3/6] Running USPS Transfer Test...")
+    # ---- Train EMNIST-Digits model ----
+    print("\n[3/9] Training EMNIST-Digits model...")
+    model_emnist_digits, vals_emnist_digits, vecs_emnist_digits = train_emnist_digits_model(
+        device=device, noise_std=0.15, epochs=epochs, seed=seed
+    )
+    
+    # ---- Step 1: Mechanism Stability Test ----
+    print("\n[4/9] Running Mechanism Stability Test (MNIST vs EMNIST-Digits)...")
+    mechanism_results = mechanism_stability_test(
+        model_regularized, vals_regularized, vecs_regularized,
+        model_emnist_digits, vals_emnist_digits, vecs_emnist_digits,
+        device=device,
+        k=3
+    )
+    
+    # Save mechanism stability results
+    mechanism_path = output_dir / "mechanism_stability_results.json"
+    with open(mechanism_path, 'w') as f:
+        json_results = json.dumps(mechanism_results, indent=2, default=str)
+        f.write(json_results)
+    print(f"Mechanism stability results saved to {mechanism_path}")
+    
+    # ---- Step 2: USPS Transfer Test ----
+    print("\n[5/9] Running USPS Transfer Test...")
     usps_results = run_usps_transfer_comparison(
         model_baseline, model_regularized, device
     )
@@ -708,8 +1020,8 @@ def run_full_pipeline(
         f.write(json_results)
     print(f"USPS transfer results saved to {usps_path}")
     
-    # ---- Step 2: Semantic Confusion Test ----
-    print("\n[4/6] Running Semantic Confusion Test...")
+    # ---- Step 3: Semantic Confusion Test ----
+    print("\n[6/9] Running Semantic Confusion Test...")
     semantic_results = run_semantic_confusion_comparison(
         model_baseline, model_regularized, device
     )
@@ -721,18 +1033,18 @@ def run_full_pipeline(
         f.write(json_results)
     print(f"Semantic confusion results saved to {semantic_path}")
     
-    # ---- Train EMNIST model ----
-    print("\n[5/6] Training EMNIST model...")
+    # ---- Train EMNIST-Letters model ----
+    print("\n[7/9] Training EMNIST-Letters model...")
     model_emnist, vals_emnist, vecs_emnist = train_emnist_model(
         device=device, noise_std=0.15, epochs=epochs, seed=seed
     )
     
-    # ---- Step 3: Subspace Geometry Test ----
-    print("\n[6/6] Running Subspace Geometry Test...")
+    # ---- Step 4: Universal Geometry Test ----
+    print("\n[8/9] Running Universal Geometry Test (Subspace Geometry)...")
     subspace_results = run_subspace_geometry_test(
         vals_regularized, vecs_regularized,
         vals_emnist, vecs_emnist,
-        k=10
+        k=3
     )
     
     # Save subspace results
@@ -743,13 +1055,15 @@ def run_full_pipeline(
     print(f"Subspace geometry results saved to {subspace_path}")
     
     # ---- Save checkpoints ----
+    print("\n[9/9] Saving checkpoints...")
     checkpoint_dir = output_dir / "checkpoints"
     checkpoint_dir.mkdir(exist_ok=True)
     
     for name, (model, vals, vecs) in [
         ('mnist_baseline', (model_baseline, vals_baseline, vecs_baseline)),
         ('mnist_regularized', (model_regularized, vals_regularized, vecs_regularized)),
-        ('emnist_regularized', (model_emnist, vals_emnist, vecs_emnist)),
+        ('emnist_digits_regularized', (model_emnist_digits, vals_emnist_digits, vecs_emnist_digits)),
+        ('emnist_letters_regularized', (model_emnist, vals_emnist, vecs_emnist)),
     ]:
         checkpoint = {
             'model_state_dict': model.state_dict(),
@@ -759,31 +1073,37 @@ def run_full_pipeline(
         }
         torch.save(checkpoint, checkpoint_dir / f"{name}_seed{seed}.pt")
     
-    print(f"\nCheckpoints saved to {checkpoint_dir}")
+    print(f"Checkpoints saved to {checkpoint_dir}")
     
     # ---- Final Summary ----
     print("\n" + "=" * 60)
-    print("EXTENSION 2 COMPLETE - FINAL SUMMARY")
+    print("EXTENSION 2 COMPLETE - FINAL SUMMARY (4 STEPS)")
     print("=" * 60)
     
-    print(f"\nStep 1 (USPS Transfer):")
+    print(f"\nStep 1 (Mechanism Stability):")
+    print(f"  Cross-dataset accuracy: {mechanism_results['functional']['bidirectional_avg']:.2%}")
+    print(f"  Eigenvector overlap: {mechanism_results['representational']['aggregate']['mean']:.4f}")
+    print(f"  Conclusion: {mechanism_results['conclusion']}")
+    
+    print(f"\nStep 2 (USPS Transfer):")
     print(f"  Baseline accuracy: {usps_results['conclusion']['baseline_accuracy']:.2%}")
     print(f"  Regularized accuracy: {usps_results['conclusion']['regularized_accuracy']:.2%}")
     print(f"  Improvement: {usps_results['conclusion']['improvement']:+.2%}")
     print(f"  Regularization helps: {'YES' if usps_results['conclusion']['regularization_helps'] else 'NO'}")
     
-    print(f"\nStep 2 (Semantic Confusion):")
+    print(f"\nStep 3 (Semantic Confusion):")
     print(f"  Baseline accuracy: {semantic_results['conclusion']['baseline_accuracy']:.2%}")
     print(f"  Regularized accuracy: {semantic_results['conclusion']['regularized_accuracy']:.2%}")
     print(f"  Improvement: {semantic_results['conclusion']['improvement']:+.2%}")
     
-    print(f"\nStep 3 (Subspace Geometry):")
+    print(f"\nStep 4 (Universal Geometry):")
     print(f"  Expected pairs overlap: {subspace_results['summary']['expected_mean']:.4f}")
     print(f"  Random pairs overlap: {subspace_results['summary']['random_mean']:.4f}")
     print(f"  Ratio: {subspace_results['summary']['ratio']:.2f}x")
     print(f"  Conclusion: {subspace_results['summary']['conclusion']}")
     
     return {
+        'mechanism': mechanism_results,
         'usps': usps_results,
         'semantic': semantic_results,
         'subspace': subspace_results,
@@ -793,12 +1113,14 @@ def run_full_pipeline(
 def main():
     parser = argparse.ArgumentParser(description="Extension 2: Cross-Dataset Robustness")
     parser.add_argument("--full-pipeline", action="store_true", help="Run full pipeline")
+    parser.add_argument("--mechanism-test", action="store_true", help="Run only mechanism stability test (MNIST vs EMNIST-Digits)")
     parser.add_argument("--usps-test", action="store_true", help="Run only USPS transfer test")
     parser.add_argument("--semantic-test", action="store_true", help="Run only semantic confusion test")
     parser.add_argument("--subspace-test", action="store_true", help="Run only subspace geometry test")
     parser.add_argument("--checkpoint-baseline", type=str, help="Path to baseline checkpoint")
     parser.add_argument("--checkpoint-regularized", type=str, help="Path to regularized checkpoint")
-    parser.add_argument("--checkpoint-emnist", type=str, help="Path to EMNIST checkpoint")
+    parser.add_argument("--checkpoint-emnist", type=str, help="Path to EMNIST-Letters checkpoint")
+    parser.add_argument("--checkpoint-emnist-digits", type=str, help="Path to EMNIST-Digits checkpoint")
     parser.add_argument("--output-dir", type=str, default="results/extension2", 
                         help="Output directory")
     parser.add_argument("--device", type=str, default=None, help="Device")
@@ -820,6 +1142,47 @@ def main():
             epochs=args.epochs,
             seed=args.seed,
         )
+    elif args.mechanism_test:
+        if not args.checkpoint_regularized or not args.checkpoint_emnist_digits:
+            print("Error: --checkpoint-regularized and --checkpoint-emnist-digits required")
+            print("Example: python src/evaluate_extension2.py --mechanism-test \\")
+            print("           --checkpoint-regularized results/phase1/checkpoints/mnist_dense_full_seed42.pt \\")
+            print("           --checkpoint-emnist-digits results/extension2/checkpoints/emnist_digits_regularized_seed42.pt")
+            return
+        
+        # Load checkpoints
+        print(f"Loading MNIST checkpoint: {args.checkpoint_regularized}")
+        ckpt_mnist = torch.load(args.checkpoint_regularized, map_location=device)
+        
+        print(f"Loading EMNIST-Digits checkpoint: {args.checkpoint_emnist_digits}")
+        ckpt_emnist_digits = torch.load(args.checkpoint_emnist_digits, map_location=device)
+        
+        # Reconstruct models
+        mnist_model = Model(Config(d_hidden=256, d_output=10)).to(device)
+        mnist_model.load_state_dict(ckpt_mnist['model_state_dict'])
+        
+        emnist_model = Model(Config(d_hidden=256, d_output=10)).to(device)
+        emnist_model.load_state_dict(ckpt_emnist_digits['model_state_dict'])
+        
+        # Run test with both models and eigenvalues/eigenvectors
+        results = mechanism_stability_test(
+            mnist_model,
+            ckpt_mnist['eigenvalues'],
+            ckpt_mnist['eigenvectors'],
+            emnist_model,
+            ckpt_emnist_digits['eigenvalues'],
+            ckpt_emnist_digits['eigenvectors'],
+            device=device,
+            k=3,
+        )
+        
+        # Save results
+        output_path = Path(args.output_dir) / "mechanism_stability_results.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+        print(f"\nResults saved to {output_path}")
+        
     elif args.usps_test:
         if not args.checkpoint_baseline or not args.checkpoint_regularized:
             print("Error: --checkpoint-baseline and --checkpoint-regularized required")

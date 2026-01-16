@@ -25,6 +25,7 @@ from .subspace import (
     compute_subspace_overlap,
     pairwise_class_similarity,
     semantic_similarity_score,
+    sort_eigenvectors_by_magnitude,
 )
 
 __all__ = [
@@ -47,4 +48,5 @@ __all__ = [
     "compute_subspace_overlap",
     "pairwise_class_similarity",
     "semantic_similarity_score",
+    "sort_eigenvectors_by_magnitude",
 ]
