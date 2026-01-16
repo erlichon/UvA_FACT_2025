@@ -2,7 +2,7 @@
 """
 Train MNIST challenge-task variants (none/noise/wd/full) and save checkpoints.
 
-This is intentionally separate from vision_analysis.py: analysis should not train.
+This is intentionally separate from generate_vision_figures.py: analysis should not train.
 """
 
 import sys
@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 

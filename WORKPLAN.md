@@ -293,7 +293,7 @@ Figure 5: Structure vs. Regularization Trade-off
 **Language Notes**:
 - ts-medium results kept as "smaller model comparison" (30M params, layer 2/5, expansion=4)
 - fw-medium configs updated to match paper (335M params, layer 7, expansion=8, k=30)
-- Run overnight: `./scripts/run_overnight_mps.sh` or on GPU: `sbatch jobs/language_fwmedium.job`
+- Run overnight: `./scripts/train/run_overnight_mps.sh` or on GPU: `sbatch jobs/language_fwmedium.job`
 
 **Phase 1 Required Figures**:
 - [x] `eigenspectrum_comparison.pdf` - P1.1 vs P1.4 overlay **COMPLETE**

@@ -26,7 +26,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 
 ### Dependencies
 - Phase 1 checkpoints from Person A: `results/phase1/checkpoints/`
-- Analysis utilities from Person B: `src/analysis/spectral.py`, `src/analysis/visualization.py`
+- Analysis utilities from Person B: `src/vision/spectral.py`, `src/vision/visualization.py`
 
 ---
 
@@ -292,7 +292,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bilinear-decomposition-ma
 
 from src.data.rotated_mnist import get_rotated_datasets
 from src.data.emnist import EMNISTLetters
-from src.analysis.spectral import extract_from_checkpoint, compute_all_metrics
+from src.vision.spectral import extract_from_checkpoint, compute_all_metrics
 
 
 def evaluate_accuracy(model, dataset):

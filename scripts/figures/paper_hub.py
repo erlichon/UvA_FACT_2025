@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 @dataclass(frozen=True)
@@ -153,6 +153,10 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
                 "label": "Figure 9C: scatter plots (fw-medium)",
                 "path": _fig_rel_path("figure_9c_scatter_plots.pdf"),
             },
+        ],
+        "Language / SAE Training (Figure 10)": [
+            {"label": "Figure 10A: SAE training effect", "path": _fig_rel_path("figure_10a_sae_training_effect.pdf")},
+            {"label": "Figure 10B: SAE training histogram", "path": _fig_rel_path("figure_10b_sae_training_histogram.pdf")},
         ],
     }
     return sections
