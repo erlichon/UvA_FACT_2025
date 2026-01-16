@@ -1,0 +1,1697 @@
+#!/usr/bin/env python3
+"""
+Generate vision figures (Paper Section 4 + appendix items).
+
+This script is the single entrypoint for all vision figures. It only uses
+existing checkpoints + MNIST data (no new training).
+
+Usage:
+    python scripts/figures/generate_vision_figures.py
+    python scripts/figures/generate_vision_figures.py --sections regularization
+    ./scripts/train/run_vision.sh figures  # Preferred wrapper
+"""
+
+import sys
+from pathlib import Path
+import argparse
+from dataclasses import dataclass
+from typing import Dict, List, Sequence, Optional
+
+import numpy as np
+import torch
+import matplotlib
+
+matplotlib.use("Agg")  # non-interactive backend
+import matplotlib.pyplot as plt
+import warnings
+
+# Add project + original code paths
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
+
+from src.vision.spectral import (
+    load_checkpoint_eigenvalues,
+    load_all_checkpoints,
+    aggregate_by_config,
+    compute_rank_ratio,
+    effective_rank,
+)
+from src.vision.context import VisionContext
+from src.plot_utils.style import COLORS
+from src.plot_utils.eigenspectrum import (
+    plot_eigenspectrum_comparison,
+    plot_eigenspectrum_per_class,
+    plot_eigenvalue_decay,
+)
+from src.plot_utils.eigenvectors import plot_eigenvectors_grid
+from src.plot_utils.ablation import (
+    plot_ablation_bars,
+    plot_accuracy_vs_effective_rank,
+    plot_metric_comparison,
+)
+from src.plot_utils.style import set_publication_style
+
+# Reduce noisy, non-actionable warnings in local environments.
+warnings.filterwarnings(
+    "ignore",
+    message="Failed to load image Python extension:*",
+)
+
+
+@dataclass(frozen=True)
+class Dirs:
+    phase1_mnist_ckpts: Path
+    phase1_fashion_ckpts: Path
+    noise_sweep_ckpts: Path
+    size_sweep_ckpts: Path
+    challenge_ckpts: Path
+    figure_out: Path
+    report_figures: Path
+
+
+def get_dirs() -> Dirs:
+    return Dirs(
+        phase1_mnist_ckpts=PROJECT_ROOT / "results/phase1/checkpoints",
+        phase1_fashion_ckpts=PROJECT_ROOT / "results/phase1_fashion/checkpoints",
+        noise_sweep_ckpts=PROJECT_ROOT / "results/sweeps/noise_sweep/checkpoints",
+        size_sweep_ckpts=PROJECT_ROOT / "results/sweeps/model_size/checkpoints",
+        challenge_ckpts=PROJECT_ROOT / "results/challenge/checkpoints",
+        figure_out=PROJECT_ROOT / "results/vision/figures",
+        report_figures=PROJECT_ROOT / "Report/figures",
+    )
+
+
+def _ensure_dir(p: Path) -> None:
+    p.mkdir(parents=True, exist_ok=True)
+
+
+def _save_and_copy(fig: plt.Figure, out_path: Path, report_path: Path, dpi: int = 300) -> None:
+    _ensure_dir(out_path.parent)
+    _ensure_dir(report_path.parent)
+    fig.savefig(out_path, bbox_inches="tight", dpi=dpi)
+    fig.savefig(report_path, bbox_inches="tight", dpi=dpi)
+
+
+def generate_regularization_section(d: Dirs) -> None:
+    """Paper Section 4: regularization/eigenspectrum/eigenvectors/ablation/tradeoff."""
+    print("\n=== Vision / Regularization ===")
+
+    # Load MNIST + Fashion checkpoints into a dataframe for ablations/tradeoff plots.
+    mnist_df = load_all_checkpoints(d.phase1_mnist_ckpts, dataset="mnist")
+    fashion_df = load_all_checkpoints(d.phase1_fashion_ckpts, dataset="fashion")
+    mnist_agg = aggregate_by_config(mnist_df)
+    fashion_agg = aggregate_by_config(fashion_df)
+
+    # Eigenspectrum comparison (seed42 reference for each config)
+    eigenvalues_dict: Dict[str, torch.Tensor] = {}
+    for config in ["none", "noise", "wd", "full"]:
+        path = d.phase1_mnist_ckpts / f"mnist_dense_{config}_seed42.pt"
+        vals, _ = load_checkpoint_eigenvalues(str(path))
+        eigenvalues_dict[config] = vals
+
+    fig = plot_eigenspectrum_comparison(
+        eigenvalues_dict,
+        title="MNIST: Eigenspectrum by Regularization Type (shaded = 90% CI across classes)",
+        top_k=100,
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenspectrum_comparison.pdf",
+        d.report_figures / "eigenspectrum_comparison.pdf",
+    )
+    plt.close(fig)
+
+    fig = plot_eigenvalue_decay(
+        eigenvalues_dict,
+        top_k=30,
+        title="MNIST: Normalized Eigenvalue Decay",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenvalue_decay.pdf",
+        d.report_figures / "eigenvalue_decay.pdf",
+    )
+    plt.close(fig)
+
+    vals_full, _ = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"))
+    fig = plot_eigenspectrum_per_class(
+        vals_full,
+        title="MNIST (Full Reg): Eigenspectrum Across Digit Classes",
+        combined=True,
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenspectrum_per_class.pdf",
+        d.report_figures / "eigenspectrum_per_class.pdf",
+    )
+    plt.close(fig)
+
+    # Eigenvector grids
+    vals_none, vecs_none = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_none_seed42.pt"))
+    vals_reg, vecs_reg = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"))
+    vals_noise, vecs_noise = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_noise_seed42.pt"))
+
+    fig = plot_eigenvectors_grid(
+        vecs_none,
+        vals_none,
+        n_top=5,
+        title="MNIST (No Reg): Top Eigenvectors",
+        show_both_signs=True,
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenvectors_noreg.pdf",
+        d.report_figures / "eigenvectors_noreg.pdf",
+    )
+    plt.close(fig)
+
+    fig = plot_eigenvectors_grid(
+        vecs_reg,
+        vals_reg,
+        n_top=5,
+        title="MNIST (Full Regularization: σ=0.5, λ=1.0): Top Eigenvectors",
+        show_both_signs=True,
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenvectors_reg.pdf",
+        d.report_figures / "eigenvectors_reg.pdf",
+    )
+    plt.close(fig)
+
+    # Noise-only eigenvectors (requested)
+    fig = plot_eigenvectors_grid(
+        vecs_noise,
+        vals_noise,
+        n_top=5,
+        title="MNIST (Noise only: σ=0.5, λ=0.0): Top Eigenvectors",
+        show_both_signs=True,
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_eigenvectors_noise.pdf",
+        d.report_figures / "eigenvectors_noise.pdf",
+    )
+    plt.close(fig)
+
+    # Fashion eigenvectors: add noise-only too
+    fashion_noise_ckpt = d.phase1_fashion_ckpts / "fashion_dense_noise_seed42.pt"
+    if fashion_noise_ckpt.exists():
+        vals_fashion_noise, vecs_fashion_noise = load_checkpoint_eigenvalues(str(fashion_noise_ckpt))
+        fashion_classes = [
+            "T-shirt", "Trouser", "Pullover", "Dress", "Coat",
+            "Sandal", "Shirt", "Sneaker", "Bag", "Boot",
+        ]
+        fig = plot_eigenvectors_grid(
+            vecs_fashion_noise,
+            vals_fashion_noise,
+            n_top=5,
+            title="Fashion-MNIST (Noise only: σ=0.5, λ=0.0): Top Eigenvectors",
+            class_names=fashion_classes,
+            show_both_signs=True,
+        )
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_regularization_fashion_eigenvectors_noise.pdf",
+            d.report_figures / "fashion_eigenvectors_noise.pdf",
+        )
+        plt.close(fig)
+    else:
+        print(f"WARNING: {fashion_noise_ckpt} missing; skipping fashion noise-only eigenvectors.")
+
+    # Ablations
+    fig = plot_ablation_bars(
+        mnist_agg,
+        metrics=["accuracy", "effective_rank"],
+        title="MNIST: Ablation Study",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_mnist_ablation.pdf",
+        d.report_figures / "mnist_ablation.pdf",
+    )
+    plt.close(fig)
+
+    fig = plot_ablation_bars(
+        fashion_agg,
+        metrics=["accuracy", "effective_rank"],
+        title="Fashion-MNIST: Ablation Study",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_fashion_ablation.pdf",
+        d.report_figures / "fashion_ablation.pdf",
+    )
+    plt.close(fig)
+
+    # Trade-off
+    fig = plot_accuracy_vs_effective_rank(
+        mnist_df,
+        title="MNIST: Accuracy vs Interpretability",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_tradeoff_mnist.pdf",
+        d.report_figures / "accuracy_vs_effrank_mnist.pdf",
+    )
+    plt.close(fig)
+
+    fig = plot_accuracy_vs_effective_rank(
+        fashion_df,
+        title="Fashion-MNIST: Accuracy vs Interpretability",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_tradeoff_fashion.pdf",
+        d.report_figures / "accuracy_vs_effrank_fashion.pdf",
+    )
+    plt.close(fig)
+
+    # Cross-dataset
+    fig = plot_metric_comparison(
+        [mnist_agg, fashion_agg],
+        ["MNIST", "Fashion-MNIST"],
+        metric="effective_rank",
+        title="Effective Rank: MNIST vs Fashion-MNIST",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_cross_dataset_effrank.pdf",
+        d.report_figures / "cross_dataset_effrank.pdf",
+    )
+    plt.close(fig)
+
+    fig = plot_metric_comparison(
+        [mnist_agg, fashion_agg],
+        ["MNIST", "Fashion-MNIST"],
+        metric="accuracy",
+        title="Accuracy: MNIST vs Fashion-MNIST",
+    )
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_regularization_cross_dataset_accuracy.pdf",
+        d.report_figures / "cross_dataset_accuracy.pdf",
+    )
+    plt.close(fig)
+
+    # Gate check printout
+    mnist_ratio = compute_rank_ratio(mnist_df, "none", "full")
+    mnist_wd_ratio = compute_rank_ratio(mnist_df, "none", "wd")
+    print("\nGate check:")
+    print(f"  effective rank ratio full/none: {mnist_ratio:.3f}")
+    print(f"  effective rank ratio wd/none:   {mnist_wd_ratio:.3f}")
+
+    # ---------- Paper Figure 4: noise sweep (if checkpoints exist) ----------
+    noise_levels = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    target_digit = 5
+    found = []
+    eigvecs = {}
+    eigvals = {}
+    accs = {}
+    effranks = {}
+
+    for nl in noise_levels:
+        ckpt_path = d.noise_sweep_ckpts / f"mnist_noise_{nl}_seed42.pt"
+        if not ckpt_path.exists():
+            continue
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        vals = ckpt["eigenvalues"]
+        vecs = ckpt["eigenvectors"]
+        found.append(nl)
+        eigvecs[nl] = vecs
+        eigvals[nl] = vals
+        accs[nl] = float(ckpt["metrics"]["val_acc"])
+        effranks[nl] = float(effective_rank(vals).mean().item())
+
+    if len(found) >= 2:
+        # (a) Top eigenvector for digit 5 across noise levels
+        fig, axes = plt.subplots(1, len(found), figsize=(2.4 * len(found), 2.8))
+        if len(found) == 1:
+            axes = [axes]
+        for i, nl in enumerate(sorted(found)):
+            ax = axes[i]
+            vals = eigvals[nl][target_digit]
+            vecs = eigvecs[nl][target_digit]
+            # top eigenvector by |eigenvalue|
+            idx = int(vals.abs().argmax().item())
+            img = vecs[idx].reshape(28, 28).numpy()
+            vmax = float(np.abs(img).max() or 1.0)
+            ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            ax.set_title(f"σ={nl}\nacc={accs[nl]*100:.1f}%", fontsize=9)
+            ax.axis("off")
+        # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_regularization_figure_4_noise_eigenvectors.pdf",
+            d.report_figures / "figure_4_noise_eigenvectors.pdf",
+        )
+        plt.close(fig)
+
+        # (b) Effective rank vs noise
+        fig, ax = plt.subplots(figsize=(6, 4))
+        xs = sorted(found)
+        ys = [effranks[nl] for nl in xs]
+        ax.plot(xs, ys, "o-", linewidth=2, markersize=6)
+        ax.set_xlabel("Input noise std (σ)")
+        ax.set_ylabel("Effective rank")
+        ax.set_title("Effect of input noise on effective rank")
+        ax.grid(True, alpha=0.3)
+        # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_regularization_figure_4_noise_vs_rank.pdf",
+            d.report_figures / "figure_4_noise_vs_rank.pdf",
+        )
+        plt.close(fig)
+
+        # (c) Accuracy vs noise (useful but not strictly required)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(xs, [accs[nl] * 100 for nl in xs], "s-", linewidth=2, markersize=6)
+        ax.set_xlabel("Input noise std (σ)")
+        ax.set_ylabel("Validation accuracy (%)")
+        ax.set_title("Effect of input noise on accuracy")
+        ax.grid(True, alpha=0.3)
+        # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_regularization_figure_4_noise_vs_accuracy.pdf",
+            d.report_figures / "figure_4_noise_vs_accuracy.pdf",
+        )
+        plt.close(fig)
+    else:
+        print("INFO: noise sweep checkpoints not found; skipping Figure 4 generation.")
+
+
+def generate_truncation_similarity_section(d: Dirs) -> None:
+    """Paper Figure 5 + appendix size/truncation/similarity extensions."""
+    print("\n=== Vision / Truncation & similarity ===")
+
+    from itertools import combinations, product
+    from scipy import stats
+    import pandas as pd
+
+    from image.datasets import MNIST
+    from src.vision.truncation import (
+        load_size_sweep_checkpoints,
+        compute_similarity_by_rank,
+        compute_all_truncation_curves,
+        aggregate_truncation_curves,
+        compute_eigenvector_similarity,
+    )
+
+    sizes = [30, 50, 100, 300, 500, 1000]
+    seeds = [42, 43, 44, 45, 46]
+    ckpts_by_size = load_size_sweep_checkpoints(str(d.size_sweep_ckpts), sizes=sizes, seeds=seeds)
+
+    # ---------- Figure 5A: similarity across ranks ----------
+    fig, ax = plt.subplots(figsize=(6, 5))
+    cmap = plt.cm.viridis
+    colors = {s: cmap(i / (len(sizes) - 1)) for i, s in enumerate(sizes)}
+
+    max_rank = 20
+    for size in sizes:
+        ckpts = ckpts_by_size.get(size, [])
+        if len(ckpts) < 2:
+            continue
+
+        sim_mean, sim_std = compute_similarity_by_rank(ckpts, max_rank=max_rank)
+        ranks = np.arange(max_rank)
+
+        n_pairs = len(list(combinations(range(len(ckpts)), 2)))
+        n = max(1, n_pairs * 10)
+        sem = sim_std / np.sqrt(n)
+        t_val = stats.t.ppf(0.95, n - 1)  # 90% CI
+        ci_low = sim_mean - t_val * sem
+        ci_high = sim_mean + t_val * sem
+
+        ax.plot(ranks, sim_mean, "-", color=colors[size], label=f"{size}", linewidth=2)
+        ax.fill_between(ranks, ci_low, ci_high, color=colors[size], alpha=0.2)
+
+    ax.set_xlabel("Eigenvector rank", fontsize=12)
+    ax.set_ylabel("Cosine similarity", fontsize=12)
+    ax.set_title("Similarity Across Eigenvectors", fontsize=13)
+    ax.legend(title="Model Size", fontsize=9, loc="upper right")
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(0, max_rank)
+    ax.set_ylim(0.0, 1.05)  # IMPORTANT: do not truncate at 0.4
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_truncation_similarity_figure_5a_similarity.pdf",
+        d.report_figures / "figure_5a_similarity.pdf",
+    )
+    plt.close(fig)
+
+    # ---------- Figure 5B: truncation error (log scale) ----------
+    test_data = MNIST(train=False, device="cpu")
+    test_x = test_data.x.flatten(start_dim=1)
+    test_y = test_data.y
+
+    truncation_levels = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 30]
+    trunc_df = compute_all_truncation_curves(
+        test_x, test_y,
+        ckpts_by_size,
+        truncation_levels=truncation_levels,
+        return_error=True,
+    )
+    trunc_agg = aggregate_truncation_curves(trunc_df, confidence=0.90, metric_name="error")
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    for size in sizes:
+        size_data = trunc_agg[trunc_agg["size"] == size].sort_values("k")
+        if len(size_data) == 0:
+            continue
+        k_vals = size_data["k"].values
+        err_mean = size_data["error_mean"].values * 100
+        err_low = size_data["error_ci_low"].values * 100
+        err_high = size_data["error_ci_high"].values * 100
+
+        ax.plot(k_vals, err_mean, "o-", color=colors[size], label=f"{size}", linewidth=2, markersize=4)
+        ax.fill_between(k_vals, err_low, err_high, color=colors[size], alpha=0.2)
+
+    ax.set_xlabel("Eigenvector rank (per digit)", fontsize=12)
+    ax.set_ylabel("Classification Error", fontsize=12)
+    ax.set_title("Truncation Across Sizes", fontsize=13)
+    ax.set_yscale("log")
+    ax.set_ylim(1, 100)
+    ax.set_yticks([1, 2, 5, 10, 20, 50, 100])
+    ax.set_yticklabels(["1%", "2%", "5%", "10%", "20%", "50%", "100%"])
+    ax.set_xlim(0, 30)
+    ax.legend(title="Model Size", fontsize=9, loc="upper right")
+    ax.grid(True, alpha=0.3, which="both")
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_truncation_similarity_figure_5b_truncation.pdf",
+        d.report_figures / "figure_5b_truncation.pdf",
+    )
+    plt.close(fig)
+
+    # ---------- Appendix: accuracy drop under truncation ----------
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for size in sizes:
+        size_data = trunc_agg[trunc_agg["size"] == size].sort_values("k")
+        if len(size_data) == 0:
+            continue
+        k_vals = size_data["k"].values
+        drop_mean = size_data["error_mean"].values * 100
+        drop_low = size_data["error_ci_low"].values * 100
+        drop_high = size_data["error_ci_high"].values * 100
+        ax.plot(k_vals, drop_mean, "o-", color=colors[size], label=f"{size}", linewidth=1.8, markersize=3)
+        ax.fill_between(k_vals, drop_low, drop_high, color=colors[size], alpha=0.15)
+    # Saturation threshold: absolute accuracy drop (%)
+    ax.axhline(0.1, linestyle=":", color="0.3", linewidth=1.5, label="0.1% drop threshold")
+    ax.set_xlabel("Eigenvector rank (per digit)")
+    ax.set_ylabel("Accuracy drop (%)")
+    ax.set_title("Accuracy drop under truncation")
+    ax.set_xlim(0, 30)
+    ax.set_ylim(bottom=0)
+    ax.legend(title="Model Size", fontsize=8, loc="upper right", ncol=2)
+    ax.grid(True, alpha=0.3)
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_mnist_acc_drop.pdf",
+        d.report_figures / "appendix_mnist_acc_drop.pdf",
+    )
+    plt.close(fig)
+
+    # ---------- Appendix: inter-model size similarity vs reference (300) ----------
+    reference_size = 300
+    ref_ckpts = ckpts_by_size.get(reference_size, [])
+    if len(ref_ckpts) == 0:
+        print("WARNING: Missing reference size checkpoints (300); skipping inter_similarity plots.")
+        return
+
+    means, stds = [], []
+    for size in sizes:
+        ckpts = ckpts_by_size.get(size, [])
+        if len(ckpts) == 0:
+            means.append(np.nan)
+            stds.append(np.nan)
+            continue
+        sims = [
+            compute_eigenvector_similarity(
+                a["eigenvectors"], b["eigenvectors"],
+                a["eigenvalues"], b["eigenvalues"],
+                top_k=1,
+            )
+            for a, b in product(ckpts, ref_ckpts)
+        ]
+        means.append(float(np.mean(sims)))
+        stds.append(float(np.std(sims)))
+
+    fig, ax = plt.subplots(figsize=(6, 3.8))
+    ax.errorbar(sizes, means, yerr=stds, fmt="o-", capsize=3, linewidth=1.8, markersize=4)
+    ax.set_xlabel("Model size (d_hidden)")
+    ax.set_ylabel("Cosine similarity")
+    ax.set_title(f"Inter-size eigenvector similarity (ref={reference_size}, top-1 per class)")
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
+    ax.text(
+        0.5, -0.22,
+        "Cos sim of matched eigenvector ranks, averaged over digit classes.\n"
+        f"Sizes={sizes}; seeds={seeds}; ref={reference_size}; top_k=1.",
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=8,
+        color="0.35",
+    )
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_mnist_inter_similarity.pdf",
+        d.report_figures / "appendix_mnist_inter_similarity.pdf",
+    )
+    plt.close(fig)
+
+    # ---------- Appendix: inter-size similarity matrix (top eigenvector) ----------
+    mat = np.zeros((len(sizes), len(sizes)), dtype=np.float32)
+    for i, si in enumerate(sizes):
+        for j, sj in enumerate(sizes):
+            sims = [
+                compute_eigenvector_similarity(
+                    a["eigenvectors"], b["eigenvectors"],
+                    a["eigenvalues"], b["eigenvalues"],
+                    top_k=1,
+                )
+                for a, b in product(ckpts_by_size.get(si, []), ckpts_by_size.get(sj, []))
+            ]
+            mat[i, j] = float(np.mean(sims)) if sims else np.nan
+
+    fig, ax = plt.subplots(figsize=(6.5, 5.3))
+    im = ax.imshow(mat, vmin=0, vmax=1, cmap="viridis")
+    ax.set_xticks(range(len(sizes)))
+    ax.set_yticks(range(len(sizes)))
+    ax.set_xticklabels(sizes, rotation=45, ha="right")
+    ax.set_yticklabels(sizes)
+    ax.set_title("Inter-size similarity (top eigenvector)")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Cosine similarity")
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_mnist_inter_size_similarity.pdf",
+        d.report_figures / "appendix_mnist_inter_size_similarity.pdf",
+    )
+    plt.close(fig)
+
+
+def _plot_challenge_from_checkpoint(
+    *,
+    ckpt_path: Path,
+    device: str,
+    title: str,
+    out_path: Path,
+    report_path: Path,
+) -> None:
+    """
+    Paper-style Figure 6 renderer for a single challenge checkpoint.
+    """
+    from matplotlib.gridspec import GridSpec
+    from shared.components import Bilinear, Linear
+
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    eigenvalues: torch.Tensor = ckpt["eigenvalues"].cpu()
+    eigenvectors: torch.Tensor = ckpt["eigenvectors"].cpu()
+    target_image: torch.Tensor = ckpt["target_image"].cpu()
+
+    d_hidden = int(ckpt.get("config", {}).get("d_hidden", 256))
+
+    class ChallengeModel(torch.nn.Module):
+        def __init__(self, d_input: int = 784, d_hidden_: int = 256, d_output: int = 2, bias: bool = True):
+            super().__init__()
+            self.embed = Linear(d_input, d_hidden_, bias=False)
+            self.bilinear = Bilinear(d_hidden_, d_hidden_, bias=bias)
+            self.head = Linear(d_hidden_, d_output, bias=False)
+
+        @property
+        def w_e(self) -> torch.Tensor:
+            return self.embed.weight.data
+
+        @property
+        def w_u(self) -> torch.Tensor:
+            return self.head.weight.data
+
+        @property
+        def w_l(self) -> torch.Tensor:
+            return self.bilinear.w_l
+
+        @property
+        def w_r(self) -> torch.Tensor:
+            return self.bilinear.w_r
+
+        @property
+        def bilinear_bias(self) -> Optional[torch.Tensor]:
+            return None if self.bilinear.bias is None else self.bilinear.bias.data
+
+    model = ChallengeModel(d_hidden_=d_hidden, bias=True).to(device)
+    model.load_state_dict(ckpt["model_state_dict"], strict=True)
+    model.eval()
+
+    # Bias visualization in input space for True−False direction
+    w_diff = (model.w_u[1] - model.w_u[0]).detach().cpu()  # [d_hidden]
+    bias = model.bilinear_bias
+    if bias is None:
+        raise ValueError("Challenge model has no bilinear bias; cannot plot bias panel.")
+
+    b_l = bias[:d_hidden].detach().cpu()
+    b_r = bias[d_hidden:].detach().cpu()
+    w_l = model.w_l.detach().cpu()
+    w_r = model.w_r.detach().cpu()
+    w_e = model.w_e.detach().cpu()
+
+    v = torch.einsum("o,o,oi->i", w_diff, b_l, w_r) + torch.einsum("o,o,oi->i", w_diff, b_r, w_l)
+    bias_inp = (v @ w_e).detach().cpu()  # [784]
+
+    # Indices by sign
+    vals = eigenvalues.detach().cpu()
+    vecs = eigenvectors.detach().cpu()
+    pos_idx = torch.where(vals > 0)[0]
+    neg_idx = torch.where(vals < 0)[0]
+    pos_sorted = pos_idx[vals[pos_idx].argsort(descending=True)] if len(pos_idx) else torch.tensor([], dtype=torch.long)
+    neg_sorted = neg_idx[vals[neg_idx].argsort()] if len(neg_idx) else torch.tensor([], dtype=torch.long)
+
+    fig = plt.figure(figsize=(11, 5.4))
+    gs = GridSpec(2, 4, figure=fig, width_ratios=[1.2, 1.0, 1.0, 1.0], wspace=0.25, hspace=0.25)
+
+    # Positive eigenvalue decay
+    ax = fig.add_subplot(gs[0, 0])
+    top_pos = vals[pos_sorted[:20]] if len(pos_sorted) else torch.tensor([])
+    ax.plot(
+        np.arange(1, len(top_pos) + 1),
+        top_pos.numpy(),
+        "-o",
+        color=COLORS.get("full", "C0"),
+        linewidth=2,
+        markersize=3,
+    )
+    ax.set_title("Positive eigenvalues", fontsize=11)
+    ax.set_xlabel("Index")
+    ax.set_ylabel("λ")
+    ax.axhline(0, color="gray", linewidth=0.8)
+    ax.grid(True, alpha=0.3)
+
+    for j in range(2):
+        axv = fig.add_subplot(gs[0, 1 + j])
+        if len(pos_sorted) > j:
+            idx = int(pos_sorted[j].item())
+            img = vecs[idx].reshape(28, 28).numpy()
+            vmax = float(np.abs(img).max() or 1.0)
+            axv.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            axv.set_title(f"λ={vals[idx].item():.2f}", fontsize=10)
+        axv.axis("off")
+
+    # Negative eigenvalue decay
+    ax = fig.add_subplot(gs[1, 0])
+    top_neg = vals[neg_sorted[:20]] if len(neg_sorted) else torch.tensor([])
+    ax.plot(
+        np.arange(1, len(top_neg) + 1),
+        top_neg.numpy(),
+        "-o",
+        color=COLORS.get("none", "C3"),
+        linewidth=2,
+        markersize=3,
+    )
+    ax.set_title("Negative eigenvalues", fontsize=11, pad=10)
+    ax.set_xlabel("")
+    ax.set_ylabel("λ")
+    ax.axhline(0, color="gray", linewidth=0.8)
+    ax.grid(True, alpha=0.3)
+
+    for j in range(2):
+        axv = fig.add_subplot(gs[1, 1 + j])
+        if len(neg_sorted) > j:
+            idx = int(neg_sorted[j].item())
+            img = vecs[idx].reshape(28, 28).numpy()
+            vmax = float(np.abs(img).max() or 1.0)
+            axv.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            axv.set_title(f"λ={vals[idx].item():.2f}", fontsize=10)
+        axv.axis("off")
+
+    # Right column: Target + Bias
+    ax_t = fig.add_subplot(gs[0, 3])
+    ax_t.imshow(target_image.reshape(28, 28).numpy(), cmap="gray", vmin=0, vmax=1)
+    ax_t.set_title("Target", fontsize=11)
+    ax_t.axis("off")
+
+    ax_b = fig.add_subplot(gs[1, 3])
+    bias_img = bias_inp.reshape(28, 28).numpy()
+    vmax = float(np.abs(bias_img).max() or 1.0)
+    ax_b.imshow(bias_img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+    ax_b.set_title("Bias", fontsize=11)
+    ax_b.axis("off")
+
+    fig.suptitle(title, fontsize=12, y=1.02)
+    _save_and_copy(fig, out_path, report_path)
+    plt.close(fig)
+
+
+def generate_challenge_section(d: Dirs, device: str = "cpu", seed: int = 42) -> None:
+    """Paper Figure 6 and challenge variants (if checkpoints exist) rendered separately."""
+    print("\n=== Vision / Challenge task ===")
+
+    # Baseline (existing)
+    base_ckpt = d.challenge_ckpts / f"mnist_challenge_seed{seed}.pt"
+    if not base_ckpt.exists():
+        raise FileNotFoundError(f"Challenge checkpoint not found at {base_ckpt}.")
+    _plot_challenge_from_checkpoint(
+        ckpt_path=base_ckpt,
+        device=device,
+        title="Challenge task: eigendecomposition (True − False direction)",
+        out_path=d.figure_out / "vision_challenge_figure_6_challenge.pdf",
+        report_path=d.report_figures / "figure_6_challenge.pdf",
+    )
+
+    # Variants (trained by scripts/train_challenge_variants.py)
+    variants = [
+        ("none", "Challenge task (no reg): eigendecomposition (True − False)"),
+        ("noise", "Challenge task (noise only σ=0.5): eigendecomposition (True − False)"),
+        ("wd", "Challenge task (weight decay only λ=1.0): eigendecomposition (True − False)"),
+        ("full", "Challenge task (full reg σ=0.5, λ=1.0): eigendecomposition (True − False)"),
+    ]
+    for tag, title in variants:
+        ckpt = d.challenge_ckpts / f"mnist_challenge_{tag}_seed{seed}.pt"
+        if not ckpt.exists():
+            continue
+        _plot_challenge_from_checkpoint(
+            ckpt_path=ckpt,
+            device=device,
+            title=title,
+            out_path=d.figure_out / f"vision_challenge_figure_6_{tag}.pdf",
+            report_path=d.report_figures / f"figure_6_challenge_{tag}.pdf",
+        )
+
+
+def plot_challenge_decay_panels(
+    *,
+    variants: Dict[str, Dict],
+    out_path: Path,
+    report_path: Path,
+    n_vals: int = 20,
+) -> None:
+    """
+    Plot eigenvalue decay (pos + neg) for multiple regularization variants in a compact grid.
+    """
+    from matplotlib.gridspec import GridSpec
+
+    names = list(variants.keys())
+    fig = plt.figure(figsize=(3.1 * len(names), 4.8))
+    gs = GridSpec(2, len(names), figure=fig, wspace=0.25, hspace=0.35)
+
+    for j, name in enumerate(names):
+        vals = variants[name]["eigenvalues"].detach().cpu()
+        pos = vals[vals > 0]
+        neg = vals[vals < 0]
+        pos_sorted = pos.sort(descending=True).values[:n_vals]
+        neg_sorted = neg.sort().values[:n_vals]  # most negative first
+
+        ax = fig.add_subplot(gs[0, j])
+        if len(pos_sorted):
+            ax.plot(np.arange(1, len(pos_sorted) + 1), pos_sorted.numpy(), "-o", linewidth=1.8, markersize=3)
+        ax.axhline(0, color="gray", linewidth=0.8)
+        ax.set_title(name, fontsize=11)
+        ax.set_xlabel("Index", fontsize=9)
+        ax.set_ylabel("λ", fontsize=10)
+        ax.grid(True, alpha=0.3)
+
+        ax = fig.add_subplot(gs[1, j])
+        if len(neg_sorted):
+            ax.plot(np.arange(1, len(neg_sorted) + 1), neg_sorted.numpy(), "-o", linewidth=1.8, markersize=3)
+        ax.axhline(0, color="gray", linewidth=0.8)
+        ax.set_xlabel("Index", fontsize=9)
+        ax.set_ylabel("λ", fontsize=10)
+        ax.grid(True, alpha=0.3)
+
+    fig.suptitle("Challenge task: eigenvalue decay by regularization", fontsize=12, y=1.02)
+    _save_and_copy(fig, out_path, report_path)
+    plt.close(fig)
+
+
+def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int = 3) -> None:
+    """Paper Figure 7 + appendix adversarial encoders (existing checkpoints only)."""
+    print("\n=== Vision / Adversarial masks ===")
+
+    from matplotlib.gridspec import GridSpec
+    from image.datasets import MNIST
+    from image.model import Model, Config
+    from src.vision.adversarial import (
+        compute_adversarial_mask,
+        apply_adversarial_perturbation,
+        compute_random_baseline_mask,
+        compute_rare_edge_pixel_mask,
+    )
+
+    seeds = [42, 43, 44, 45, 46]
+    # IMPORTANT: include alpha=0.0 baseline
+    alphas = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
+    top_k_pinv = 10
+    target_ranks = [0, 1, 2]  # paper: average over top-3 eigenvectors
+    alpha_annotate = 2.0
+
+    # Load test data
+    test_data = MNIST(train=False, device=device)
+    x = test_data.x.flatten(start_dim=1)
+    y = test_data.y
+
+    # Rare-edge constraint mask for the no-reg model (paper B)
+    rare_edge_mask = compute_rare_edge_pixel_mask(x.detach().cpu()).to(device)
+
+    def eval_curves_for_seed(
+        model,
+        eigenvalues: torch.Tensor,
+        eigenvectors: torch.Tensor,
+        restrict_mask: Optional[torch.Tensor],
+    ) -> Dict[str, List[float]]:
+        adv_acc, rand_acc, adv_mis, rand_mis = [], [], [], []
+        rand_seed = 42
+        for alpha in alphas:
+            accs_adv, accs_rand, mis_adv, mis_rand = [], [], [], []
+            for rank in target_ranks:
+                adv_mask = compute_adversarial_mask(
+                    eigenvectors[target_class],
+                    eigenvalues[target_class],
+                    target_rank=rank,
+                    top_k=top_k_pinv,
+                    use_positive_only=True,
+                )
+                rand_mask = compute_random_baseline_mask(adv_mask, seed=rand_seed)
+                rand_seed += 1
+
+                if restrict_mask is not None:
+                    adv_mask = adv_mask * restrict_mask
+                    rand_mask = rand_mask * restrict_mask
+
+                x_adv = apply_adversarial_perturbation(x, adv_mask, alpha=float(alpha))
+                x_rand = apply_adversarial_perturbation(x, rand_mask, alpha=float(alpha))
+
+                with torch.no_grad():
+                    preds_adv = model(x_adv.reshape(-1, 28, 28)).argmax(dim=-1)
+                    preds_rand = model(x_rand.reshape(-1, 28, 28)).argmax(dim=-1)
+
+                accs_adv.append((preds_adv == y).float().mean().item())
+                accs_rand.append((preds_rand == y).float().mean().item())
+                mis_adv.append((preds_adv == target_class).float().mean().item())
+                mis_rand.append((preds_rand == target_class).float().mean().item())
+
+            adv_acc.append(float(np.mean(accs_adv)))
+            rand_acc.append(float(np.mean(accs_rand)))
+            adv_mis.append(float(np.mean(mis_adv)))
+            rand_mis.append(float(np.mean(mis_rand)))
+
+        return {
+            "adv_acc": adv_acc,
+            "rand_acc": rand_acc,
+            "adv_misclass": adv_mis,
+            "rand_misclass": rand_mis,
+        }
+
+    def aggregate(seed_curves: List[Dict[str, List[float]]]) -> Dict[str, np.ndarray]:
+        keys = list(seed_curves[0].keys())
+        out: Dict[str, np.ndarray] = {}
+        for k in keys:
+            arr = np.array([c[k] for c in seed_curves], dtype=np.float32)
+            out[f"{k}_mean"] = arr.mean(axis=0)
+            out[f"{k}_std"] = arr.std(axis=0)
+        return out
+
+    def find_misclassified_example(model, mask: torch.Tensor, alpha: float) -> torch.Tensor:
+        x_adv = apply_adversarial_perturbation(x, mask, alpha=alpha)
+        with torch.no_grad():
+            preds_orig = model(x.reshape(-1, 28, 28)).argmax(dim=-1)
+            preds_adv = model(x_adv.reshape(-1, 28, 28)).argmax(dim=-1)
+        candidates = (preds_orig == y) & (preds_adv == target_class) & (y != target_class)
+        idx = int(candidates.nonzero()[0].item()) if candidates.any() else 0
+        return x_adv[idx].reshape(28, 28).detach().cpu()
+
+    # Run across seeds
+    noise_curves_all: List[Dict[str, List[float]]] = []
+    noreg_curves_all: List[Dict[str, List[float]]] = []
+
+    # Visual artifacts (use first available seed)
+    viz_eig_noise = viz_adv_noise = viz_rand_noise = viz_mis_noise = None
+    viz_eig_noreg = viz_adv_noreg = viz_rand_noreg = viz_mis_noreg = None
+
+    for seed in seeds:
+        # A) Noise regularization (std=0.15)
+        ckpt_noise_path = d.phase1_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"
+        if not ckpt_noise_path.exists():
+            print(f"WARNING: missing {ckpt_noise_path}, skipping seed {seed} for noise-reg.")
+            continue
+        ckpt_noise = torch.load(ckpt_noise_path, map_location=device, weights_only=False)
+        eigenvalues_noise = ckpt_noise["eigenvalues"].to(device)
+        eigenvectors_noise = ckpt_noise["eigenvectors"].to(device)
+        cfg_noise = Config(d_hidden=int(ckpt_noise["config"]["d_hidden"]), epochs=1, seed=seed)
+        model_noise = Model(cfg_noise).to(device)
+        model_noise.load_state_dict(ckpt_noise["model_state_dict"])
+        model_noise.eval()
+
+        noise_curves_all.append(eval_curves_for_seed(model_noise, eigenvalues_noise, eigenvectors_noise, restrict_mask=None))
+
+        # B) No regularization (with rare-edge restriction)
+        ckpt_noreg_path = d.phase1_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"
+        if not ckpt_noreg_path.exists():
+            print(f"WARNING: missing {ckpt_noreg_path}, skipping seed {seed} for no-reg.")
+            continue
+        ckpt_noreg = torch.load(ckpt_noreg_path, map_location=device, weights_only=False)
+        eigenvalues_noreg = ckpt_noreg["eigenvalues"].to(device)
+        eigenvectors_noreg = ckpt_noreg["eigenvectors"].to(device)
+        cfg_noreg = Config(d_hidden=int(ckpt_noreg["config"]["d_hidden"]), epochs=1, seed=seed)
+        model_noreg = Model(cfg_noreg).to(device)
+        model_noreg.load_state_dict(ckpt_noreg["model_state_dict"])
+        model_noreg.eval()
+
+        noreg_curves_all.append(eval_curves_for_seed(model_noreg, eigenvalues_noreg, eigenvectors_noreg, restrict_mask=rare_edge_mask))
+
+        # Save visualization artifacts from the first seed we actually processed
+        if viz_eig_noise is None:
+            # Choose top positive eigenvector for the target digit
+            vals_t = eigenvalues_noise[target_class]
+            pos = torch.where(vals_t > 0)[0]
+            idx = int(pos[vals_t[pos].argmax()].item()) if len(pos) else int(vals_t.abs().argmax().item())
+            viz_eig_noise = eigenvectors_noise[target_class, idx].detach().cpu()
+            viz_adv_noise = compute_adversarial_mask(
+                eigenvectors_noise[target_class], eigenvalues_noise[target_class],
+                target_rank=0, top_k=top_k_pinv, use_positive_only=True,
+            ).detach().cpu()
+            viz_rand_noise = compute_random_baseline_mask(viz_adv_noise, seed=42).detach().cpu()
+            viz_mis_noise = find_misclassified_example(model_noise, viz_adv_noise.to(device), alpha=alpha_annotate)
+
+            vals_t = eigenvalues_noreg[target_class]
+            pos = torch.where(vals_t > 0)[0]
+            idx = int(pos[vals_t[pos].argmax()].item()) if len(pos) else int(vals_t.abs().argmax().item())
+            viz_eig_noreg = eigenvectors_noreg[target_class, idx].detach().cpu()
+            viz_adv_noreg = compute_adversarial_mask(
+                eigenvectors_noreg[target_class], eigenvalues_noreg[target_class],
+                target_rank=0, top_k=top_k_pinv, use_positive_only=True,
+            ).detach().cpu() * rare_edge_mask.detach().cpu()
+            viz_rand_noreg = compute_random_baseline_mask(viz_adv_noreg, seed=42).detach().cpu() * rare_edge_mask.detach().cpu()
+            viz_mis_noreg = find_misclassified_example(model_noreg, viz_adv_noreg.to(device), alpha=alpha_annotate)
+
+    if len(noise_curves_all) == 0 or len(noreg_curves_all) == 0:
+        raise RuntimeError("No adversarial results computed (missing checkpoints?)")
+
+    agg_noise = aggregate(noise_curves_all)
+    agg_noreg = aggregate(noreg_curves_all)
+
+    # Plot paper-style A/B panel
+    set_publication_style()
+    fig = plt.figure(figsize=(14, 8))
+    # Dedicated label column so A)/B) can never overlap the first image.
+    gs = GridSpec(
+        2, 7,
+        figure=fig,
+        width_ratios=[0.9, 1, 1, 1, 1, 1.5, 1.5],
+        hspace=0.5,
+        wspace=0.35,
+        left=0.06,
+        right=0.98,
+    )
+
+    # Column titles (skip label column 0)
+    col_titles = ["Eigenvector", "Adversarial mask", "Misclassified example", "Random mask", "Accuracy", "Misclassification"]
+    for col, title in enumerate(col_titles):
+        ax_t = fig.add_subplot(gs[0, col + 1])
+        ax_t.set_title(title, fontsize=11)
+        ax_t.axis("off")
+
+    def im_signed(ax, v: torch.Tensor) -> None:
+        img = v.reshape(28, 28).numpy()
+        vmax = float(np.abs(img).max() or 1.0)
+        ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+        ax.axis("off")
+
+    def im_gray(ax, v: torch.Tensor) -> None:
+        ax.imshow(v.numpy(), cmap="gray", vmin=0, vmax=1)
+        ax.axis("off")
+
+    alpha_idx = int(np.argmin(np.abs(np.array(alphas) - alpha_annotate)))
+
+    def annotate_point(ax, label: str, mean: float, std: float) -> None:
+        ax.text(
+            0.02, 0.02,
+            f"{label}@α={alphas[alpha_idx]:.1f}:\n{mean:.3f} ± {std:.3f}",
+            transform=ax.transAxes,
+            fontsize=8,
+            va="bottom",
+            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="0.8", alpha=0.9),
+        )
+
+    rows = [
+        ("A) Noise regularization (std=0.15)", agg_noise, viz_eig_noise, viz_adv_noise, viz_rand_noise, viz_mis_noise),
+        ("B) Without regularization", agg_noreg, viz_eig_noreg, viz_adv_noreg, viz_rand_noreg, viz_mis_noreg),
+    ]
+
+    for r, (row_label, agg, eig, adv_mask, rand_mask, mis_ex) in enumerate(rows):
+        # Label cell (dedicated column)
+        ax_lbl = fig.add_subplot(gs[r, 0])
+        ax_lbl.axis("off")
+        ax_lbl.text(0.0, 0.5, row_label, fontsize=12, fontweight="bold", va="center", ha="left", wrap=True)
+
+        # First image cell (eigenvector)
+        ax = fig.add_subplot(gs[r, 1])
+        im_signed(ax, eig)
+
+        ax = fig.add_subplot(gs[r, 2])
+        im_signed(ax, adv_mask)
+
+        ax = fig.add_subplot(gs[r, 3])
+        im_gray(ax, mis_ex)
+
+        ax = fig.add_subplot(gs[r, 4])
+        im_signed(ax, rand_mask)
+
+        # Accuracy curve
+        ax = fig.add_subplot(gs[r, 5])
+        ax.errorbar(alphas, agg["adv_acc_mean"], yerr=agg["adv_acc_std"], fmt="o-", color="C1",
+                    label="Adversarial", linewidth=2, markersize=4, capsize=3)
+        ax.errorbar(alphas, agg["rand_acc_mean"], yerr=agg["rand_acc_std"], fmt="s-", color="C2",
+                    label="Random", linewidth=2, markersize=4, capsize=3)
+        ax.axhline(y=float(agg["adv_acc_mean"][0]), color="C0", linewidth=2, label="Original")
+        ax.set_xlabel("Mask strength α", fontsize=10)
+        ax.set_ylabel("Accuracy", fontsize=10)
+        ax.set_ylim(0, 1.05)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=8, loc="lower left")
+        annotate_point(ax, "Acc", float(agg["adv_acc_mean"][alpha_idx]), float(agg["adv_acc_std"][alpha_idx]))
+
+        # Misclassification curve
+        ax = fig.add_subplot(gs[r, 6])
+        ax.errorbar(alphas, agg["adv_misclass_mean"], yerr=agg["adv_misclass_std"], fmt="o-", color="C1",
+                    label="Adversarial", linewidth=2, markersize=4, capsize=3)
+        ax.errorbar(alphas, agg["rand_misclass_mean"], yerr=agg["rand_misclass_std"], fmt="s-", color="C2",
+                    label="Random", linewidth=2, markersize=4, capsize=3)
+        ax.set_xlabel("Mask strength α", fontsize=10)
+        ax.set_ylabel(f"P(pred={target_class})", fontsize=10)
+        ax.set_ylim(0, 0.5)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=8, loc="upper left")
+        annotate_point(ax, "Mis", float(agg["adv_misclass_mean"][alpha_idx]), float(agg["adv_misclass_std"][alpha_idx]))
+
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "vision_adversarial_figure_7_adversarial.pdf",
+        d.report_figures / "figure_7_adversarial.pdf",
+    )
+    plt.close(fig)
+
+
+def generate_appendix_adversarial_encoders(d: Dirs, device: str = "cpu") -> None:
+    """Appendix: additional adversarial mask examples from existing models only."""
+    from matplotlib.gridspec import GridSpec
+    from src.vision.adversarial import compute_adversarial_mask
+
+    # Conditions (use one seed for visualization)
+    seed = 42
+    conds = [
+        ("No reg", d.phase1_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"),
+        ("Noise std=0.15", d.phase1_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"),
+        ("Noise std=0.3", d.noise_sweep_ckpts / f"mnist_noise_0.3_seed42.pt"),
+    ]
+    # Filter missing
+    conds = [(name, p) for (name, p) in conds if p.exists()]
+    if len(conds) == 0:
+        print("WARNING: No checkpoints found for appendix adversarial encoders; skipping.")
+        return
+
+    digits = [3, 5, 8, 2]  # a few diverse examples
+    top_k = 10
+
+    # Layout: rows=digits, cols=2*conds (eigenvector + mask per condition)
+    fig = plt.figure(figsize=(2.2 * 2 * len(conds) + 1, 2.1 * len(digits) + 1))
+    # Reserve a left margin for row labels ("digit X") so nothing overlaps images.
+    gs = GridSpec(len(digits), 2 * len(conds), figure=fig, wspace=0.15, hspace=0.2, left=0.10, right=0.99)
+
+    def im_signed(ax, v: torch.Tensor) -> None:
+        img = v.detach().cpu().reshape(28, 28).numpy()
+        vmax = float(np.abs(img).max() or 1.0)
+        ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+        ax.axis("off")
+
+    for c_idx, (cname, ckpt_path) in enumerate(conds):
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        vals = ckpt["eigenvalues"]
+        vecs = ckpt["eigenvectors"]
+
+        for r, digit in enumerate(digits):
+            if c_idx == 0:
+                # Row label in figure margin, not on the image.
+                y_pos = 1.0 - (r + 0.5) / len(digits)
+                fig.text(0.02, y_pos, f"digit {digit}", fontsize=10, ha="left", va="center")
+            # Top positive eigenvector for this digit
+            v = vals[digit]
+            pos = torch.where(v > 0)[0]
+            if len(pos) == 0:
+                idx = int(v.abs().argmax().item())
+            else:
+                idx = int(pos[v[pos].argmax()].item())
+
+            eig = vecs[digit, idx]
+            mask = compute_adversarial_mask(vecs[digit], vals[digit], target_rank=0, top_k=top_k, use_positive_only=True)
+
+            ax = fig.add_subplot(gs[r, 2 * c_idx])
+            if r == 0:
+                ax.set_title(f"{cname}\nEigenvector", fontsize=9)
+            im_signed(ax, eig)
+
+            ax = fig.add_subplot(gs[r, 2 * c_idx + 1])
+            if r == 0:
+                ax.set_title(f"{cname}\nMask", fontsize=9)
+            im_signed(ax, mask)
+
+    fig.suptitle("Appendix: adversarial masks (more examples)", fontsize=12, y=1.02)
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_adversarial_encoders.pdf",
+        d.report_figures / "appendix_adversarial_encoders.pdf",
+    )
+    plt.close(fig)
+
+
+def generate_appendix_eigenspectrum_digits(d: Dirs, digit_list: Sequence[int] = (2, 4, 6)) -> None:
+    """Appendix: eigenspectrum panels for digits 2/4/6 (existing checkpoint)."""
+    print("\n=== Vision / Appendix: eigenspectrum digits ===")
+
+    from matplotlib.gridspec import GridSpec
+    from src.vision.spectral import load_checkpoint_eigenvalues
+
+    ckpt_path = d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"
+    if not ckpt_path.exists():
+        raise FileNotFoundError(f"Missing checkpoint for appendix digits: {ckpt_path}")
+
+    eigenvalues, eigenvectors = load_checkpoint_eigenvalues(str(ckpt_path))
+
+    n_vecs = 4
+    n_vals = 20
+
+    for digit in digit_list:
+        vals = eigenvalues[digit].detach().cpu()
+        vecs = eigenvectors[digit].detach().cpu()
+
+        pos_idx = torch.where(vals > 0)[0]
+        neg_idx = torch.where(vals < 0)[0]
+
+        pos_sorted = pos_idx[vals[pos_idx].argsort(descending=True)] if len(pos_idx) else torch.tensor([], dtype=torch.long)
+        neg_sorted = neg_idx[vals[neg_idx].argsort()] if len(neg_idx) else torch.tensor([], dtype=torch.long)
+
+        pos_vals = vals[pos_sorted[:n_vals]].numpy() if len(pos_sorted) else np.array([])
+        neg_vals = vals[neg_sorted[:n_vals]].numpy() if len(neg_sorted) else np.array([])
+
+        fig = plt.figure(figsize=(1.8 * (1 + n_vecs), 3.6))
+        gs = GridSpec(2, 1 + n_vecs, figure=fig, wspace=0.15, hspace=0.15)
+
+        # Positive eigenvalues line + markers
+        ax = fig.add_subplot(gs[0, 0])
+        if len(pos_vals):
+            x = np.arange(1, len(pos_vals) + 1)
+            ax.plot(x, pos_vals, linewidth=2, color=COLORS.get("full", "C0"))
+            ax.scatter(np.arange(1, min(n_vecs, len(pos_vals)) + 1), pos_vals[:n_vecs], s=25, color="black")
+        ax.axhline(0, color="gray", linewidth=0.8)
+        ax.set_title(f"Digit {digit}", fontsize=12)
+        ax.set_xlabel(f"Top {n_vals}", fontsize=9)
+        ax.set_ylabel("λ", fontsize=10)
+        ax.grid(True, alpha=0.3)
+
+        # Negative eigenvalues line + markers
+        ax = fig.add_subplot(gs[1, 0])
+        if len(neg_vals):
+            x = np.arange(1, len(neg_vals) + 1)
+            ax.plot(x, neg_vals, linewidth=2, color=COLORS.get("none", "C3"))
+            ax.scatter(np.arange(1, min(n_vecs, len(neg_vals)) + 1), neg_vals[:n_vecs], s=25, color="black")
+        ax.axhline(0, color="gray", linewidth=0.8)
+        ax.set_xlabel(f"Top {n_vals}", fontsize=9)
+        ax.set_ylabel("λ", fontsize=10)
+        ax.grid(True, alpha=0.3)
+
+        # Eigenvector panels
+        for j in range(n_vecs):
+            axv = fig.add_subplot(gs[0, 1 + j])
+            if len(pos_sorted) > j:
+                idx = int(pos_sorted[j].item())
+                img = vecs[idx].reshape(28, 28).numpy()
+                vmax = float(np.abs(img).max() or 1.0)
+                axv.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            axv.axis("off")
+
+        for j in range(n_vecs):
+            axv = fig.add_subplot(gs[1, 1 + j])
+            if len(neg_sorted) > j:
+                idx = int(neg_sorted[j].item())
+                img = vecs[idx].reshape(28, 28).numpy()
+                vmax = float(np.abs(img).max() or 1.0)
+                axv.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+            axv.axis("off")
+
+        # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+        out_name = f"appendix_mnist_eigenspectrum_digit{digit}.pdf"
+        _save_and_copy(fig, d.figure_out / out_name, d.report_figures / out_name)
+        plt.close(fig)
+
+
+def generate_appendix_sparsity(d: Dirs) -> None:
+    """Appendix: sparsity proxy plots for eigenvalues/eigenvectors (existing checkpoints)."""
+    print("\n=== Vision / Appendix: sparsity ===")
+
+    def approx_l0(x: torch.Tensor) -> float:
+        x = x.abs().flatten()
+        l1 = float(x.sum().item())
+        l2 = float(torch.sqrt((x ** 2).sum()).item())
+        if l2 < 1e-12:
+            return 0.0
+        return (l1 / l2) ** 2
+
+    def eigenvalue_sparsity(vals: torch.Tensor) -> float:
+        # Mean over classes of approximate L0 of |eigenvalues|
+        per = [approx_l0(vals[c].abs()) for c in range(vals.shape[0])]
+        return float(np.mean(per))
+
+    def eigenvector_sparsity(vals: torch.Tensor, vecs: torch.Tensor, top_k: int = 5) -> float:
+        # Mean over classes and top-k eigenvectors (by |eigenvalue|) of approximate L0 of |eigenvector|
+        per = []
+        for c in range(vals.shape[0]):
+            _, idx = torch.topk(vals[c].abs(), k=min(top_k, vals.shape[1]))
+            for j in idx:
+                per.append(approx_l0(vecs[c, int(j)].abs()))
+        return float(np.mean(per))
+
+    # --- Noise sweep (seed42 checkpoints) ---
+    noise_levels = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    noise_eigval, noise_eigvec = [], []
+    noise_found = []
+    for nl in noise_levels:
+        ckpt_path = d.noise_sweep_ckpts / f"mnist_noise_{nl}_seed42.pt"
+        if not ckpt_path.exists():
+            continue
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        vals = ckpt["eigenvalues"]
+        vecs = ckpt["eigenvectors"]
+        noise_found.append(nl)
+        noise_eigval.append(eigenvalue_sparsity(vals))
+        noise_eigvec.append(eigenvector_sparsity(vals, vecs, top_k=5))
+
+    # --- Base configs across seeds (bars with error bars) ---
+    base_cfgs = ["none", "noise", "wd", "full"]
+    seeds = [42, 43, 44, 45, 46]
+
+    base_eigval_mean, base_eigval_std = [], []
+    base_eigvec_mean, base_eigvec_std = [], []
+
+    for cfg in base_cfgs:
+        vals_list, vec_list = [], []
+        for seed in seeds:
+            ckpt_path = d.phase1_mnist_ckpts / f"mnist_dense_{cfg}_seed{seed}.pt"
+            if not ckpt_path.exists():
+                continue
+            ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+            vals_list.append(eigenvalue_sparsity(ckpt["eigenvalues"]))
+            vec_list.append(eigenvector_sparsity(ckpt["eigenvalues"], ckpt["eigenvectors"], top_k=5))
+        base_eigval_mean.append(float(np.mean(vals_list)) if vals_list else np.nan)
+        base_eigval_std.append(float(np.std(vals_list)) if vals_list else np.nan)
+        base_eigvec_mean.append(float(np.mean(vec_list)) if vec_list else np.nan)
+        base_eigvec_std.append(float(np.std(vec_list)) if vec_list else np.nan)
+
+    # Plot eigenvector sparsity
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+    ax = axes[0]
+    if len(noise_found):
+        ax.plot(noise_found, noise_eigvec, "o-", linewidth=2)
+    ax.set_title("Eigenvector sparsity vs input noise")
+    ax.set_xlabel("Noise std")
+    ax.set_ylabel("Approx L0 (pixel count)")
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    x = np.arange(len(base_cfgs))
+    ax.bar(x, base_eigvec_mean, yerr=base_eigvec_std, capsize=3, alpha=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(base_cfgs)
+    ax.set_title("Eigenvector sparsity across configs")
+    ax.set_ylabel("Approx L0 (pixel count)")
+    ax.grid(True, alpha=0.3, axis="y")
+
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_mnist_eigenvec_sparsity.pdf",
+        d.report_figures / "appendix_mnist_eigenvec_sparsity.pdf",
+    )
+    plt.close(fig)
+
+    # Plot eigenvalue sparsity
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+    ax = axes[0]
+    if len(noise_found):
+        ax.plot(noise_found, noise_eigval, "o-", linewidth=2)
+    ax.set_title("Eigenvalue sparsity vs input noise")
+    ax.set_xlabel("Noise std")
+    ax.set_ylabel("Approx L0 (effective rank proxy)")
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    x = np.arange(len(base_cfgs))
+    ax.bar(x, base_eigval_mean, yerr=base_eigval_std, capsize=3, alpha=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(base_cfgs)
+    ax.set_title("Eigenvalue sparsity across configs")
+    ax.set_ylabel("Approx L0 (effective rank proxy)")
+    ax.grid(True, alpha=0.3, axis="y")
+
+    # Avoid tight_layout warnings; saved with bbox_inches='tight'.
+    _save_and_copy(
+        fig,
+        d.figure_out / "appendix_mnist_eigenval_sparsity.pdf",
+        d.report_figures / "appendix_mnist_eigenval_sparsity.pdf",
+    )
+    plt.close(fig)
+
+
+def generate_paper_hub(d: Dirs) -> None:
+    """Generate results/interactive/paper_hub.html (sections, not figure numbers)."""
+    print("\n=== Vision / Hub: paper_hub.html ===")
+
+    out_dir = PROJECT_ROOT / "results/interactive"
+    _ensure_dir(out_dir)
+    bundle_dir = out_dir / "paper_hub_bundle"
+    figures_dir = bundle_dir / "figures"
+    assets_dir = bundle_dir / "assets"
+    _ensure_dir(figures_dir)
+    _ensure_dir(assets_dir)
+
+    out_path = bundle_dir / "paper_hub.html"
+    zip_path = out_dir / "paper_hub_bundle.zip"
+
+    def fig_src_path(name: str) -> Optional[Path]:
+        p = d.report_figures / name
+        return p if p.exists() else None
+
+    def fig_rel_path(name: str) -> str:
+        # Files are copied into bundle_dir/figures/<name>
+        return f"figures/{name}"
+
+    sections: Dict[str, List[Dict[str, str]]] = {
+        "Vision / Regularization": [
+            {"label": "Eigenspectrum comparison", "path": fig_rel_path("eigenspectrum_comparison.pdf")},
+            {"label": "Eigenvalue decay", "path": fig_rel_path("eigenvalue_decay.pdf")},
+            {"label": "Eigenvectors (no reg)", "path": fig_rel_path("eigenvectors_noreg.pdf")},
+            {"label": "Update: Eigenvectors (noise only, σ=0.5)", "path": fig_rel_path("eigenvectors_noise.pdf")},
+            {"label": "Eigenvectors (full reg)", "path": fig_rel_path("eigenvectors_reg.pdf")},
+            {"label": "Update: Fashion eigenvectors (noise only, σ=0.5)", "path": fig_rel_path("fashion_eigenvectors_noise.pdf")},
+            {"label": "Ablation (MNIST)", "path": fig_rel_path("mnist_ablation.pdf")},
+            {"label": "Tradeoff (MNIST)", "path": fig_rel_path("accuracy_vs_effrank_mnist.pdf")},
+        ],
+        "Vision / Truncation & similarity": [
+            {"label": "Figure 5a: similarity", "path": fig_rel_path("figure_5a_similarity.pdf")},
+            {"label": "Figure 5b: truncation", "path": fig_rel_path("figure_5b_truncation.pdf")},
+        ],
+        "Vision / Challenge task": [
+            {"label": "Figure 6: challenge", "path": fig_rel_path("figure_6_challenge.pdf")},
+            {"label": "Update: Challenge decay by regularization (none/noise/wd/full)", "path": fig_rel_path("figure_6_challenge_eigenvalue_decay_by_reg.pdf")},
+            {"label": "Figure 6 (no reg)", "path": fig_rel_path("figure_6_challenge_none.pdf")},
+            {"label": "Figure 6 (noise only σ=0.5)", "path": fig_rel_path("figure_6_challenge_noise.pdf")},
+            {"label": "Figure 6 (weight decay only λ=1.0)", "path": fig_rel_path("figure_6_challenge_wd.pdf")},
+            {"label": "Figure 6 (full reg σ=0.5, λ=1.0)", "path": fig_rel_path("figure_6_challenge_full.pdf")},
+        ],
+        "Vision / Adversarial masks": [
+            {"label": "Figure 7: adversarial masks", "path": fig_rel_path("figure_7_adversarial.pdf")},
+        ],
+        "Vision / Appendix": [
+            {"label": "Appendix: eigenspectrum digit 2", "path": fig_rel_path("appendix_mnist_eigenspectrum_digit2.pdf")},
+            {"label": "Appendix: eigenspectrum digit 4", "path": fig_rel_path("appendix_mnist_eigenspectrum_digit4.pdf")},
+            {"label": "Appendix: eigenspectrum digit 6", "path": fig_rel_path("appendix_mnist_eigenspectrum_digit6.pdf")},
+            {"label": "Appendix: truncation acc drop", "path": fig_rel_path("appendix_mnist_acc_drop.pdf")},
+            {"label": "Appendix: inter-size similarity (ref=300, top-1)", "path": fig_rel_path("appendix_mnist_inter_similarity.pdf")},
+            {"label": "Appendix: inter-size similarity matrix", "path": fig_rel_path("appendix_mnist_inter_size_similarity.pdf")},
+            {"label": "Appendix: eigenvector sparsity", "path": fig_rel_path("appendix_mnist_eigenvec_sparsity.pdf")},
+            {"label": "Appendix: eigenvalue sparsity", "path": fig_rel_path("appendix_mnist_eigenval_sparsity.pdf")},
+            {"label": "Appendix: adversarial masks (more examples)", "path": fig_rel_path("appendix_adversarial_encoders.pdf")},
+        ],
+    }
+
+    # Copy PDFs into bundle figures/.
+    # Keep nav entries even if missing (render disabled buttons) so the hub reflects
+    # the full intended structure and makes it obvious what's missing.
+    import shutil
+
+    for sec in list(sections.keys()):
+        kept = []
+        for it in sections[sec]:
+            name = Path(it["path"]).name
+            src = fig_src_path(name)
+            if not src:
+                it2 = dict(it)
+                it2["missing"] = "1"
+                kept.append(it2)
+                continue
+            dst = figures_dir / name
+            shutil.copy(src, dst)
+            it2 = dict(it)
+            it2["missing"] = "0"
+            kept.append(it2)
+        sections[sec] = kept
+
+    # Plotly widget: eigenspectrum-with-signs (digit selector)
+    plotly_block = "<div><em>Plotly not available.</em></div>"
+    plotly_js = ""
+    try:
+        from src.plot_utils.explanation import plot_eigenspectrum_with_signs
+        from src.vision.spectral import load_checkpoint_eigenvalues
+        import plotly
+
+        ckpt = d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"
+        if ckpt.exists():
+            vals, vecs = load_checkpoint_eigenvalues(str(ckpt))
+            digit_divs = []
+            for digit in range(vals.shape[0]):
+                fig = plot_eigenspectrum_with_signs(vals, vecs, digit=digit, n_eigenvectors=4, n_eigenvalues=20)
+                html = fig.to_html(full_html=False, include_plotlyjs=False)
+                digit_divs.append(f'<div class="plotlyDigit" data-digit="{digit}" style="display:none">{html}</div>')
+
+            # Self-contained bundle: ship plotly.js locally.
+            from plotly.offline import get_plotlyjs
+
+            plotly_js_path = assets_dir / "plotly.min.js"
+            plotly_js_path.write_text(get_plotlyjs(), encoding="utf-8")
+            plotly_js = '<script src="assets/plotly.min.js"></script>'
+            plotly_block = f"""
+            <div class="card">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div style="font-weight:600;">Interactive: Eigenspectrum (with signs)</div>
+                <label>Digit:
+                  <select id="digitSelect">
+                    {''.join([f'<option value=\"{i}\">{i}</option>' for i in range(10)])}
+                  </select>
+                </label>
+              </div>
+              <div id="plotlyContainer">
+                {''.join(digit_divs)}
+              </div>
+            </div>
+            """
+    except Exception:
+        pass
+
+    # Build nav HTML
+    nav_parts = []
+    first_path = ""
+    for sec, items in sections.items():
+        if not items:
+            continue
+        nav_parts.append(f'<div class="navSection">{sec}</div>')
+        for it in items:
+            if not first_path:
+                first_path = it["path"]
+            is_missing = it.get("missing") == "1"
+            disabled = "disabled" if is_missing else ""
+            label = it["label"] + (" (missing)" if is_missing else "")
+            onclick = "" if is_missing else f"onclick=\"loadPdf({it['path']!r}, {it['label']!r})\""
+            nav_parts.append(f'<button class="navItem" {onclick} {disabled}>{label}</button>')
+
+    html = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>FACT-AI Paper Hub (Vision)</title>
+  {plotly_js}
+  <style>
+    body {{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; margin: 0; }}
+    .layout {{ display: grid; grid-template-columns: 320px 1fr; height: 100vh; }}
+    .sidebar {{ border-right: 1px solid #e5e7eb; padding: 14px; overflow:auto; }}
+    .content {{ padding: 14px; overflow:hidden; display:flex; flex-direction:column; gap:12px; }}
+    .title {{ font-size: 16px; font-weight: 700; margin-bottom: 10px; }}
+    .navSection {{ margin-top: 14px; font-size: 12px; font-weight: 700; color: #374151; }}
+    .navItem {{ width: 100%; text-align:left; padding: 8px 10px; margin-top: 6px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; cursor: pointer; }}
+    .navItem:hover {{ background: #f9fafb; }}
+    .navItem:disabled {{ opacity: 0.55; cursor: not-allowed; background: #f9fafb; }}
+    .card {{ border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-top: 12px; background: #fff; }}
+    .pdfCard {{ flex: 1; min-height: 0; margin-top: 0; display:flex; flex-direction:column; gap:8px; }}
+    iframe {{ width: 100%; flex: 1; min-height: 0; border: 1px solid #e5e7eb; border-radius: 12px; }}
+    .muted {{ color: #6b7280; font-size: 12px; }}
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="title">Paper Hub (Vision)</div>
+      <div class="muted">Organized by paper sections/keywords</div>
+      <div class="muted">Build: {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+      {''.join(nav_parts)}
+    </div>
+    <div class="content">
+      <div class="card pdfCard">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div id="pdfTitle" style="font-weight:700;">Figure</div>
+          <div class="muted" id="pdfPath"></div>
+        </div>
+        <iframe id="pdfFrame" src=""></iframe>
+      </div>
+      {plotly_block}
+    </div>
+  </div>
+
+  <script>
+    function loadPdf(path, title) {{
+      const frame = document.getElementById('pdfFrame');
+      const t = document.getElementById('pdfTitle');
+      const p = document.getElementById('pdfPath');
+      t.textContent = title;
+      p.textContent = path;
+      frame.src = path;
+    }}
+
+    // init iframe
+    const initial = {first_path!r};
+    if (initial) {{
+      loadPdf(initial, "Overview");
+    }}
+
+    // plotly digit selector
+    function showDigit(d) {{
+      const nodes = document.querySelectorAll('.plotlyDigit');
+      nodes.forEach(n => {{
+        n.style.display = (n.dataset.digit === d) ? 'block' : 'none';
+      }});
+    }}
+    const sel = document.getElementById('digitSelect');
+    if (sel) {{
+      sel.addEventListener('change', (e) => showDigit(e.target.value));
+      sel.value = '0';
+      showDigit('0');
+    }}
+  </script>
+</body>
+</html>
+"""
+
+    out_path.write_text(html, encoding="utf-8")
+    print(f"Saved: {out_path}")
+
+    # Write a stable entrypoint alongside the bundle dir to avoid confusion about which hub to open.
+    # This file is small and just redirects to the bundle.
+    stable_path = out_dir / "paper_hub.html"
+    stable_html = """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta http-equiv="refresh" content="0; url=paper_hub_bundle/paper_hub.html"/>
+  <title>Paper Hub (redirect)</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; padding: 18px; }
+  </style>
+</head>
+<body>
+  <div>Redirecting to <code>paper_hub_bundle/paper_hub.html</code>…</div>
+  <div>If you are not redirected, open: <code>paper_hub_bundle/paper_hub.html</code></div>
+</body>
+</html>
+"""
+    stable_path.write_text(stable_html, encoding="utf-8")
+    print(f"Saved: {stable_path}")
+
+    # Zip up the bundle for sharing (self-contained).
+    import zipfile
+
+    if zip_path.exists():
+        zip_path.unlink()
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for p in bundle_dir.rglob("*"):
+            if p.is_file():
+                zf.write(p, arcname=str(p.relative_to(bundle_dir)))
+    print(f"Saved: {zip_path}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Unified vision analysis")
+    parser.add_argument(
+        "--sections",
+        type=str,
+        nargs="+",
+        default=["regularization", "truncation_similarity", "challenge", "adversarial", "appendix", "hub"],
+        help="Sections to generate: regularization truncation_similarity challenge adversarial appendix hub",
+    )
+    parser.add_argument("--device", type=str, default=None, help="cpu|mps|cuda (default: auto)")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--target-class", type=int, default=3)
+    args = parser.parse_args()
+
+    # For analysis/plotting we default to CPU for stability/reproducibility.
+    # If you want acceleration, pass --device mps or --device cuda explicitly.
+    if args.device:
+        device = args.device
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
+    set_publication_style()
+    d = get_dirs()
+
+    sections = set(args.sections)
+
+    if "regularization" in sections:
+        generate_regularization_section(d)
+    if "truncation_similarity" in sections:
+        generate_truncation_similarity_section(d)
+    if "challenge" in sections:
+        generate_challenge_section(d, device=device, seed=args.seed)
+        # Optional: if the user has already trained challenge variants (in a separate training script),
+        # we can plot the eigenvalue decay comparison.
+        variants_spec = {
+            "none (σ=0.0, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_none_seed{args.seed}.pt",
+            "noise (σ=0.5, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_noise_seed{args.seed}.pt",
+            "wd (σ=0.0, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_wd_seed{args.seed}.pt",
+            "full (σ=0.5, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_full_seed{args.seed}.pt",
+        }
+        variants = {}
+        for name, path in variants_spec.items():
+            if path.exists():
+                variants[name] = torch.load(path, map_location="cpu", weights_only=False)
+        if len(variants) >= 2:
+            plot_challenge_decay_panels(
+                variants=variants,
+                out_path=d.figure_out / "vision_challenge_eigenvalue_decay_by_reg.pdf",
+                report_path=d.report_figures / "figure_6_challenge_eigenvalue_decay_by_reg.pdf",
+            )
+    if "adversarial" in sections:
+        generate_adversarial_section(d, device=device, target_class=args.target_class)
+    if "appendix" in sections:
+        generate_appendix_eigenspectrum_digits(d)
+        generate_appendix_sparsity(d)
+        generate_appendix_adversarial_encoders(d, device=device)
+    if "hub" in sections:
+        print("\n=== Hub ===")
+        print("PaperHub is now generated by: python scripts/figures/paper_hub.py")
+        print("Skipping hub generation inside vision_analysis for separation of concerns.")
+
+    print("\nDone.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

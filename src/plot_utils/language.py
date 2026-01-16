@@ -77,26 +77,40 @@ def load_correlation_results(results_dir: Union[str, Path]) -> Dict[str, dict]:
 def plot_correlation_progression(
     results_dict: Dict[str, dict],
     ax: Optional[plt.Axes] = None,
-    title: str = "Correlation vs Rank",
-    show_paper_threshold: bool = True,
+    title: str = "Feature activation approximation",
+    show_paper_threshold: bool = False,
+    figsize: Tuple[float, float] = (6, 5),
+    y_min: float = 0.0,
 ) -> plt.Figure:
     """
     Plot correlation progression across ranks for multiple models (Figure 9A).
+    
+    Matches the paper's clean style: smooth lines, no markers, zoomed y-axis.
     
     Args:
         results_dict: Dict mapping model name to correlation results
         ax: Optional matplotlib axes (creates new figure if None)
         title: Plot title
         show_paper_threshold: Whether to show 0.75 reference line
+        figsize: Figure size
+        y_min: Minimum y-axis value (paper uses ~0.6 to zoom in)
         
     Returns:
         matplotlib Figure
     """
     if ax is None:
         set_publication_style()
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
+    
+    # Paper-style colors (clean, distinct)
+    paper_colors = {
+        'ts-medium': '#2ca02c',  # Green (ts-tiny in paper)
+        'ts-tiny': '#2ca02c',    # Green
+        'fw-small': '#d62728',   # Red
+        'fw-medium': '#1f77b4',  # Blue
+    }
     
     for model, data in results_dict.items():
         if "summary" not in data or "correlation_by_rank" not in data["summary"]:
@@ -106,50 +120,50 @@ def plot_correlation_progression(
         
         ranks = []
         means = []
-        stds = []
         
         for rank_str, stats in sorted(corr_by_rank.items(), key=lambda x: int(x[0])):
             ranks.append(int(rank_str))
             means.append(stats["mean"])
-            stds.append(stats["std"])
         
         ranks = np.array(ranks)
         means = np.array(means)
-        stds = np.array(stds)
         
-        color = MODEL_COLORS.get(model, "#333333")
+        color = paper_colors.get(model, "#333333")
         label = MODEL_LABELS.get(model, model)
-        marker = MODEL_MARKERS.get(model, "o")
         
-        ax.errorbar(
-            ranks, means, yerr=stds,
-            fmt=f"{marker}-",
+        # Paper style: smooth lines, no markers
+        ax.plot(
+            ranks, means,
             label=label,
             color=color,
-            capsize=3,
-            capthick=1.5,
-            linewidth=2,
-            markersize=7,
+            linewidth=2.5,
         )
     
     if show_paper_threshold:
-        ax.axhline(y=0.75, color="#888888", linestyle="--", linewidth=1, 
+        ax.axhline(y=0.75, color="#888888", linestyle="--", linewidth=1.5, 
                    label="Paper threshold (0.75)", alpha=0.7)
     
-    ax.set_xlabel("Rank (k)")
-    ax.set_ylabel("Pearson Correlation")
-    ax.set_title(title)
-    ax.set_ylim(0, 1)
-    ax.legend(loc="lower right")
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel("Top eigenvectors", fontsize=11)
+    ax.set_ylabel("Correlation", fontsize=11)
+    ax.set_title(title, fontsize=12)
     
-    # Set x-ticks to actual rank values
+    # Zoom in like the paper (y-axis from y_min to 1.0)
+    ax.set_ylim(y_min, 1.0)
+    
+    # Clean x-ticks (every 10 or so, not every single value)
     all_ranks = set()
     for data in results_dict.values():
         if "summary" in data and "correlation_by_rank" in data["summary"]:
             all_ranks.update(int(r) for r in data["summary"]["correlation_by_rank"].keys())
     if all_ranks:
-        ax.set_xticks(sorted(all_ranks))
+        max_rank = max(all_ranks)
+        # Show ticks at 0, 10, 20, 30... or similar
+        tick_step = 10 if max_rank > 20 else 5
+        ax.set_xticks([0] + list(range(tick_step, max_rank + 1, tick_step)))
+        ax.set_xlim(0, max_rank)
+    
+    ax.legend(loc="lower right", fontsize=10, framealpha=0.95)
+    ax.grid(True, alpha=0.2)
     
     plt.tight_layout()
     return fig
@@ -160,11 +174,14 @@ def plot_correlation_histogram(
     rank: int = 2,
     ax: Optional[plt.Axes] = None,
     title: Optional[str] = None,
-    bins: int = 20,
+    bins: int = 30,
     show_paper_threshold: bool = True,
+    figsize: Tuple[float, float] = (7, 5),
 ) -> plt.Figure:
     """
     Plot histogram of correlations at a specific rank for multiple models (Figure 9B).
+    
+    Uses step histogram for better readability when comparing multiple distributions.
     
     Args:
         results_dict: Dict mapping model name to correlation results
@@ -173,18 +190,27 @@ def plot_correlation_histogram(
         title: Plot title (auto-generated if None)
         bins: Number of histogram bins
         show_paper_threshold: Whether to show 0.75 reference line
+        figsize: Figure size
         
     Returns:
         matplotlib Figure
     """
     if ax is None:
         set_publication_style()
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.figure
     
     if title is None:
         title = f"Rank-{rank} Correlation Distribution"
+    
+    # Line styles for visual distinction
+    line_styles = {
+        'ts-medium': '-',
+        'ts-tiny': '-',
+        'fw-small': '--',
+        'fw-medium': '-.',
+    }
     
     for model, data in results_dict.items():
         if "per_feature" not in data:
@@ -202,27 +228,28 @@ def plot_correlation_histogram(
         
         color = MODEL_COLORS.get(model, "#333333")
         label = MODEL_LABELS.get(model, model)
+        linestyle = line_styles.get(model, '-')
         
-        ax.hist(
-            correlations,
-            bins=bins,
-            alpha=0.6,
-            label=f"{label} (n={len(correlations)})",
-            color=color,
-            edgecolor="white",
-            linewidth=0.5,
-        )
+        # Compute statistics
+        mean_corr = np.mean(correlations)
+        pct_above = np.mean(np.array(correlations) > 0.75) * 100
+        
+        # Use step histogram for cleaner visualization
+        counts, bin_edges = np.histogram(correlations, bins=bins, range=(-0.5, 1.0))
+        ax.stairs(counts, bin_edges, color=color, linewidth=2.5,
+                  linestyle=linestyle,
+                  label=f"{label} (n={len(correlations)}, mean={mean_corr:.2f}, {pct_above:.0f}%>0.75)")
     
     if show_paper_threshold:
-        ax.axvline(x=0.75, color="#d62728", linestyle="--", linewidth=2,
-                   label="Threshold (0.75)")
+        ax.axvline(x=0.75, color="#d62728", linestyle="--", linewidth=2.5,
+                   label="Paper threshold (0.75)")
     
-    ax.set_xlabel(f"Rank-{rank} Correlation")
-    ax.set_ylabel("Count")
-    ax.set_title(title)
+    ax.set_xlabel(f"Rank-{rank} Correlation", fontsize=11)
+    ax.set_ylabel("Number of Features", fontsize=11)
+    ax.set_title(title, fontsize=12)
     ax.set_xlim(-0.5, 1.0)
-    ax.legend(loc="upper left")
-    ax.grid(True, alpha=0.3, axis="y")
+    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
     return fig
@@ -951,3 +978,264 @@ def load_figure_8_data(json_path: Union[str, Path]) -> dict:
     """
     with open(json_path) as f:
         return json.load(f)
+
+
+# =============================================================================
+# Figure 10: SAE Training Time Effect
+# =============================================================================
+
+# Colors for SAE versions (gradient from light to dark)
+SAE_VERSION_COLORS = {
+    'v0': '#c6dbef',  # Light blue - under-trained
+    'v1': '#9ecae1',
+    'v2': '#6baed6',
+    'v3': '#3182bd',
+    'v4': '#08519c',  # Dark blue - well-trained
+}
+
+SAE_VERSION_LABELS = {
+    'v0': 'v0 (1× training)',
+    'v1': 'v1 (2× training)',
+    'v2': 'v2 (4× training)',
+    'v3': 'v3 (8× training)',
+    'v4': 'v4 (16× training)',
+}
+
+
+def load_sae_training_results(json_path: Union[str, Path]) -> dict:
+    """
+    Load SAE training time comparison results.
+    
+    Args:
+        json_path: Path to sae_training_time_comparison.json
+    
+    Returns:
+        Dict with metadata and per-version results
+    """
+    with open(json_path) as f:
+        return json.load(f)
+
+
+def plot_sae_training_effect(
+    results: dict,
+    ax: Optional[plt.Axes] = None,
+    title: str = "Correlation vs SAE Training Time",
+    show_paper_threshold: bool = True,
+    figsize: Tuple[float, float] = (7, 5),
+) -> plt.Figure:
+    """
+    Plot Figure 10A: Correlation vs rank for different SAE training durations.
+    
+    Shows how correlation improves with longer SAE training times (v0 -> v4).
+    
+    Args:
+        results: Dict from sae_training_time_comparison.json
+        ax: Optional matplotlib axes
+        title: Plot title
+        show_paper_threshold: Whether to show 0.75 reference line
+        figsize: Figure size
+    
+    Returns:
+        matplotlib Figure
+    """
+    if ax is None:
+        set_publication_style()
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+    
+    versions_data = results.get('versions', {})
+    
+    # Line styles for clarity (no overlapping bands)
+    line_styles = {
+        'v0': {'linestyle': '-', 'marker': 'o'},
+        'v1': {'linestyle': '--', 'marker': 's'},
+        'v2': {'linestyle': '-.', 'marker': '^'},
+        'v3': {'linestyle': ':', 'marker': 'D'},
+        'v4': {'linestyle': '-', 'marker': 'v'},
+    }
+    
+    for version in ['v0', 'v1', 'v2', 'v3', 'v4']:
+        if version not in versions_data:
+            continue
+        
+        v_data = versions_data[version]
+        summary = v_data.get('summary', {})
+        
+        ranks = []
+        means = []
+        
+        # Extract data for each rank
+        for key, stats in sorted(summary.items()):
+            if key.startswith('rank_'):
+                rank = int(key.replace('rank_', ''))
+                ranks.append(rank)
+                means.append(stats['mean'])
+        
+        if not ranks:
+            continue
+        
+        ranks = np.array(ranks)
+        means = np.array(means)
+        
+        color = SAE_VERSION_COLORS.get(version, '#333333')
+        label = SAE_VERSION_LABELS.get(version, version)
+        style = line_styles.get(version, {})
+        
+        # Plot clean lines without error bands for readability
+        ax.plot(ranks, means, color=color, label=label, 
+                linewidth=2.5, markersize=8, **style)
+    
+    if show_paper_threshold:
+        ax.axhline(y=0.75, color='#d62728', linestyle='--', linewidth=2,
+                   label='Paper threshold (0.75)', alpha=0.8)
+    
+    ax.set_xlabel('Approximation Rank (k)', fontsize=11)
+    ax.set_ylabel('Mean Pearson Correlation', fontsize=11)
+    ax.set_title(title, fontsize=12)
+    ax.set_ylim(0, 1)
+    ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+    
+    # Set x-ticks
+    all_ranks = set()
+    for v_data in versions_data.values():
+        summary = v_data.get('summary', {})
+        for key in summary.keys():
+            if key.startswith('rank_'):
+                all_ranks.add(int(key.replace('rank_', '')))
+    if all_ranks:
+        ax.set_xticks(sorted(all_ranks))
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_sae_training_histogram(
+    results: dict,
+    rank: int = 2,
+    versions: List[str] = ['v0', 'v4'],
+    ax: Optional[plt.Axes] = None,
+    title: Optional[str] = None,
+    bins: int = 30,
+    show_paper_threshold: bool = True,
+    figsize: Tuple[float, float] = (7, 5),
+) -> plt.Figure:
+    """
+    Plot Figure 10B: Histogram of correlations at specified rank for selected SAE versions.
+    
+    Shows the bimodal → unimodal distribution shift with training time.
+    Uses step histograms for better readability when comparing versions.
+    
+    Args:
+        results: Dict from sae_training_time_comparison.json
+        rank: Rank to plot histogram for
+        versions: Which SAE versions to show (default: v0 and v4 for contrast)
+        ax: Optional matplotlib axes
+        title: Plot title
+        bins: Number of histogram bins
+        show_paper_threshold: Whether to show 0.75 reference line
+        figsize: Figure size
+    
+    Returns:
+        matplotlib Figure
+    """
+    if ax is None:
+        set_publication_style()
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.figure
+    
+    if title is None:
+        title = f'Rank-{rank} Correlation Distribution by Training Time'
+    
+    versions_data = results.get('versions', {})
+    
+    # Use step histogram style for cleaner comparison
+    line_styles = {'v0': '-', 'v1': '--', 'v2': '-.', 'v3': ':', 'v4': '-'}
+    
+    for version in versions:
+        if version not in versions_data:
+            continue
+        
+        v_data = versions_data[version]
+        per_feature = v_data.get('per_feature', [])
+        
+        # Extract correlations at specified rank
+        correlations = []
+        rank_key = f'rank_{rank}'
+        for feat in per_feature:
+            if rank_key in feat:
+                correlations.append(feat[rank_key])
+        
+        if not correlations:
+            continue
+        
+        correlations = np.array(correlations)
+        color = SAE_VERSION_COLORS.get(version, '#333333')
+        label = SAE_VERSION_LABELS.get(version, version)
+        
+        # Compute statistics
+        mean_corr = np.mean(correlations)
+        pct_above = np.mean(correlations > 0.75) * 100
+        n_features = len(correlations)
+        
+        # Use step histogram for clearer visualization
+        counts, bin_edges = np.histogram(correlations, bins=bins, range=(-0.5, 1.0))
+        ax.stairs(counts, bin_edges, color=color, linewidth=2.5,
+                  linestyle=line_styles.get(version, '-'),
+                  label=f'{label} (n={n_features}, mean={mean_corr:.2f}, {pct_above:.0f}%>0.75)')
+    
+    if show_paper_threshold:
+        ax.axvline(x=0.75, color='#d62728', linestyle='--', linewidth=2.5,
+                   label='Paper threshold (0.75)')
+    
+    ax.set_xlabel(f'Rank-{rank} Correlation', fontsize=11)
+    ax.set_ylabel('Number of Features', fontsize=11)
+    ax.set_title(title, fontsize=12)
+    ax.set_xlim(-0.5, 1.0)
+    ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_figure_10_composite(
+    results: dict,
+    figsize: Tuple[float, float] = (12, 5),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Generate complete Figure 10 with both panels.
+    
+    Args:
+        results: Dict from sae_training_time_comparison.json
+        figsize: Figure size
+        save_path: Optional path to save the figure
+    
+    Returns:
+        matplotlib Figure
+    """
+    set_publication_style()
+    
+    fig, axes = plt.subplots(1, 2, figsize=figsize)
+    
+    # Panel A: Correlation vs Rank (all versions)
+    plot_sae_training_effect(results, ax=axes[0], 
+                             title='A) Correlation vs Approximation Rank')
+    
+    # Panel B: Histogram (v0 vs v4)
+    plot_sae_training_histogram(results, rank=2, versions=['v0', 'v4'],
+                                ax=axes[1], title='B) Rank-2 Correlation Distribution')
+    
+    fig.suptitle('Effect of SAE Training Time on Correlation Quality', 
+                 fontsize=12, fontweight='bold', y=1.02)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        print(f'Figure 10 saved to: {save_path}')
+    
+    return fig

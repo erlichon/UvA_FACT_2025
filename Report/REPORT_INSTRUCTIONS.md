@@ -10,7 +10,7 @@
 
 **After Experiments Complete:**
 1. Download checkpoints from `results/` directories
-2. Use `src/analysis/spectral.py` to extract eigenspectrum data
+2. Use `src/vision/spectral.py` to extract eigenspectrum data
 3. Generate figures and save to `Report/figures/`
 4. Uncomment figure/table blocks in LaTeX sections
 5. Fill in actual values from wandb/checkpoints
@@ -60,7 +60,7 @@ The report uses the TMLR format but MUST address specific FACT-AI course require
 
 ### When generating a figure in code:
 ```python
-# In src/analysis/visualization.py or notebook
+# In src/vision/visualization.py or notebook
 fig.savefig('../Report/figures/eigenspectrum_comparison.pdf', bbox_inches='tight')
 ```
 
@@ -147,7 +147,7 @@ After overnight experiments complete, use these scripts to generate figures:
 # Load checkpoints and analyze
 from pathlib import Path
 import torch
-from src.analysis.spectral import load_checkpoint_eigenvalues, spectral_summary, effective_rank
+from src.vision.spectral import load_checkpoint_eigenvalues, spectral_summary, effective_rank
 import matplotlib.pyplot as plt
 
 # 1. Eigenspectrum comparison

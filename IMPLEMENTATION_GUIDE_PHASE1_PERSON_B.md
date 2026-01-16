@@ -20,12 +20,12 @@
 **What Person A Delivered**:
 - `src/train.py` - Training script with wandb + codecarbon
 - `src/models/bilinear_layer.py` - BilinearDense (wrapper), BilinearCP (extension)
-- `src/analysis/spectral.py` - effective_rank, top_k_coverage, spectral_summary
+- `src/vision/spectral.py` - effective_rank, top_k_coverage, spectral_summary
 - `configs/mnist_dense_*.yaml` - 4 ablation configs (none, noise, wd, full)
 - `jobs/train_array.job` - SLURM job for 20 runs (4 configs x 5 seeds)
 
 **What You Need to Create**:
-- `src/analysis/visualization.py` - Plotting functions
+- `src/vision/visualization.py` - Plotting functions
 - `notebooks/01_reproduction.ipynb` - Analysis notebook
 - `docs/paper_baselines.md` - Expected values from paper
 - Generated figures in `results/phase1/figures/`
@@ -124,12 +124,12 @@ UvA_FACT_2025/
 
 ## 4. File Specifications
 
-### 4.1 `src/analysis/spectral.py` [ALREADY IMPLEMENTED BY PERSON A]
+### 4.1 `src/vision/spectral.py` [ALREADY IMPLEMENTED BY PERSON A]
 
 Person A has already implemented these functions. You can use them directly:
 
 ```python
-from src.analysis.spectral import (
+from src.vision.spectral import (
     effective_rank,           # Entropy-based effective rank (Roy & Bhattacharyya 2007)
     top_k_coverage,           # Fraction of variance in top-k eigenvalues
     eigenvalue_decay_rate,    # Ratio of 2nd to 1st eigenvalue (lower = faster decay)
@@ -163,7 +163,7 @@ checkpoint = {
 
 ---
 
-### 4.2 `src/analysis/visualization.py`
+### 4.2 `src/vision/visualization.py`
 
 **Purpose**: Publication-quality plotting functions.
 
@@ -453,7 +453,7 @@ Note: Paper prioritizes interpretability over accuracy.
 
 ### Day 2: Visualization Implementation
 ```
-1. Implement src/analysis/visualization.py
+1. Implement src/vision/visualization.py
    - plot_eigenspectrum_comparison() - Figure 3
    - plot_eigenvectors_grid() - Figure 4
    - plot_accuracy_vs_effective_rank()
@@ -501,7 +501,7 @@ Note: Paper prioritizes interpretability over accuracy.
 ```python
 import torch
 from pathlib import Path
-from src.analysis.spectral import load_checkpoint_eigenvalues, spectral_summary
+from src.vision.spectral import load_checkpoint_eigenvalues, spectral_summary
 
 # Load a single checkpoint
 vals, vecs = load_checkpoint_eigenvalues('results/phase1/checkpoints/mnist_dense_full_seed42.pt')
@@ -640,13 +640,13 @@ Please read the following context files:
 - @IMPLEMENTATION_GUIDE_PHASE1_PERSON_B.md - Detailed analysis specifications
 
 INFRASTRUCTURE STATUS: Person A has COMPLETED the infrastructure:
-- src/analysis/spectral.py exists with effective_rank, top_k_coverage, spectral_summary, load_checkpoint_eigenvalues
+- src/vision/spectral.py exists with effective_rank, top_k_coverage, spectral_summary, load_checkpoint_eigenvalues
 - Checkpoints include pre-computed eigenvalues/eigenvectors
 - Training configs are ready in configs/mnist_dense_*.yaml
 
 My tasks:
 1. Create docs/paper_baselines.md with expected values from paper Section 4
-2. Implement src/analysis/visualization.py with:
+2. Implement src/vision/visualization.py with:
    - plot_eigenspectrum_comparison() - Figure 3 equivalent
    - plot_eigenvectors_grid() - Figure 4 equivalent
    - plot_accuracy_vs_effective_rank()

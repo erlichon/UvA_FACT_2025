@@ -64,6 +64,7 @@ from src.language.verify_correlation import (
     create_validation_dataloader,
     pearson_correlation,
 )
+from src.language.context import LanguageContext
 
 
 @dataclass
@@ -522,58 +523,19 @@ def main():
     
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model
-        model_name = config.get("model", {}).get("pretrained", "tdooms/fw-medium")
-        print(f"\nLoading model: {model_name}")
-        model = Transformer.from_pretrained(model_name, device=device)
+        # Use LanguageContext for unified model/SAE/Tracer loading
+        ctx = LanguageContext(config, device)
+        model = ctx.model
+        layer = ctx.layer
         
-        # SAE configuration
-        sae_config = config.get("sae", {})
-        layer = sae_config.get("layer", 7)
+        # Create Tracer via context
+        tracer = ctx.get_tracer()
         
-        # Get expansion and k - support both flat and nested config formats
-        default_expansion = sae_config.get("expansion", 8)  # Flat format
-        default_k = sae_config.get("k", 30)  # Flat format
-        point_name = sae_config.get("point", "mlp-out")  # Flat format point name
+        # Load output SAE via context
+        sae_out = ctx.get_sae("mlp-out")
         
-        inp_config = sae_config.get("input", {
-            "name": "mlp-in",
-            "expansion": default_expansion,
-            "k": default_k
-        })
-        out_config = sae_config.get("output", {
-            "name": point_name,
-            "expansion": default_expansion,
-            "k": default_k
-        })
-        
-        # Ensure all required keys are set
-        inp_config.setdefault("name", "mlp-in")
-        inp_config.setdefault("expansion", default_expansion)
-        inp_config.setdefault("k", default_k)
-        
-        out_config.setdefault("name", point_name)
-        out_config.setdefault("expansion", default_expansion)
-        out_config.setdefault("k", default_k)
-        
-        # Create Tracer (loads SAEs automatically)
-        print(f"\nCreating Tracer for layer {layer}...")
-        print(f"  Input SAE: {inp_config['name']}, expansion={inp_config['expansion']}, k={inp_config['k']}")
-        print(f"  Output SAE: {out_config['name']}, expansion={out_config['expansion']}, k={out_config['k']}")
-        tracer = Tracer(model, layer, inp=inp_config, out=out_config, device=device)
-        
-        # Load output SAE separately for Panel C
-        repo = f"{model.config.repo}-scope"
-        sae_out = SAE.from_pretrained(
-            repo,
-            point=(out_config["name"], layer),
-            expansion=out_config["expansion"],
-            k=out_config["k"],
-        ).to(device)
-        
-        # Create validation dataloader
-        dataloader = create_validation_dataloader(
-            model.tokenizer, config, device,
+        # Create validation dataloader via context
+        dataloader = ctx.get_dataloader(
             n_samples=args.n_samples,
             batch_size=32,
         )

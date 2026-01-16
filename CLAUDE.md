@@ -26,49 +26,86 @@ conda env create -f environment.yml && conda activate fact
 conda env create -f environment_cpu.yml && conda activate fact_cpu
 ```
 
-### Vision Training (Section 4)
+### Unified Vision Script (Section 4) - PREFERRED
 
 ```bash
-# Local test (CPU/MPS, no wandb, quick)
-python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb --epochs 2
+# Quick MPS test (2 epochs)
+./scripts/train/run_vision.sh test
 
-# Full training with tracking
-python src/train.py --config configs/mnist_dense_full.yaml --seed 42
+# Train base configs (4 configs × 5 seeds for MNIST + Fashion)
+./scripts/train/run_vision.sh train base
+./scripts/train/run_vision.sh train base --quick --no-wandb  # Quick test mode
 
-# Available configs: {mnist,fashion}_dense_{none,noise,wd,full,noise015}.yaml
+# Train noise sweep (Figure 4)
+./scripts/train/run_vision.sh train noise
 
-# Model size sweep for Figure 5 (6 sizes × 5 seeds = 30 runs)
-./scripts/run_model_size_sweep.sh --no-wandb
-# Creates configs/sweeps/mnist_size_{30,50,100,300,500,1000}.yaml
-# Saves to results/sweeps/model_size/checkpoints/
+# Train model size sweep (Figure 5)
+./scripts/train/run_vision.sh train size
 
-# Generate all vision figures (recommended single entrypoint)
-python scripts/vision_analysis.py
+# Train everything
+./scripts/train/run_vision.sh train all
+
+# Generate all figures from checkpoints
+./scripts/train/run_vision.sh figures
+./scripts/train/run_vision.sh figures --section regularization  # Specific section
+
+# Full pipeline (train + figures)
+./scripts/train/run_vision.sh all
 ```
 
-### Language Experiments (Section 5)
+### Unified Language Script (Section 5) - PREFERRED
 
 ```bash
-# Section 5.1: Negation Discovery (fw-medium is the paper's PRIMARY model)
-python src/language/negation_discovery.py --config configs/language_negation_fw.yaml --use-pretrained
-# Expected: features 3834 (not+negative) and 751 (not+positive) with cosine sim < 0
+# Quick MPS test
+./scripts/train/run_language.sh test
 
-# Section 5.2: Correlation Sweep for Figure 9 (all 3 models)
-./scripts/run_language_sweep.sh           # Default: MPS device
-./scripts/run_language_sweep.sh cuda      # Use CUDA
+# Figure 9: Correlation sweep (all 3 models)
+./scripts/train/run_language.sh figure9
+./scripts/train/run_language.sh figure9 --model fw-medium   # Single model
+./scripts/train/run_language.sh figure9 --quick             # Quick mode
 
-# Generate language figures from sweep results
-python scripts/generate_language_figures.py
+# Figure 8: Negation circuit visualization
+./scripts/train/run_language.sh figure8 --device cpu        # CPU recommended for memory
 
-# Single model correlation verification (with CLI overrides)
+# Negation discovery
+./scripts/train/run_language.sh negation
+
+# Interaction analysis
+./scripts/train/run_language.sh interaction
+
+# Generate all language figures (Figure 9 & 10)
+./scripts/train/run_language.sh figures
+
+# Full pipeline (except Figure 8)
+./scripts/train/run_language.sh all
+```
+
+### Full Overnight Pipeline
+
+```bash
+# Run ALL experiments (vision + language)
+./scripts/train/run_overnight_mps.sh
+```
+
+### Figure Generation Only
+
+```bash
+# Vision figures (Figures 1-7)
+python scripts/figures/generate_vision_figures.py
+
+# Language figures (Figure 9 & 10)
+python scripts/figures/generate_language_figures.py
+```
+
+### Legacy Commands (still work, but deprecated)
+
+```bash
+# Vision training (direct Python)
+python src/train.py --config configs/mnist_dense_none.yaml --seed 42 --no-wandb --epochs 2
+
+# Language correlation verification (direct Python)
 python src/language/verify_correlation.py --config configs/language_correlation_fw.yaml \
     --model tdooms/fw-medium --layer 7 --expansion 8 --k 30
-
-# Interaction matrix analysis
-python src/language/interaction_analysis.py --config configs/language_interaction.yaml
-
-# Run ALL experiments overnight (vision + language)
-./scripts/run_overnight_mps.sh
 ```
 
 ### Testing
@@ -78,23 +115,6 @@ python -m pytest tests/ -v                          # Run all tests
 python -m pytest tests/test_bilinear_layer.py -v    # Specific file
 python -m pytest tests/ -v -k "test_effective_rank" # By name
 python -m pytest tests/ --cov=src --cov-report=term-missing  # With coverage
-```
-
-### Analysis & Figures
-
-```bash
-# Vision figures (all, including appendix + hub)
-python scripts/vision_analysis.py
-
-# Or select specific sections:
-python scripts/vision_analysis.py --sections regularization
-python scripts/vision_analysis.py --sections truncation_similarity
-python scripts/vision_analysis.py --sections challenge
-python scripts/vision_analysis.py --sections adversarial appendix hub
-
-# Language figures (Figure 9)
-./scripts/run_language_sweep.sh          # Run correlation sweep first
-python scripts/generate_language_figures.py  # Generate Figure 9A, 9B from results
 ```
 
 ### Snellius HPC
@@ -123,15 +143,25 @@ squeue -u scur0075  # Monitor jobs
 | Module | Purpose |
 |--------|---------|
 | `src/models/bilinear_layer.py` | `BilinearDense` (wraps original), `BilinearCP` (extension) |
-| `src/analysis/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
-| `src/analysis/truncation.py` | `compute_truncation_accuracy()`, `compute_eigenvector_similarity()` (Figure 5) |
-| `src/analysis/adversarial.py` | `compute_adversarial_mask()`, `apply_adversarial_perturbation()` (Figure 7) |
+| `src/vision/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
+| `src/vision/context.py` | `VisionContext` - unified context for vision experiments |
+| `src/vision/truncation.py` | `compute_truncation_accuracy()`, `compute_eigenvector_similarity()` (Figure 5) |
+| `src/vision/adversarial.py` | `compute_adversarial_mask()`, `apply_adversarial_perturbation()` (Figure 7) |
 | `src/data/challenge_dataset.py` | `ChallengeDataset` for similarity classification (Figure 6) |
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
-| `src/plot_utils/language.py` | Figure 9 plots: `plot_correlation_progression()`, `plot_correlation_histogram()`, `plot_correlation_scatters()` |
+| `src/plot_utils/language.py` | Figure 9 & 10 plots: `plot_correlation_progression()`, `plot_correlation_histogram()` |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
+| `src/language/context.py` | `LanguageContext` - unified context for language experiments |
 | `src/language/` | SAE training, negation discovery, interaction analysis, correlation verification |
 | `src/language/verify_correlation.py` | Correlation verification with CLI: `--model`, `--layer`, `--expansion`, `--k` |
+
+### Scripts Organization
+
+| Directory | Purpose |
+|-----------|---------|
+| `scripts/train/` | Training & experiment runners (`run_vision.sh`, `run_language.sh`, `run_overnight_mps.sh`) |
+| `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `paper_hub.py`) |
+| `tools/` | Operational utilities (`sync_to_snellius.sh`, `sync_from_snellius.sh`, `monitor_memory.sh`) |
 
 ### Original Paper Code
 
@@ -159,6 +189,23 @@ Key files used by our wrappers:
 
 ## Critical Notes
 
+### Context Classes (DRY Pattern)
+
+Use context classes to avoid code duplication:
+```python
+# Vision experiments
+from src.vision import VisionContext
+ctx = VisionContext()
+eigenvalues, eigenvectors = ctx.load_checkpoint("path/to/checkpoint.pt")
+ctx.save_figure(fig, "figure_name")
+
+# Language experiments
+from src.language import LanguageContext
+ctx = LanguageContext(model_name="tdooms/fw-medium", layer=7, expansion=8)
+model = ctx.get_model()
+sae = ctx.get_sae(position="mlp-out")
+```
+
 ### MPS Device Bugs
 
 **einsum on MPS produces incorrect results** for certain operations. The interaction analysis code forces CPU for einsum operations:
@@ -175,7 +222,7 @@ Language experiments are slow on MPS (~4-6 hours). Prefer Snellius GPU cluster.
 
 **Use the ratio-based formula** (paper's formula), NOT entropy-based:
 ```python
-# Correct: src/analysis/spectral.py::effective_rank()
+# Correct: src/vision/spectral.py::effective_rank()
 def effective_rank(eigenvalues):
     L1 = eigenvalues.abs().sum(dim=-1)
     L2 = (eigenvalues ** 2).sum(dim=-1).sqrt()
@@ -251,7 +298,7 @@ PROJECT_ROOT = cwd.parent if cwd.name == "notebooks" else cwd
 sys.path.insert(0, str(PROJECT_ROOT))
 ```
 
-Import from modules rather than defining functions inline. Generate final figures via `scripts/generate_figures.py`.
+Import from modules rather than defining functions inline. Generate final figures via `./scripts/train/run_vision.sh figures` or `python scripts/figures/generate_vision_figures.py`.
 
 ## Related Documentation
 

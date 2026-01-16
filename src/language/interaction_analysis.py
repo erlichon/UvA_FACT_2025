@@ -45,6 +45,7 @@ from src.language.interaction_utils import (
     get_interaction_eigenpairs_from_tracer,
     compute_interaction_matrix,
 )
+from src.language.context import LanguageContext
 
 
 def rank_k_variance_explained(Q: torch.Tensor, k: int = 2) -> float:
@@ -235,30 +236,14 @@ def main():
 
     # Run analysis with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
-        # Load model
-        model_name = config.get("model", {}).get("pretrained", "tdooms/ts-medium")
-        print(f"Loading model: {model_name}")
-        model = Transformer.from_pretrained(model_name, device=device)
-
-        # Print model config for debugging
-        print(f"\nModel config:")
-        print(f"  d_model: {model.config.d_model}")
-        print(f"  d_hidden: {model.config.d_hidden}")
-        print(f"  n_layer: {model.config.n_layer}")
-
-        # SAE configuration for Tracer
-        sae_config = config.get("sae", {})
-        layer = sae_config.get("layer", 2)
-        inp_config = sae_config.get("input", {"name": "mlp-in", "expansion": 4, "k": 30})
-        out_config = sae_config.get("output", {"name": "mlp-out", "expansion": 4, "k": 30})
-
-        # Create Tracer using original paper code
-        # Tracer auto-loads pretrained SAEs from {model.config.repo}-scope
-        print(f"\nCreating Tracer for layer {layer}...")
-        print(f"  Input SAE: {inp_config}")
-        print(f"  Output SAE: {out_config}")
-
-        tracer = Tracer(model, layer, out=out_config, inp=inp_config, device=device)
+        # Use LanguageContext for unified model/Tracer loading
+        ctx = LanguageContext(config, device)
+        model = ctx.model
+        model_name = ctx.model_name
+        layer = ctx.layer
+        
+        # Create Tracer via context
+        tracer = ctx.get_tracer()
 
         # Print tracer info for debugging
         print(f"\nTracer info:")

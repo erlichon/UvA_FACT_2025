@@ -24,7 +24,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 
 ### Dependencies
 - Person A's infrastructure: `src/models/bilinear_layer.py` (has skeleton)
-- Analysis utilities from Person B: `src/analysis/spectral.py`
+- Analysis utilities from Person B: `src/vision/spectral.py`
 
 ---
 
