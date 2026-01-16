@@ -18,12 +18,12 @@ import matplotlib.pyplot as plt
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.analysis.subspace import compute_subspace_overlap, sort_eigenvectors_by_magnitude
+from src.analysis.subspace import compute_subspace_overlap, select_balanced_eigenvectors
 from src.utils import get_device, setup_mps_fallbacks, is_mps_device
 
 
 def load_model_eigenvectors(checkpoint_path, device):
-    """Load model and extract eigenvectors."""
+    """Load model and extract eigenvalues/eigenvectors."""
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     
@@ -34,14 +34,13 @@ def load_model_eigenvectors(checkpoint_path, device):
     else:
         raise ValueError(f"Checkpoint missing eigenvalues/eigenvectors: {checkpoint_path}")
     
-    # Sort by magnitude
-    sorted_vecs = sort_eigenvectors_by_magnitude(eigenvalues, eigenvectors)
-    
-    return sorted_vecs
+    return eigenvalues, eigenvectors
 
 
-def compute_overlap_for_k(mnist_vecs, emnist_vecs, k, method='mean_cos'):
+def compute_overlap_for_k(mnist_vals, mnist_vecs, emnist_vals, emnist_vecs, k, method='mean_cos'):
     """Compute overlap for expected and random pairs with given k."""
+    mnist_selected = select_balanced_eigenvectors(mnist_vals, mnist_vecs, k=k)
+    emnist_selected = select_balanced_eigenvectors(emnist_vals, emnist_vecs, k=k)
     
     # Expected pairs: (MNIST digit, EMNIST letter, mnist_idx, emnist_idx)
     expected_pairs = [
@@ -56,8 +55,8 @@ def compute_overlap_for_k(mnist_vecs, emnist_vecs, k, method='mean_cos'):
     expected_overlaps = []
     for _, _, mnist_idx, emnist_idx in expected_pairs:
         overlap = compute_subspace_overlap(
-            mnist_vecs[mnist_idx],
-            emnist_vecs[emnist_idx],
+            mnist_selected[mnist_idx],
+            emnist_selected[emnist_idx],
             k=k,
             method=method
         )
@@ -74,8 +73,8 @@ def compute_overlap_for_k(mnist_vecs, emnist_vecs, k, method='mean_cos'):
             )
             if not is_expected:
                 overlap = compute_subspace_overlap(
-                    mnist_vecs[mnist_idx],
-                    emnist_vecs[emnist_idx],
+                    mnist_selected[mnist_idx],
+                    emnist_selected[emnist_idx],
                     k=k,
                     method=method
                 )
@@ -103,9 +102,9 @@ def main():
     if is_mps_device(device):
         setup_mps_fallbacks()
     
-    # Load checkpoints
-    checkpoint_dir = PROJECT_ROOT / "results/extension2/checkpoints"
-    mnist_path = checkpoint_dir / "mnist_regularized_seed42.pt"
+    # Load checkpoints (using Phase 1 infrastructure)
+    checkpoint_dir = PROJECT_ROOT / "results/phase1/checkpoints"
+    mnist_path = checkpoint_dir / "mnist_dense_full_seed42.pt"  # Phase 1's proven good checkpoint
     emnist_path = checkpoint_dir / "emnist_letters_regularized_seed42.pt"
     
     if not mnist_path.exists() or not emnist_path.exists():
@@ -116,14 +115,14 @@ def main():
     
     # Load eigenvectors
     print("\nLoading models...")
-    mnist_vecs = load_model_eigenvectors(mnist_path, device)
-    emnist_vecs = load_model_eigenvectors(emnist_path, device)
+    mnist_vals, mnist_vecs = load_model_eigenvectors(mnist_path, device)
+    emnist_vals, emnist_vecs = load_model_eigenvectors(emnist_path, device)
     
     print(f"MNIST eigenvectors shape: {mnist_vecs.shape}")
     print(f"EMNIST eigenvectors shape: {emnist_vecs.shape}")
     
     # Test different k values
-    k_values = [1, 2, 3, 5, 7, 10, 15, 20, 30, 50]
+    k_values = list(range(2, 51))  # k=2 to k=50
     methods = ['mean_cos', 'grassmann', 'projection']
     
     print("\n" + "=" * 80)
@@ -140,7 +139,7 @@ def main():
         method_results = []
         
         for k in k_values:
-            result = compute_overlap_for_k(mnist_vecs, emnist_vecs, k, method=method)
+            result = compute_overlap_for_k(mnist_vals, mnist_vecs, emnist_vals, emnist_vecs, k, method=method)
             
             # Calculate separation (how many std devs above random mean)
             separation = (result['expected_mean'] - result['random_mean']) / (result['random_std'] + 1e-10)

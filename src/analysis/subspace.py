@@ -353,3 +353,59 @@ def sort_eigenvectors_by_magnitude(
         sorted_vecs.append(eigenvectors[c, indices])
     
     return torch.stack(sorted_vecs)
+
+
+def select_balanced_eigenvectors(
+    eigenvalues: Float[Tensor, "n_classes n_components"],
+    eigenvectors: Float[Tensor, "n_classes n_components n_features"],
+    k: int = 10,
+) -> Float[Tensor, "n_classes k n_features"]:
+    """
+    Select top-k eigenvectors per class with balanced sign.
+
+    We take k//2 eigenvectors with positive eigenvalues and k-k//2 with
+    negative eigenvalues, each chosen by highest magnitude. If a class
+    lacks enough positive or negative eigenvalues, we fill the remaining
+    slots with the highest-magnitude eigenvectors regardless of sign.
+    """
+    n_classes, n_components = eigenvalues.shape
+    k = min(k, n_components)
+    selected_vecs = []
+
+    for c in range(n_classes):
+        vals = eigenvalues[c]
+        vecs = eigenvectors[c]
+
+        pos_idx = torch.nonzero(vals > 0, as_tuple=False).squeeze(-1)
+        neg_idx = torch.nonzero(vals < 0, as_tuple=False).squeeze(-1)
+
+        pos_sorted = pos_idx[vals[pos_idx].abs().argsort(descending=True)] if pos_idx.numel() > 0 else pos_idx
+        neg_sorted = neg_idx[vals[neg_idx].abs().argsort(descending=True)] if neg_idx.numel() > 0 else neg_idx
+
+        k_pos = k // 2
+        k_neg = k - k_pos
+
+        chunks = []
+        if k_pos > 0 and pos_sorted.numel() > 0:
+            chunks.append(pos_sorted[:k_pos])
+        if k_neg > 0 and neg_sorted.numel() > 0:
+            chunks.append(neg_sorted[:k_neg])
+
+        if len(chunks) > 0:
+            selected_idx = torch.cat(chunks)
+        else:
+            selected_idx = torch.tensor([], dtype=torch.long, device=vals.device)
+
+        if selected_idx.numel() < k:
+            selected_mask = torch.zeros_like(vals, dtype=torch.bool)
+            if selected_idx.numel() > 0:
+                selected_mask[selected_idx] = True
+            remaining = torch.nonzero(~selected_mask, as_tuple=False).squeeze(-1)
+            if remaining.numel() > 0:
+                remaining_sorted = remaining[vals[remaining].abs().argsort(descending=True)]
+                needed = k - selected_idx.numel()
+                selected_idx = torch.cat([selected_idx, remaining_sorted[:needed]])
+
+        selected_vecs.append(vecs[selected_idx])
+
+    return torch.stack(selected_vecs)

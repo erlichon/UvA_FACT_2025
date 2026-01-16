@@ -148,8 +148,8 @@ def train_model(
     print(f"Training for {epochs} epochs...")
     history = model.fit(train_data, test_data, transform=transform)
     
-    # Compute eigendecomposition (MPS-safe version)
+    # Compute eigendecomposition (original paper's method, now MPS-safe)
     print("Computing eigendecomposition...")
-    eigenvalues, eigenvectors = decompose_model_mps_safe(model)
+    eigenvalues, eigenvectors = model.decompose()
     
     return eigenvalues, eigenvectors, history

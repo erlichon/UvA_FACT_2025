@@ -711,7 +711,7 @@ def mechanism_stability_test(
     Returns:
         Dictionary with functional and representational similarity metrics
     """
-    from src.analysis.subspace import compute_subspace_overlap
+    from src.analysis.subspace import compute_subspace_overlap, select_balanced_eigenvectors
     
     print("\n" + "=" * 60)
     print("STEP 1: MECHANISM STABILITY TEST")
@@ -730,10 +730,9 @@ def mechanism_stability_test(
     print("\nB. Representational Similarity (Eigenvector Subspace Overlap):")
     print("-" * 60)
     
-    # Sort eigenvectors by eigenvalue magnitude
-    from src.analysis.subspace import sort_eigenvectors_by_magnitude
-    mnist_vecs_sorted = sort_eigenvectors_by_magnitude(mnist_eigenvalues, mnist_eigenvectors)
-    emnist_vecs_sorted = sort_eigenvectors_by_magnitude(emnist_digits_eigenvalues, emnist_digits_eigenvectors)
+    # Select balanced top-k eigenvectors by sign and magnitude
+    mnist_vecs_selected = select_balanced_eigenvectors(mnist_eigenvalues, mnist_eigenvectors, k=k)
+    emnist_vecs_selected = select_balanced_eigenvectors(emnist_digits_eigenvalues, emnist_digits_eigenvectors, k=k)
     
     print(f"Comparing top-{k} eigenvector subspaces for each digit:")
     print("-" * 60)
@@ -746,8 +745,8 @@ def mechanism_stability_test(
     overlaps_projection = []
     
     for digit in range(10):
-        vecs_mnist = mnist_vecs_sorted[digit, :k]  # [k, 784]
-        vecs_emnist = emnist_vecs_sorted[digit, :k]  # [k, 784]
+        vecs_mnist = mnist_vecs_selected[digit]  # [k, 784]
+        vecs_emnist = emnist_vecs_selected[digit]  # [k, 784]
         
         # Compute overlaps using different methods
         mean_cos = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='mean_cos')
@@ -847,7 +846,7 @@ def run_subspace_geometry_test(
     Returns:
         Dictionary with subspace overlap metrics
     """
-    from src.analysis.subspace import sort_eigenvectors_by_magnitude
+    from src.analysis.subspace import select_balanced_eigenvectors
     
     print("\n" + "=" * 60)
     print("STEP 3: SUBSPACE GEOMETRY METRIC")
@@ -857,9 +856,9 @@ def run_subspace_geometry_test(
     
     results = {}
     
-    # Sort eigenvectors by eigenvalue magnitude
-    mnist_vecs_sorted = sort_eigenvectors_by_magnitude(mnist_eigenvalues, mnist_eigenvectors)
-    emnist_vecs_sorted = sort_eigenvectors_by_magnitude(emnist_eigenvalues, emnist_eigenvectors)
+    # Select balanced top-k eigenvectors by sign and magnitude
+    mnist_vecs_selected = select_balanced_eigenvectors(mnist_eigenvalues, mnist_eigenvectors, k=k)
+    emnist_vecs_selected = select_balanced_eigenvectors(emnist_eigenvalues, emnist_eigenvectors, k=k)
     
     # Test specific pairs (digit, letter, mnist_idx, emnist_idx)
     test_pairs = [
@@ -877,8 +876,8 @@ def run_subspace_geometry_test(
     
     pair_results = {}
     for mnist_char, emnist_char, mnist_idx, emnist_idx in test_pairs:
-        vecs_mnist = mnist_vecs_sorted[mnist_idx, :k]  # [k, 784]
-        vecs_emnist = emnist_vecs_sorted[emnist_idx, :k]  # [k, 784]
+        vecs_mnist = mnist_vecs_selected[mnist_idx]  # [k, 784]
+        vecs_emnist = emnist_vecs_selected[emnist_idx]  # [k, 784]
         
         # Compute overlaps using different methods
         mean_cos = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='mean_cos')
@@ -909,8 +908,8 @@ def run_subspace_geometry_test(
             if skip:
                 continue
             
-            vecs_mnist = mnist_vecs_sorted[mnist_idx, :k]
-            vecs_emnist = emnist_vecs_sorted[emnist_idx, :k]
+            vecs_mnist = mnist_vecs_selected[mnist_idx]
+            vecs_emnist = emnist_vecs_selected[emnist_idx]
             overlap = compute_subspace_overlap(vecs_mnist, vecs_emnist, k=k, method='mean_cos')
             random_overlaps.append(overlap)
     

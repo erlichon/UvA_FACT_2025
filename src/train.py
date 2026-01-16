@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
-from image.datasets import MNIST, FMNIST
+from image.datasets import FMNIST
 
 from src.utils import (
     get_device,
@@ -82,23 +82,46 @@ def train_vision_model(config: dict, seed: int, device: str, epochs: int):
     Returns:
         Tuple of (model, history, eigenvalues, eigenvectors)
     """
+    # Get CoM normalization setting (default False for backward compatibility)
+    apply_com = config.get('data', {}).get('apply_com', False)
+    
     # Load dataset
     dataset_name = config.get('data', {}).get('dataset', 'mnist')
     if dataset_name == 'mnist':
         print("Loading MNIST data...")
-        train_data = MNIST(train=True, device=device)
-        test_data = MNIST(train=False, device=device)
+        from src.data.mnist_wrapper import MNIST
+        train_data = MNIST(train=True, device=device, apply_com=apply_com)
+        test_data = MNIST(train=False, device=device, apply_com=apply_com)
+        d_output = 10
     elif dataset_name == 'fashion_mnist':
         print("Loading Fashion-MNIST data...")
         train_data = FMNIST(train=True, device=device)
         test_data = FMNIST(train=False, device=device)
+        d_output = 10
+        # Note: Fashion-MNIST doesn't support CoM yet
+    elif dataset_name == 'emnist_letters':
+        print("Loading EMNIST Letters data...")
+        from src.data.emnist import EMNISTLetters
+        train_data = EMNISTLetters(train=True, device=device, apply_com=apply_com)
+        test_data = EMNISTLetters(train=False, device=device, apply_com=apply_com)
+        d_output = 26
+    elif dataset_name == 'emnist_digits':
+        print("Loading EMNIST Digits data...")
+        from src.data.emnist import EMNISTDigits
+        train_data = EMNISTDigits(train=True, device=device, apply_com=apply_com)
+        test_data = EMNISTDigits(train=False, device=device, apply_com=apply_com)
+        d_output = 10
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
+    
+    if apply_com:
+        print(f"  ✓ Center-of-Mass normalization applied")
 
     # Create model
     model_config = Config(
         epochs=epochs,
         d_hidden=config['model']['d_hidden'],
+        d_output=d_output,
         wd=config['regularization']['weight_decay'],
         lr=config['training'].get('lr', 1e-3),
         seed=seed,
