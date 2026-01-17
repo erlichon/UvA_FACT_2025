@@ -1,24 +1,24 @@
 #!/bin/bash
 # Extension 2: Cross-Dataset Robustness Runner
 #
-# Consolidated script for all Extension 2 experiments (replaces 7+ shell scripts).
+# Consolidated script for Extension 2 experiments.
+# Uses Phase 1 regularization settings (noise=0.5, wd=1.0) with CoM normalization.
 #
 # Usage:
-#   ./scripts/train/run_extension2.sh train emnist-letters [--seeds 42,43,44,45,46] [--com]
-#   ./scripts/train/run_extension2.sh train emnist-digits [--seeds ...] [--com]
-#   ./scripts/train/run_extension2.sh train all [--seeds ...] [--com]
-#   ./scripts/train/run_extension2.sh eval subspace [--seeds ...]
-#   ./scripts/train/run_extension2.sh aggregate
-#   ./scripts/train/run_extension2.sh all  # Full pipeline
+#   ./scripts/train/run_extension2.sh train emnist-letters [--seeds 42,43,44,45,46]
+#   ./scripts/train/run_extension2.sh train emnist-digits [--seeds ...]
+#   ./scripts/train/run_extension2.sh train all [--seeds ...]
+#   ./scripts/train/run_extension2.sh figures [--sections all]
+#   ./scripts/train/run_extension2.sh all  # Full pipeline (train + figures)
 #   ./scripts/train/run_extension2.sh help
+#
+# NOTE: Center-of-Mass (CoM) normalization is ALWAYS enabled for cross-dataset comparison.
 
 set -e
 
 # Default values
 SEEDS="42,43,44,45,46"
-USE_COM=false
 CHECKPOINT_DIR="results/extension2/checkpoints"
-SUBSPACE_DIR="results/extension2/subspace"
 
 # Parse global options
 while [[ "$1" == --* ]]; do
@@ -26,10 +26,6 @@ while [[ "$1" == --* ]]; do
         --seeds)
             SEEDS="$2"
             shift 2
-            ;;
-        --com)
-            USE_COM=true
-            shift
             ;;
         --checkpoint-dir)
             CHECKPOINT_DIR="$2"
@@ -55,50 +51,50 @@ USAGE:
     ./scripts/train/run_extension2.sh <command> [subcommand] [options]
 
 COMMANDS:
-    train <dataset>     Train EMNIST models
-                        Datasets: emnist-letters, emnist-digits, all
+    train <dataset>     Train models with CoM normalization
+                        Datasets: mnist, emnist-letters, emnist-digits, all
     
-    eval <test>         Run evaluation tests (requires trained models)
-                        Tests: subspace, similarity
+    figures [sections]  Generate Extension 2 figures
+                        Sections: eigenvectors, heatmaps, distributions, similarity,
+                                  3way, selection, angles, all (default)
     
-    aggregate           Aggregate subspace results across seeds
-    
-    all                 Full pipeline (train all + eval + aggregate)
+    all                 Full pipeline (train all + figures)
     
     help                Show this help message
 
 OPTIONS:
     --seeds <list>      Comma-separated seeds (default: 42,43,44,45,46)
-    --com               Enable Center-of-Mass normalization
     --checkpoint-dir    Custom checkpoint directory
 
 EXAMPLES:
-    # Train EMNIST Letters with CoM for all seeds
-    ./scripts/train/run_extension2.sh train emnist-letters --com
-    
-    # Train both datasets without CoM
+    # Train all Extension 2 models (MNIST + EMNIST with CoM)
     ./scripts/train/run_extension2.sh train all
     
-    # Run subspace geometry test
-    ./scripts/train/run_extension2.sh eval subspace
+    # Train MNIST with CoM only
+    ./scripts/train/run_extension2.sh train mnist
     
-    # Full pipeline with CoM
-    ./scripts/train/run_extension2.sh --com all
+    # Train EMNIST Letters only
+    ./scripts/train/run_extension2.sh train emnist-letters
+    
+    # Generate all Extension 2 figures
+    ./scripts/train/run_extension2.sh figures
+    
+    # Generate specific figure sections
+    ./scripts/train/run_extension2.sh figures similarity 3way
+    
+    # Full pipeline
+    ./scripts/train/run_extension2.sh all
 EOF
 }
 
 train_model() {
     local dataset=$1
     local seed=$2
-    local com_flag=""
-    local config_suffix=""
-    
-    if [ "$USE_COM" = true ]; then
-        com_flag="--com"
-        config_suffix="_com"
-    fi
     
     case "$dataset" in
+        mnist|mnist-com)
+            CONFIG="configs/mnist_dense_full_com.yaml"
+            ;;
         emnist-letters|emnist_letters)
             CONFIG="configs/emnist_letters_regularized.yaml"
             ;;
@@ -111,18 +107,14 @@ train_model() {
             ;;
     esac
     
-    echo "Training $dataset seed $seed (CoM: $USE_COM)..."
+    echo "Training $dataset seed $seed (CoM: enabled)..."
     
-    # Add data.apply_com to config if needed
-    COM_ARG=""
-    if [ "$USE_COM" = true ]; then
-        COM_ARG="--data.apply_com true"
-    fi
-    
+    # CoM is always enabled for Extension 2
     python src/train.py \
         --config "$CONFIG" \
         --seed "$seed" \
-        --checkpoint-dir "$CHECKPOINT_DIR"
+        --checkpoint-dir "$CHECKPOINT_DIR" \
+        --apply-com true
 }
 
 run_train() {
@@ -131,6 +123,11 @@ run_train() {
     mkdir -p "$CHECKPOINT_DIR"
     
     case "$dataset" in
+        mnist|mnist-com)
+            for seed in "${SEED_ARRAY[@]}"; do
+                train_model "mnist" "$seed"
+            done
+            ;;
         emnist-letters|emnist_letters)
             for seed in "${SEED_ARRAY[@]}"; do
                 train_model "emnist-letters" "$seed"
@@ -143,13 +140,14 @@ run_train() {
             ;;
         all)
             for seed in "${SEED_ARRAY[@]}"; do
+                train_model "mnist" "$seed"
                 train_model "emnist-letters" "$seed"
                 train_model "emnist-digits" "$seed"
             done
             ;;
         *)
             echo "Unknown dataset: $dataset"
-            echo "Valid options: emnist-letters, emnist-digits, all"
+            echo "Valid options: mnist, emnist-letters, emnist-digits, all"
             exit 1
             ;;
     esac
@@ -158,46 +156,16 @@ run_train() {
     echo "Training complete! Checkpoints saved to: $CHECKPOINT_DIR"
 }
 
-run_eval() {
-    local test="${1:-subspace}"
+run_figures() {
+    local sections="${@:-all}"
     
-    case "$test" in
-        subspace)
-            echo "Running subspace geometry tests..."
-            mkdir -p "$SUBSPACE_DIR"
-            
-            COM_FLAG=""
-            if [ "$USE_COM" = true ]; then
-                COM_FLAG="--with-com"
-            fi
-            
-            for seed in "${SEED_ARRAY[@]}"; do
-                echo "Testing seed $seed..."
-                python scripts/extension2/check_similarity.py \
-                    --k 30 \
-                    $COM_FLAG
-            done
-            ;;
-        similarity)
-            echo "Running similarity check..."
-            COM_FLAG=""
-            if [ "$USE_COM" = true ]; then
-                COM_FLAG="--with-com"
-            fi
-            python scripts/extension2/check_similarity.py $COM_FLAG
-            ;;
-        *)
-            echo "Unknown test: $test"
-            echo "Valid options: subspace, similarity"
-            exit 1
-            ;;
-    esac
-}
-
-run_aggregate() {
-    echo "Aggregating subspace results..."
-    python scripts/extension2/aggregate_results.py \
-        --results-dir "$SUBSPACE_DIR"
+    echo "Generating Extension 2 figures..."
+    
+    if [ "$sections" = "" ] || [ "$sections" = "all" ]; then
+        python scripts/figures/generate_extension2_figures.py
+    else
+        python scripts/figures/generate_extension2_figures.py --sections $sections
+    fi
 }
 
 run_all() {
@@ -205,19 +173,15 @@ run_all() {
     echo "Extension 2: Full Pipeline"
     echo "="
     echo "Seeds: ${SEEDS}"
-    echo "CoM: ${USE_COM}"
+    echo "CoM: enabled (always)"
     echo ""
     
-    echo "Step 1/3: Training EMNIST models..."
+    echo "Step 1/2: Training models (MNIST + EMNIST with CoM)..."
     run_train "all"
     
     echo ""
-    echo "Step 2/3: Running evaluations..."
-    run_eval "subspace"
-    
-    echo ""
-    echo "Step 3/3: Aggregating results..."
-    run_aggregate
+    echo "Step 2/2: Generating figures..."
+    run_figures
     
     echo ""
     echo "="
@@ -230,11 +194,9 @@ case "$COMMAND" in
     train)
         run_train "$SUBCOMMAND"
         ;;
-    eval)
-        run_eval "$SUBCOMMAND"
-        ;;
-    aggregate)
-        run_aggregate
+    figures)
+        shift  # Remove 'figures' from args
+        run_figures "$@"
         ;;
     all)
         run_all

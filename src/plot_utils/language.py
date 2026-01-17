@@ -871,15 +871,53 @@ def plot_figure_8_composite(
     return fig
 
 
+def load_scatter_from_streaming_dir(
+    scatter_dir: Union[str, Path],
+    model_name: Optional[str] = None,
+) -> List[dict]:
+    """
+    Load scatter data from streaming files in a directory.
+    
+    Args:
+        scatter_dir: Directory containing scatter_*.json files
+        model_name: Optional model name to filter files (e.g., "fw-medium")
+    
+    Returns:
+        List of scatter data dicts, each containing feat_idx, z_true, z_pred_rank2
+    """
+    scatter_dir = Path(scatter_dir)
+    if not scatter_dir.exists():
+        return []
+    
+    scatter_files = list(scatter_dir.glob("scatter_*.json"))
+    if model_name:
+        # Filter by model name if provided
+        scatter_files = [f for f in scatter_files if model_name in f.name]
+    
+    scatter_data = []
+    for f in scatter_files:
+        try:
+            with open(f) as fp:
+                data = json.load(fp)
+                scatter_data.append(data)
+        except (json.JSONDecodeError, IOError):
+            continue
+    
+    return scatter_data
+
+
 def plot_figure_9c_scatters(
     results: dict,
     n_features: int = 9,
     seed: int = 42,
     figsize: Tuple[float, float] = (10, 10),
     save_path: Optional[str] = None,
+    scatter_dir: Optional[Union[str, Path]] = None,
 ) -> plt.Figure:
     """
     Plot Figure 9C: 3x3 grid of scatter plots for random features.
+    
+    Supports both embedded scatter data (legacy) and streaming scatter files (preferred).
     
     Args:
         results: Correlation results dict (from verify_correlation.py)
@@ -887,6 +925,7 @@ def plot_figure_9c_scatters(
         seed: Random seed for feature selection
         figsize: Figure size
         save_path: Optional path to save the figure
+        scatter_dir: Directory containing streaming scatter files (preferred over embedded)
     
     Returns:
         matplotlib Figure
@@ -899,11 +938,32 @@ def plot_figure_9c_scatters(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
     axes = axes.flatten()
     
-    # Get features with scatter data
+    model_name = results.get("summary", {}).get("model_name", "Unknown")
+    model_short = model_name.split("/")[-1] if "/" in model_name else model_name
+    
+    # Try to load from streaming files first (memory-efficient approach)
     features_with_scatter = []
-    for feat in results.get("per_feature", []):
-        if "scatter_data" in feat:
-            features_with_scatter.append(feat)
+    
+    if scatter_dir:
+        scatter_dir = Path(scatter_dir)
+        streaming_data = load_scatter_from_streaming_dir(scatter_dir, model_short)
+        if streaming_data:
+            print(f"  Loaded {len(streaming_data)} scatter files from {scatter_dir}")
+            for data in streaming_data:
+                features_with_scatter.append({
+                    "feat_idx": data.get("feat_idx"),
+                    "scatter_data": {
+                        "z_true": data.get("z_true", []),
+                        "z_pred_rank2": data.get("z_pred_rank2", []),
+                    },
+                    "correlation_rank2": data.get("correlation_rank2"),
+                })
+    
+    # Fallback: try embedded scatter data (legacy)
+    if not features_with_scatter:
+        for feat in results.get("per_feature", []):
+            if "scatter_data" in feat:
+                features_with_scatter.append(feat)
     
     if not features_with_scatter:
         for ax in axes:
@@ -926,7 +986,7 @@ def plot_figure_9c_scatters(
             continue
         
         feat = features_with_scatter[selected_indices[i]]
-        scatter = feat["scatter_data"]
+        scatter = feat.get("scatter_data", {})
         
         z_true = np.array(scatter.get("z_true", []))
         z_pred = np.array(scatter.get("z_pred_rank2", []))
@@ -954,7 +1014,6 @@ def plot_figure_9c_scatters(
         ax.set_xlim(0, max_val)
         ax.set_ylim(0, max_val)
     
-    model_name = results.get("summary", {}).get("model_name", "Unknown")
     fig.suptitle(f"Figure 9C: True vs Predicted Activation ({model_name})", fontsize=12)
     
     plt.tight_layout()

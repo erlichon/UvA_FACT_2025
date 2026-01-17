@@ -25,7 +25,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 - **Day 10**: Complete analysis and figures
 
 ### Dependencies
-- Phase 1 checkpoints from Person A: `results/phase1/checkpoints/`
+- Phase 1 checkpoints from Person A: `results/vision/checkpoints/`
 - Analysis utilities from Person B: `src/vision/spectral.py`, `src/vision/visualization.py`
 
 ---
@@ -387,7 +387,7 @@ name: eval_rotated_mnist
 experiment_id: E1.1
 
 # Use best regularized model from Phase 1
-checkpoint: results/phase1/checkpoints/mnist_dense_full_seed42.pt
+checkpoint: results/vision/checkpoints/mnist_dense_full_seed42.pt
 
 # Rotation angles to test
 angles: [0, 15, 30, 45, 60, 90]

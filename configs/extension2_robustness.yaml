@@ -19,16 +19,11 @@ training:
   lr: 0.001
   batch_size: 2048
 
-# Regularization settings for the two models
-# Baseline: no noise, weight decay only
-# Regularized: input noise σ=0.15, weight decay
+# Regularization settings (Phase 1 config: full regularization)
+# Using same settings as Phase 1 for consistency
 regularization:
-  baseline:
-    noise_std: 0.0
-    weight_decay: 0.5
-  regularized:
-    noise_std: 0.15
-    weight_decay: 0.5
+  noise_std: 0.5
+  weight_decay: 1.0
 
 # Data configuration
 data:
@@ -36,6 +31,7 @@ data:
   use_com_normalization: true
   datasets:
     - mnist
+    - emnist_digits
     - emnist_letters
     - usps
 
@@ -55,11 +51,9 @@ semantic_test:
 subspace_test:
   # Number of top eigenvectors to compare
   k: 10
-  # Similarity methods to use
+  # Similarity method (using only cosine similarity)
   methods:
     - mean_cos
-    - grassmann
-    - projection
   # Pairs to compare (MNIST digit index, EMNIST letter index)
   test_pairs:
     - [0, 14]   # 0 vs O

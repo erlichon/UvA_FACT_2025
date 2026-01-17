@@ -124,9 +124,9 @@ train_base() {
     fi
     
     for dataset in "${datasets[@]}"; do
-        local ckpt_dir="results/phase1/checkpoints"
+        local ckpt_dir="results/vision/checkpoints"
         if [ "$dataset" == "fashion" ]; then
-            ckpt_dir="results/phase1_fashion/checkpoints"
+            ckpt_dir="results/vision/checkpoints_fashion"
         fi
         mkdir -p "$ckpt_dir"
         
@@ -252,7 +252,7 @@ train_adversarial() {
     print_header
     activate_conda
     
-    local ckpt_dir="results/phase1/checkpoints"
+    local ckpt_dir="results/vision/checkpoints"
     mkdir -p "$ckpt_dir"
     
     echo ">>> Adversarial Training (Figure 7)"

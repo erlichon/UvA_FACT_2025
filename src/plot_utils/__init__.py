@@ -31,6 +31,7 @@ from src.plot_utils.explanation import (
     plot_sample_explanation_interactive,
     compute_eigenvector_activations,
     plot_eigenspectrum_with_signs,
+    generate_all_digit_eigenspectra,
 )
 from src.plot_utils.interactive import (
     plot_eigenspectrum_interactive,
@@ -70,6 +71,7 @@ __all__ = [
     "plot_sample_explanation_interactive",
     "compute_eigenvector_activations",
     "plot_eigenspectrum_with_signs",
+    "generate_all_digit_eigenspectra",
     # Interactive Plotly plots
     "plot_eigenspectrum_interactive",
     "plot_eigenspectrum_per_class_interactive",

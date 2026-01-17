@@ -289,7 +289,7 @@ def plot_eigenspectrum_with_signs(
     eigenvalues: Float[Tensor, "n_classes n"],
     eigenvectors: Float[Tensor, "n_classes n d_input"],
     digit: int = 0,
-    n_eigenvectors: int = 3,
+    n_eigenvectors: int = 5,
     n_eigenvalues: int = 20,
     image_shape: Tuple[int, int] = (28, 28),
     save_path: Optional[str] = None,
@@ -305,7 +305,7 @@ def plot_eigenspectrum_with_signs(
         eigenvalues: [n_classes, n_eigenvectors]
         eigenvectors: [n_classes, n_eigenvectors, d_input]
         digit: Which class/digit to analyze
-        n_eigenvectors: Number of eigenvector images to show
+        n_eigenvectors: Number of eigenvector images to show (default: 5)
         n_eigenvalues: Number of eigenvalues in spectrum plot
         image_shape: Shape for reshaping eigenvectors
         save_path: If provided, save as HTML
@@ -375,3 +375,56 @@ def plot_eigenspectrum_with_signs(
         print(f"Saved: {save_path}")
 
     return fig
+
+
+def generate_all_digit_eigenspectra(
+    eigenvalues: Float[Tensor, "n_classes n"],
+    eigenvectors: Float[Tensor, "n_classes n d_input"],
+    output_dir: str,
+    n_eigenvectors: int = 5,
+    n_eigenvalues: int = 20,
+    image_shape: Tuple[int, int] = (28, 28),
+) -> List[str]:
+    """
+    Generate interactive eigenspectrum displays for all 10 digit classes.
+
+    Creates one HTML file per digit showing:
+    - Top row: Positive eigenvalue spectrum + top-k positive eigenvectors
+    - Bottom row: Negative eigenvalue spectrum + top-k negative eigenvectors
+
+    Args:
+        eigenvalues: [n_classes, n_eigenvectors] tensor
+        eigenvectors: [n_classes, n_eigenvectors, d_input] tensor
+        output_dir: Directory to save HTML files
+        n_eigenvectors: Number of eigenvector images per sign (default: 5)
+        n_eigenvalues: Number of eigenvalues to show in spectrum
+        image_shape: Shape for reshaping eigenvectors
+
+    Returns:
+        List of saved file paths
+    """
+    if not PLOTLY_AVAILABLE:
+        print("Plotly not available. Install with: pip install plotly")
+        return []
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    saved_files = []
+    n_classes = min(eigenvalues.shape[0], 10)  # Typically 10 digits
+
+    for digit in range(n_classes):
+        save_path = output_path / f"eigenspectrum_digit_{digit}.html"
+        plot_eigenspectrum_with_signs(
+            eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
+            digit=digit,
+            n_eigenvectors=n_eigenvectors,
+            n_eigenvalues=n_eigenvalues,
+            image_shape=image_shape,
+            save_path=str(save_path),
+        )
+        saved_files.append(str(save_path))
+
+    print(f"Generated {len(saved_files)} eigenspectrum HTML files in {output_dir}")
+    return saved_files

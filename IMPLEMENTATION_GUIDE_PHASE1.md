@@ -368,7 +368,7 @@ source activate fact
 python src/train.py \
     --config "$CONFIG" \
     --seed "$SEED" \
-    --checkpoint-dir results/phase1/checkpoints
+    --checkpoint-dir results/vision/checkpoints
 ```
 
 **`jobs/train_array.job`** - All 20 runs (4 configs × 5 seeds):
@@ -405,7 +405,7 @@ echo "Running config: mnist_dense_${CONFIG_NAME}, seed: ${SEED}"
 python src/train.py \
     --config "configs/mnist_dense_${CONFIG_NAME}.yaml" \
     --seed "$SEED" \
-    --checkpoint-dir "results/phase1/checkpoints"
+    --checkpoint-dir "results/vision/checkpoints"
 ```
 
 ---
@@ -459,7 +459,7 @@ from codecarbon import EmissionsTracker
 
 tracker = EmissionsTracker(
     project_name="fact-bilinear",
-    output_dir="results/phase1",
+    output_dir="results/vision",
     log_level="warning"  # Reduce verbosity
 )
 tracker.start()
@@ -490,7 +490,7 @@ Before launching all 20 jobs, verify:
 After Phase 1 completion:
 
 ```
-results/phase1/
+results/vision/
 ├── checkpoints/
 │   ├── mnist_dense_none_seed42.pt
 │   ├── mnist_dense_none_seed43.pt

@@ -55,18 +55,25 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 
 ### Extension 2: Cross-Dataset Robustness
 
+Uses Phase 1 settings (noise=0.5, weight_decay=1.0) with CoM normalization.
+Cosine similarity only for subspace overlap.
+
 ```bash
-# Train EMNIST models with CoM normalization
-./scripts/train/run_extension2.sh train all --com
+# Train EMNIST models (CoM always enabled)
+./scripts/train/run_extension2.sh train all
 
-# Run all 4 validation steps
-./scripts/train/run_extension2.sh eval subspace
+# Generate all Extension 2 figures
+./scripts/train/run_extension2.sh figures
 
-# Full Extension 2 pipeline
+# Generate specific figure sections
+./scripts/train/run_extension2.sh figures similarity 3way
+
+# Full pipeline (train + figures)
 ./scripts/train/run_extension2.sh all
 
-# Or via unified vision runner
-./scripts/train/run_vision.sh extension2
+# Direct figure generation
+python scripts/figures/generate_extension2_figures.py
+python scripts/figures/generate_extension2_figures.py --sections eigenvectors heatmaps
 ```
 
 ### Unified Language Script (Section 5) - PREFERRED
@@ -80,8 +87,8 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 ./scripts/train/run_language.sh figure9 --model fw-medium   # Single model
 ./scripts/train/run_language.sh figure9 --quick             # Quick mode
 
-# Figure 8: Negation circuit visualization
-./scripts/train/run_language.sh figure8 --device cpu        # CPU recommended for memory
+# Figure 8: Negation circuit visualization (memory-efficient, works on MPS)
+./scripts/train/run_language.sh figure8 --device mps
 
 # Negation discovery
 ./scripts/train/run_language.sh negation
@@ -171,6 +178,7 @@ squeue -u scur0075  # Monitor jobs
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
 | `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `seed_worker()`, `track_emissions()`, wandb helpers |
 | `src/language/context.py` | `LanguageContext` - unified context for language experiments |
+| `src/language/memory_efficient_eigen.py` | Memory-efficient iterative eigensolver for Figure 8 (avoids n_features² memory) |
 | `src/language/` | SAE training, negation discovery, interaction analysis, correlation verification |
 
 ### Scripts Organization
@@ -178,7 +186,7 @@ squeue -u scur0075  # Monitor jobs
 | Directory | Purpose |
 |-----------|---------|
 | `scripts/train/` | Training & experiment runners (`run_vision.sh`, `run_language.sh`, `run_extension2.sh`, `run_overnight_mps.sh`) |
-| `scripts/extension2/` | Extension 2 evaluation scripts (`evaluate.py`, `aggregate_results.py`, `check_similarity.py`) |
+| `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `generate_extension2_figures.py`) |
 | `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `paper_hub.py`) |
 | `tools/` | Operational utilities (`sync_to_snellius.sh`, `sync_from_snellius.sh`, `monitor_memory.sh`) |
 

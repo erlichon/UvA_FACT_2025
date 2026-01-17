@@ -232,12 +232,17 @@ def verify_correlation(
     max_features: int = 50,
     save_scatter: bool = False,
     max_scatter_samples: int = 1000,
+    scatter_dir: Path = None,
+    model_name: str = "unknown",
 ):
     """
     Compute correlation between weight-based predictions and actual SAE activations.
     
     CRITICAL FIX: Accumulates samples across multiple batches to ensure statistical
     significance. The correlation is computed on the full accumulated data, not per-batch.
+    
+    Memory-efficient scatter: When save_scatter=True, scatter data is saved to individual
+    files immediately and freed from memory. This allows processing many features without OOM.
     
     The key equation being verified:
         z_c(x) ≈ sum_{j=1}^k lambda_j * (v_j^T x)^2
@@ -254,12 +259,23 @@ def verify_correlation(
         target_samples_per_feature: Target number of active samples before computing correlation
         max_batches: Maximum number of batches to process
         max_features: Maximum number of features to analyze
+        save_scatter: Whether to save scatter data for Figure 9C
+        max_scatter_samples: Maximum scatter samples per feature
+        scatter_dir: Directory to save scatter files (created if save_scatter=True)
+        model_name: Model name for scatter file naming
     
     Returns:
         Dict with correlation results per rank
     """
     results = {k: [] for k in ranks}
     feature_results = []
+    scatter_files_saved = []
+    
+    # Create scatter directory if saving scatter data
+    if save_scatter and scatter_dir is not None:
+        scatter_dir = Path(scatter_dir)
+        scatter_dir.mkdir(parents=True, exist_ok=True)
+        print(f"  Scatter data will be saved to: {scatter_dir}")
     
     sight = Sight(model)
     sae_out_device = sae_out.to(device)
@@ -391,18 +407,34 @@ def verify_correlation(
                 "correlations": feature_corrs,
             }
             
-            # Add scatter data if requested (for Figure 9C)
-            if save_scatter and z_pred_rank2 is not None:
+            # Save scatter data to file immediately (memory-efficient streaming)
+            if save_scatter and z_pred_rank2 is not None and scatter_dir is not None:
                 scatter_limit = max_scatter_samples if max_scatter_samples > 0 else len(z_active)
                 scatter_limit = min(scatter_limit, len(z_active))
-                result_dict["scatter_data"] = {
+                
+                scatter_data = {
+                    "feat_idx": feat_idx,
+                    "n_active": n_active,
                     "z_true": z_active[:scatter_limit].cpu().tolist(),
                     "z_pred_rank2": z_pred_rank2[:scatter_limit].cpu().tolist(),
+                    "correlation_rank2": feature_corrs.get(2, None),
                 }
+                
+                # Save to individual file immediately
+                scatter_file = scatter_dir / f"scatter_{model_name}_feat_{feat_idx}.json"
+                with open(scatter_file, "w") as f:
+                    json.dump(scatter_data, f)
+                scatter_files_saved.append(str(scatter_file))
+                
+                # Note in result that scatter data is in separate file
+                result_dict["scatter_file"] = str(scatter_file)
+                
+                # Free memory
+                del scatter_data
             
             feature_results.append(result_dict)
     
-    return results, feature_results
+    return results, feature_results, scatter_files_saved
 
 
 def main():
@@ -509,8 +541,18 @@ def main():
         # Pass None to find active features dynamically, then limit to n_features
         feature_indices = None  # Will be populated by find_active_features in verify_correlation
         
+        # Create scatter directory if saving scatter data
+        output_path = Path(args.output)
+        scatter_dir = None
+        if args.save_scatter:
+            scatter_dir = output_path.parent / "scatter_data"
+            scatter_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Extract model short name for scatter file naming
+        model_short = model_name.split("/")[-1] if "/" in model_name else model_name
+        
         # Run correlation analysis with batch accumulation
-        results, feature_results = verify_correlation(
+        results, feature_results, scatter_files = verify_correlation(
             model=model,
             sae_out=sae_out,
             layer=layer,
@@ -524,6 +566,8 @@ def main():
             max_features=args.n_features,
             save_scatter=args.save_scatter,
             max_scatter_samples=args.max_scatter_samples,
+            scatter_dir=scatter_dir,
+            model_name=model_short,
         )
     
     # Compute summary statistics
@@ -537,6 +581,8 @@ def main():
         "ranks": ranks,
         "correlation_by_rank": {},
         "scatter_data_saved": args.save_scatter,
+        "scatter_data_dir": str(scatter_dir) if scatter_dir else None,
+        "scatter_files_count": len(scatter_files) if args.save_scatter else 0,
         "max_scatter_samples": args.max_scatter_samples if args.save_scatter else None,
         "paper_claim": "69% of features have >0.75 rank-2 correlation",
         "wall_time_seconds": tracker.result.wall_time_seconds,
@@ -603,6 +649,8 @@ def main():
         json.dump(full_results, f, indent=2)
     
     print(f"\nResults saved to: {output_path}")
+    if args.save_scatter and scatter_dir:
+        print(f"Scatter data saved to: {scatter_dir} ({len(scatter_files)} files)")
     
     # Generate plot if requested
     if args.plot and len(summary["correlation_by_rank"]) > 0:

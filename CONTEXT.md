@@ -6,7 +6,7 @@
 
 ## 0. Current State (Updated: 2026-01-14)
 
-### Section 4 (Vision) COMPLETE + ANALYZED + EXTENDED, Section 5 (Language) ~90% Complete
+### Section 4 (Vision) COMPLETE + ANALYZED + EXTENDED, Section 5 (Language) ~95% Complete
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
@@ -82,7 +82,7 @@ After verifying model specifications and SAE availability, we discovered:
 - **Advantage**: ✅ Has both `mlp-in` and `mlp-out` SAEs available
 - **Advantage**: ✅ Larger model → clearer visualizations
 - **Config**: `configs/language_negation_fw.yaml`
-- **Status**: READY to run
+- **Status**: ✅ IMPLEMENTED (memory-efficient eigensolver, works on MPS)
 
 #### Section 5.2: Low-Rank Correlation (Figure 9)
 - **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 7)
@@ -94,8 +94,9 @@ After verifying model specifications and SAE availability, we discovered:
 |------------|--------|--------|-------|
 | SAE Training | SKIPPED | - | Using pretrained SAEs from HuggingFace |
 | Negation (ts-medium, L4) | SKIPPED | `language_negation_ts.yaml` | ❌ Missing mlp-in SAEs on HuggingFace |
-| Negation (fw-medium, L7) | READY | `language_negation_fw.yaml` | ✅ **TUTORIAL** (features 3834/751) - Figure 8 |
-| Figure 8 Generation | READY | - | Generate for fw-medium only |
+| Negation (fw-medium, L7) | ✅ READY | `language_negation_fw.yaml` | ✅ **TUTORIAL** (features 3834/751) - Figure 8 |
+| Figure 8 Generation | ✅ IMPLEMENTED | - | Memory-efficient eigensolver (works on MPS) |
+| Figure 9C (scatter plots) | ✅ IMPLEMENTED | - | Streaming scatter data (works on MPS) |
 | Correlation Sweep (all 3) | READY | `scripts/run_language_sweep.sh` | Full Figure 9 (all models work) |
 
 **Model Configuration & SAE Availability (VERIFIED 2026-01-14)**:
@@ -181,8 +182,8 @@ UvA_FACT_2025/
 ├── configs/
 │   ├── mnist_dense_{none,noise,wd,full,noise015}.yaml
 │   ├── fashion_dense_{none,noise,wd,full}.yaml
-│   ├── emnist_letters_regularized.yaml  # Extension 2
-│   ├── emnist_digits_regularized.yaml   # Extension 2
+│   ├── emnist_letters_regularized.yaml  # Extension 2 (Phase 1 reg + CoM)
+│   ├── emnist_digits_regularized.yaml   # Extension 2 (Phase 1 reg + CoM)
 │   ├── mnist_challenge.yaml
 │   ├── sweeps/
 │   │   └── mnist_size_{30,50,100,300,500,1000}.yaml
@@ -193,12 +194,10 @@ UvA_FACT_2025/
 │   │   ├── run_extension2.sh     # Extension 2 runner (EMNIST, subspace tests)
 │   │   ├── run_language.sh       # Unified language experiments
 │   │   └── run_overnight_mps.sh  # Full overnight pipeline
-│   ├── extension2/               # Extension 2 evaluation scripts
-│   │   ├── aggregate_results.py  # Aggregate subspace metrics across seeds
-│   │   └── check_similarity.py   # Interactive subspace similarity check
 │   └── figures/                  # Figure generation
-│       ├── generate_vision_figures.py
-│       ├── generate_language_figures.py
+│       ├── generate_vision_figures.py     # All vision figures (Section 4)
+│       ├── generate_language_figures.py   # Language figures (Section 5)
+│       ├── generate_extension2_figures.py # Extension 2 figures
 │       └── paper_hub.py
 ├── tools/                        # Operational utilities
 │   ├── sync_to_snellius.sh
@@ -811,13 +810,13 @@ checkpoint = {
     'eigenvalues': Tensor,       # Shape: [10, 256] (n_classes, d_hidden)
     'eigenvectors': Tensor,      # Shape: [10, 256, 784] (n_classes, d_hidden, d_input)
 }
-# Saved to: results/phase1/checkpoints/{config_name}_seed{seed}.pt
+# Saved to: results/vision/checkpoints/{config_name}_seed{seed}.pt
 ```
 
 **Person B Loading Example**:
 ```python
 import torch
-checkpoint = torch.load("results/phase1/checkpoints/mnist_dense_full_seed42.pt", map_location='cpu')
+checkpoint = torch.load("results/vision/checkpoints/mnist_dense_full_seed42.pt", map_location='cpu')
 eigenvalues = checkpoint['eigenvalues']   # [10, 256]
 eigenvectors = checkpoint['eigenvectors'] # [10, 256, 784]
 config = checkpoint['config']

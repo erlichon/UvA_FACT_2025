@@ -222,13 +222,9 @@ run_figure8() {
     
     mkdir -p results/language
     
-    # Figure 8 is memory-intensive, recommend CPU
+    # Figure 8 now uses memory-efficient iterative eigensolver
+    # No longer OOM-prone on MPS with 48GB RAM
     local fig8_device="$DEVICE"
-    if [ "$DEVICE" == "mps" ]; then
-        echo "⚠️  Warning: Figure 8 is memory-intensive on MPS."
-        echo "   Consider using --device cpu for stability."
-        echo ""
-    fi
     
     local n_samples=1500
     if $QUICK_MODE; then
@@ -239,8 +235,7 @@ run_figure8() {
     echo "    Feature: $FEATURE (not-good)"
     echo "    Device: $fig8_device"
     echo "    Samples: $n_samples"
-    echo ""
-    echo "⚠️  This may take 45-90 minutes on CPU"
+    echo "    Memory: Uses iterative eigensolver (constant memory)"
     echo ""
     
     python src/language/negation_visualization.py \
