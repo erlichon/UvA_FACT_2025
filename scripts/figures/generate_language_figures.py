@@ -97,13 +97,19 @@ def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
     print("Generating Figure 9C: True vs Predicted Scatter Plots...")
     fw_medium_data = correlation_results.get("fw-medium")
     if fw_medium_data:
-        # Check if scatter data is available
-        has_scatter = any("scatter_data" in f for f in fw_medium_data.get("per_feature", []))
-        if has_scatter:
+        # Check for streaming scatter files first (memory-efficient approach)
+        scatter_dir = results_dir / "scatter_data"
+        has_streaming_scatter = scatter_dir.exists() and any(scatter_dir.glob("scatter_fw-medium_*.json"))
+        
+        # Fall back to embedded scatter data
+        has_embedded_scatter = any("scatter_data" in f for f in fw_medium_data.get("per_feature", []))
+        
+        if has_streaming_scatter or has_embedded_scatter:
             fig = plot_figure_9c_scatters(
                 fw_medium_data,
                 n_features=9,
                 seed=42,
+                scatter_dir=scatter_dir if has_streaming_scatter else None,
             )
             save_figure(fig, "figure_9c_scatter_plots.pdf", figure_dir, report_dir)
         else:

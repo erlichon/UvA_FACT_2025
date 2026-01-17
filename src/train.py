@@ -129,8 +129,10 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--device", type=str, default=None, help="Device (auto-detect if not specified)")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb")
-    parser.add_argument("--checkpoint-dir", type=str, default="results/phase1/checkpoints")
+    parser.add_argument("--checkpoint-dir", type=str, default="results/vision/checkpoints")
     parser.add_argument("--epochs", type=int, default=None, help="Override epochs from config")
+    parser.add_argument("--apply-com", type=str, choices=["true", "false"], default=None,
+                        help="Override Center-of-Mass normalization (true/false)")
     args = parser.parse_args()
 
     # Setup
@@ -140,6 +142,13 @@ def main():
     config = load_config(args.config)
     config_name = Path(args.config).stem
     epochs = args.epochs if args.epochs is not None else config['training']['epochs']
+    
+    # Apply CoM override if specified
+    if args.apply_com is not None:
+        if 'data' not in config:
+            config['data'] = {}
+        config['data']['apply_com'] = args.apply_com.lower() == 'true'
+        print(f"  CoM override: {config['data']['apply_com']}")
 
     # Determine dataset for tagging
     dataset_name = config.get('data', {}).get('dataset', 'mnist')

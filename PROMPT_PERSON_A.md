@@ -298,7 +298,7 @@ def main():
     parser.add_argument("--device", type=str, default="cuda", help="Device")
     parser.add_argument("--wandb-project", type=str, default="fact-bilinear")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb")
-    parser.add_argument("--checkpoint-dir", type=str, default="results/phase1/checkpoints")
+    parser.add_argument("--checkpoint-dir", type=str, default="results/vision/checkpoints")
     args = parser.parse_args()
 
     # Load config
@@ -568,7 +568,7 @@ echo "Seed: $SEED"
 python src/train.py \
     --config "$CONFIG" \
     --seed "$SEED" \
-    --checkpoint-dir results/phase1/checkpoints
+    --checkpoint-dir results/vision/checkpoints
 ```
 
 **`jobs/train_array.job`** (all 20 runs):
@@ -607,7 +607,7 @@ echo "Seed: $SEED"
 python src/train.py \
     --config "configs/mnist_dense_${CONFIG_NAME}.yaml" \
     --seed "$SEED" \
-    --checkpoint-dir "results/phase1/checkpoints"
+    --checkpoint-dir "results/vision/checkpoints"
 ```
 
 ---
@@ -616,7 +616,7 @@ python src/train.py \
 
 ### Step 1: Create Directory Structure
 ```bash
-mkdir -p src/models src/vision configs jobs results/phase1/checkpoints logs
+mkdir -p src/models src/vision configs jobs results/vision/checkpoints logs
 touch src/__init__.py src/models/__init__.py src/vision/__init__.py
 ```
 
@@ -662,7 +662,7 @@ squeue -u scur0075
 ### Checkpoint Format (AGREED)
 Person B will load checkpoints like this:
 ```python
-checkpoint = torch.load("results/phase1/checkpoints/mnist_dense_full_seed42.pt")
+checkpoint = torch.load("results/vision/checkpoints/mnist_dense_full_seed42.pt")
 config = checkpoint['config']
 model_state = checkpoint['model_state_dict']
 eigenvalues = checkpoint['eigenvalues']  # [n_classes, d_hidden]
@@ -671,7 +671,7 @@ eigenvectors = checkpoint['eigenvectors']  # [n_classes, d_hidden, d_input]
 
 ### Expected Outputs After Phase 1
 ```
-results/phase1/checkpoints/
+results/vision/checkpoints/
 ├── mnist_dense_none_seed42.pt
 ├── mnist_dense_none_seed43.pt
 ├── ... (20 files total)

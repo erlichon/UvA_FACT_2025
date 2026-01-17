@@ -139,7 +139,7 @@ wandb.summary = {
 
 For overnight runs without internet, use `--no-wandb`. Results are saved to:
 
-- **Vision checkpoints**: `results/phase1/checkpoints/*.pt`
+- **Vision checkpoints**: `results/vision/checkpoints/*.pt`
 - **Language results**: `results/language/*.json`
 
 ### Analyzing Offline Results
@@ -149,7 +149,7 @@ import torch
 import json
 
 # Load vision checkpoint
-ckpt = torch.load("results/phase1/checkpoints/mnist_dense_full_seed42.pt")
+ckpt = torch.load("results/vision/checkpoints/mnist_dense_full_seed42.pt")
 print(f"Val Accuracy: {ckpt['metrics']['val_acc']:.4f}")
 print(f"Effective Rank: {ckpt['metrics']['effective_rank']:.1f}")
 
@@ -192,7 +192,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Load all checkpoints
-checkpoints = list(Path("results/phase1/checkpoints").glob("*.pt"))
+checkpoints = list(Path("results/vision/checkpoints").glob("*.pt"))
 results = []
 
 for ckpt_path in checkpoints:

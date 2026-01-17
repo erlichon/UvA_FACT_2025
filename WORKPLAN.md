@@ -105,9 +105,9 @@ wandb.summary["co2_kg"] = emissions_kg
 ### Phase 1 Deliverables
 | Artifact | Location | Status |
 |----------|----------|--------|
-| Trained models (MNIST) | `results/phase1/checkpoints/` | **COMPLETE** (20 files) |
-| Trained models (Fashion-MNIST) | `results/phase1_fashion/checkpoints/` | **COMPLETE** (20 files) |
-| Eigenspectrum plots | `results/phase1/figures/` + `Report/figures/` | **COMPLETE** (11 PDFs) |
+| Trained models (MNIST) | `results/vision/checkpoints/` | **COMPLETE** (20 files) |
+| Trained models (Fashion-MNIST) | `results/vision/checkpoints_fashion/` | **COMPLETE** (20 files) |
+| Eigenspectrum plots | `results/vision/figures/` + `Report/figures/` | **COMPLETE** (11 PDFs) |
 | Analysis notebook | `notebooks/01_reproduction.ipynb` | **COMPLETE** |
 | Plotting utilities | `src/plot_utils/` | **COMPLETE** |
 | Experiment metrics | https://wandb.ai/itayerlich96-student/fact-bilinear | LOGGED |

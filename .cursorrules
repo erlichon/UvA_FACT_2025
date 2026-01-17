@@ -147,8 +147,8 @@ UvA_FACT_2025/
 │   ├── sync_from_snellius.sh     # Download results
 │   └── monitor_memory.sh         # Memory monitoring
 ├── results/
-│   ├── phase1/checkpoints/       # MNIST checkpoints
-│   ├── phase1_fashion/checkpoints/
+│   ├── vision/checkpoints/       # MNIST checkpoints
+│   ├── vision/checkpoints_fashion/
 │   └── language/                 # Language results (JSON + figures)
 ├── notebooks/01_reproduction.ipynb
 ├── Report/figures/               # Figures for LaTeX
@@ -300,8 +300,8 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 ./scripts/train/run_language.sh figure9
 ./scripts/train/run_language.sh figure9 --model fw-medium   # Single model
 
-# Figure 8: Negation circuit visualization
-./scripts/train/run_language.sh figure8 --device cpu
+# Figure 8: Negation circuit visualization (memory-efficient, works on MPS)
+./scripts/train/run_language.sh figure8 --device mps
 
 # Negation discovery
 ./scripts/train/run_language.sh negation
@@ -317,18 +317,20 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 \`\`\`
 
 ### Extension 2: Cross-Dataset Robustness
+Uses Phase 1 settings (noise=0.5, wd=1.0) with CoM normalization. Cosine similarity only.
+
 \`\`\`bash
-# Train EMNIST models with/without CoM
-./scripts/train/run_extension2.sh train
+# Train EMNIST models (CoM always enabled)
+./scripts/train/run_extension2.sh train all
 
-# Run subspace evaluation
-./scripts/train/run_extension2.sh eval
+# Generate all Extension 2 figures
+./scripts/train/run_extension2.sh figures
 
-# Aggregate results across seeds
-./scripts/train/run_extension2.sh aggregate
-
-# Full pipeline (train + eval + aggregate)
+# Full pipeline (train + figures)
 ./scripts/train/run_extension2.sh all
+
+# Direct figure generation
+python scripts/figures/generate_extension2_figures.py
 \`\`\`
 
 ### Full Overnight Pipeline
@@ -377,7 +379,7 @@ checkpoint = {
     'eigenvalues': Tensor,     # [10, 256] (n_classes, d_hidden)
     'eigenvectors': Tensor,    # [10, 256, 784] (n_classes, d_hidden, d_input)
 }
-# Path: results/phase1/checkpoints/{config_name}_seed{seed}.pt
+# Path: results/vision/checkpoints/{config_name}_seed{seed}.pt
 \`\`\`
 
 ### Loading Checkpoints
@@ -385,7 +387,7 @@ checkpoint = {
 from src.vision.spectral import load_checkpoint_eigenvalues
 
 eigenvalues, eigenvectors = load_checkpoint_eigenvalues(
-    "results/phase1/checkpoints/mnist_dense_full_seed42.pt"
+    "results/vision/checkpoints/mnist_dense_full_seed42.pt"
 )
 \`\`\`
 
@@ -507,7 +509,7 @@ print(f"Effective Rank: {summary['effective_rank_mean']:.2f}")
 img = vecs[0, 0].reshape(28, 28)  # First eigenvector of class 0
 
 # Load all checkpoints into DataFrame
-df = load_all_checkpoints("results/phase1/checkpoints", dataset="mnist")
+df = load_all_checkpoints("results/vision/checkpoints", dataset="mnist")
 agg = aggregate_by_config(df)  # Mean/std per config
 ratio = compute_rank_ratio(df, "none", "full")  # Effective rank ratio
 \`\`\`

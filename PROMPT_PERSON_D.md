@@ -30,7 +30,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 - **Person F** provides: Working `BilinearCP` class and `CPImageModel` (verified via XOR gate)
 - **Person A** provides: Training infrastructure (`src/train.py` pattern)
 - **Person B** provides: Analysis utilities (`src/vision/spectral.py`)
-- Phase 1 checkpoints: `results/phase1/checkpoints/` (for comparison)
+- Phase 1 checkpoints: `results/vision/checkpoints/` (for comparison)
 
 ---
 
@@ -557,7 +557,7 @@ from src.vision.visualization import (
 )
 
 CP_CHECKPOINT_DIR = "../results/phase2/checkpoints"
-P1_CHECKPOINT_DIR = "../results/phase1/checkpoints"
+P1_CHECKPOINT_DIR = "../results/vision/checkpoints"
 FIGURE_DIR = "../results/phase2/figures"
 ```
 

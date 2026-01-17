@@ -25,6 +25,7 @@ Usage:
 import sys
 from pathlib import Path
 import argparse
+import gc
 import json
 import warnings
 from dataclasses import dataclass
@@ -65,6 +66,7 @@ from src.language.verify_correlation import (
     pearson_correlation,
 )
 from src.language.context import LanguageContext
+from src.language.memory_efficient_eigen import top_k_eigenvectors_by_magnitude
 
 
 @dataclass
@@ -190,8 +192,11 @@ def compute_figure_8b_projections(
     - "bad" - "good" token unembedding
     - "[BOS] not" MLP input activation
     
-    Mathematically exact: Computes full projected Q matrix in CPU memory (~268MB for fw-medium).
-    This is acceptable for modern systems.
+    Memory-efficient: Uses iterative eigensolver that never materializes the full
+    n_features x n_features projected Q matrix. Memory usage is O(d_model x n_features)
+    instead of O(n_features^2).
+    
+    Mathematically equivalent to computing full Q_projected and sorting by eigenvalue magnitude.
     
     Args:
         model: Transformer model
@@ -202,49 +207,27 @@ def compute_figure_8b_projections(
     Returns:
         (feature_projections, meaningful_directions, v1, v2)
     """
-    # Get Q matrix in d_model space
+    # Get Q matrix in d_model space (small: 1024x1024 for fw-medium)
     Q = tracer.q(feat_idx, project=False).float().cpu()  # [d_model, d_model]
     
     # Get SAE input latents (decoder directions)
     inp_latents = tracer.inp_latents.float().cpu()  # [d_model, n_features]
     
     n_features = inp_latents.shape[1]
-    print(f"  Computing projected Q matrix ({n_features}×{n_features}, ~{n_features**2*4/(1024**2):.0f}MB)...")
-    print(f"  This may take 1-2 minutes but is mathematically exact...")
+    d_model = inp_latents.shape[0]
+    print(f"  Using memory-efficient eigensolver (avoiding {n_features}×{n_features} matrix)")
+    print(f"  Memory: ~{(d_model * n_features * 4) / (1024**2):.0f}MB instead of ~{(n_features**2 * 4) / (1024**2):.0f}MB")
     
-    # Compute V^T @ Q @ V in chunks to manage memory efficiently
-    # Result will be exact, we're just chunking the computation
-    chunk_size = 512  # Process 512 features at a time
-    
-    # First compute Q @ V (can do all at once, result is [d_model, n_features])
-    Q_V = torch.mm(Q, inp_latents)  # [d_model, n_features]
-    
-    # Now compute V^T @ Q_V in chunks
-    Q_projected_chunks = []
-    for start in range(0, n_features, chunk_size):
-        end = min(start + chunk_size, n_features)
-        chunk_latents = inp_latents[:, start:end]  # [d_model, chunk_size]
-        chunk_result = torch.mm(chunk_latents.T, Q_V)  # [chunk_size, n_features]
-        Q_projected_chunks.append(chunk_result)
-        
-        if (start // chunk_size) % 4 == 0:
-            print(f"    Processed {end}/{n_features} features...")
-    
-    # Concatenate chunks to get full projected Q
-    Q_projected = torch.cat(Q_projected_chunks, dim=0)  # [n_features, n_features]
-    Q_projected = 0.5 * (Q_projected + Q_projected.T)  # Symmetrize
-    
-    del Q_projected_chunks, Q_V  # Free memory
-    
-    print(f"  Computing eigendecomposition...")
-    # Compute top 2 eigenvectors using torch.lobpcg (for large sparse-ish matrices)
-    # Or just use eigh since we have the full matrix now
-    eigenvalues, eigenvectors = safe_eigh(Q_projected)
-    
-    # Sort by magnitude (largest first)
-    sort_indices = torch.argsort(eigenvalues.abs(), descending=True)
-    eigenvalues_sorted = eigenvalues[sort_indices]
-    eigenvectors_sorted = eigenvectors[:, sort_indices]
+    # Use memory-efficient iterative method to get top-2 eigenvectors by magnitude
+    # This is mathematically equivalent to:
+    #   Q_projected = inp_latents.T @ Q @ inp_latents
+    #   eigenvalues, eigenvectors = eigh(Q_projected)
+    #   sort by abs(eigenvalues), take top 2
+    eigenvalues_sorted, eigenvectors_sorted = top_k_eigenvectors_by_magnitude(
+        Q=Q,
+        inp_latents=inp_latents,
+        k=2,
+    )
     
     v1 = eigenvectors_sorted[:, 0]  # Top eigenvector in SAE latent space
     v2 = eigenvectors_sorted[:, 1]  # Second eigenvector
@@ -279,8 +262,9 @@ def compute_figure_8b_projections(
             bad_id = bad_tokens[0]
             
             # Get unembedding vectors (in d_model space)
-            good_unembed = model.unembed.weight[:, good_id].float().cpu()
-            bad_unembed = model.unembed.weight[:, bad_id].float().cpu()
+            # model.w_u is lm_head.weight with shape [vocab_size, d_model]
+            good_unembed = model.w_u[good_id, :].float().cpu()
+            bad_unembed = model.w_u[bad_id, :].float().cpu()
             sentiment_dir = bad_unembed - good_unembed
             sentiment_dir = sentiment_dir / sentiment_dir.norm()
             
@@ -330,6 +314,9 @@ def compute_figure_8c_scatter(
     """
     Compute true vs predicted activations for Figure 8C.
     
+    Memory-efficient version: only accumulates active samples (z_true > 0)
+    to avoid OOM from storing all batch data.
+    
     Reuses existing functions from interaction_utils.py for DRY compliance.
     
     Args:
@@ -344,12 +331,34 @@ def compute_figure_8c_scatter(
     Returns:
         (z_true, z_pred_rank2, correlation)
     """
-    sight = Sight(model)
-    sae_out_device = sae_out.to(device)
+    print(f"  Using memory-efficient Panel C (only accumulating active samples)")
     
-    # Accumulate activations
-    all_mlp_in = []
-    all_z_true = []
+    sight = Sight(model)
+    sae_out_cpu = sae_out.cpu()  # Keep SAE on CPU to save memory
+    
+    # First, compute eigenpairs ONCE (before accumulating data)
+    # This is the Q matrix for the UNPROJECTED model weights, only d_model x d_model
+    print(f"  Pre-computing rank-2 eigenpairs for feature {feat_idx}...")
+    out_direction = sae_out_cpu.w_enc.weight[feat_idx, :]
+    eigenpairs = get_interaction_eigenpairs(
+        model=model,
+        layer=layer,
+        feat_idx=feat_idx,
+        out_direction=out_direction,
+        device="cpu",
+    )
+    eigenvalues_2 = eigenpairs.eigenvalues[:2]
+    eigenvectors_2 = eigenpairs.eigenvectors[:, :2]
+    print(f"  Rank-2 eigenvalues: {eigenvalues_2.tolist()}")
+    
+    # Memory-efficient accumulation: ONLY keep active samples
+    all_x_active = []
+    all_z_active = []
+    total_samples = 0
+    active_count = 0
+    
+    # Check if we're on MPS
+    is_mps = str(device).startswith("mps")
     
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(dataloader, desc="Computing Figure 8C", total=min(max_batches, len(dataloader)))):
@@ -362,39 +371,48 @@ def compute_figure_8c_scatter(
                 mlp_in = sight["mlp-in", layer].save()
                 mlp_out = sight["mlp-out", layer].save()
             
-            mlp_in_flat = mlp_in.flatten(0, 1).float()
-            mlp_out_flat = mlp_out.flatten(0, 1).float()
+            # Move to CPU immediately to free MPS memory
+            mlp_in_cpu = mlp_in.flatten(0, 1).float().cpu()
+            mlp_out_cpu = mlp_out.flatten(0, 1).float().cpu()
             
-            z_true = sae_out_device.encode(mlp_out_flat)[:, feat_idx]
+            # Delete MPS tensors immediately
+            del mlp_in, mlp_out
             
-            all_mlp_in.append(mlp_in_flat.cpu())
-            all_z_true.append(z_true.cpu())
+            # Compute z_true on CPU (SAE encode is fast enough)
+            z_true_batch = sae_out_cpu.encode(mlp_out_cpu)[:, feat_idx]
+            
+            # Find active samples in THIS batch (z_true > 0)
+            active_mask = z_true_batch > 0
+            n_active = active_mask.sum().item()
+            
+            if n_active > 0:
+                # Only keep active samples to save memory
+                all_x_active.append(mlp_in_cpu[active_mask].clone())
+                all_z_active.append(z_true_batch[active_mask].clone())
+                active_count += n_active
+            
+            total_samples += mlp_in_cpu.shape[0]
+            
+            # Explicitly delete tensors and clear memory
+            del mlp_in_cpu, mlp_out_cpu, z_true_batch, active_mask, batch
+            gc.collect()
+            
+            # Clear MPS cache if on Apple Silicon
+            if is_mps:
+                torch.mps.empty_cache()
     
-    mlp_in_all = torch.cat(all_mlp_in, dim=0)
-    z_true_all = torch.cat(all_z_true, dim=0)
+    if len(all_x_active) == 0:
+        print(f"  Warning: No active samples found for feature {feat_idx}")
+        return torch.tensor([]), torch.tensor([]), 0.0
     
-    # Filter for active samples
-    active_mask = z_true_all > 0
-    x_active = mlp_in_all[active_mask]
-    z_active = z_true_all[active_mask]
+    # Concatenate only active samples
+    x_active = torch.cat(all_x_active, dim=0)
+    z_active = torch.cat(all_z_active, dim=0)
     
-    print(f"  Found {active_mask.sum().item()} active samples for feature {feat_idx}")
+    print(f"  Found {active_count}/{total_samples} active samples ({100*active_count/total_samples:.1f}%)")
+    print(f"  Memory saved: kept {active_count} instead of {total_samples} samples")
     
-    # Get eigenpairs (reuse existing function)
-    # Use ENCODER direction as per paper's Tracer (use_encoder=True by default)
-    out_direction = sae_out_device.w_enc.weight[feat_idx, :].cpu()
-    eigenpairs = get_interaction_eigenpairs(
-        model=model,
-        layer=layer,
-        feat_idx=feat_idx,
-        out_direction=out_direction,
-        device="cpu",
-    )
-    
-    # Rank-2 prediction
-    eigenvalues_2 = eigenpairs.eigenvalues[:2]
-    eigenvectors_2 = eigenpairs.eigenvectors[:, :2]
-    
+    # Rank-2 prediction using pre-computed eigenpairs
     z_pred = predict_activation_from_eigenpairs(x_active, eigenvalues_2, eigenvectors_2)
     
     # Compute correlation

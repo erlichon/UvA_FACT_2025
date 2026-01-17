@@ -146,6 +146,26 @@ def compute_subspace_overlap(
         overlap = (P ** 2).sum() / k
         return overlap.item()
     
+    elif method == 'hungarian':
+        # Hungarian-matched cosine similarity
+        # Finds optimal 1-to-1 matching between eigenvectors
+        # This handles the case where eigenvectors capture similar features
+        # but are ordered differently by eigenvalue magnitude
+        from scipy.optimize import linear_sum_assignment
+        
+        # Compute all pairwise cosines
+        cos_matrix = (A @ B.T).abs().cpu().numpy()  # [k, k]
+        
+        # Cost matrix for Hungarian algorithm (we want to maximize similarity)
+        cost_matrix = 1 - cos_matrix
+        
+        # Find optimal matching
+        row_ind, col_ind = linear_sum_assignment(cost_matrix)
+        
+        # Return mean of matched cosine similarities
+        matched_cosines = cos_matrix[row_ind, col_ind]
+        return matched_cosines.mean()
+    
     else:
         raise ValueError(f"Unknown method: {method}")
 

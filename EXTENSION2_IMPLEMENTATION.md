@@ -88,7 +88,7 @@ mechanism_stability_test(
 **Usage:**
 ```bash
 python src/evaluate_extension2.py --mechanism-test \
-    --checkpoint-regularized results/phase1/checkpoints/mnist_dense_full_seed42.pt \
+    --checkpoint-regularized results/vision/checkpoints/mnist_dense_full_seed42.pt \
     --checkpoint-emnist-digits results/extension2/checkpoints/emnist_digits_regularized_seed42.pt
 ```
 
@@ -173,8 +173,8 @@ LETTER_DIGIT_SIMILARITY = {
 ```bash
 # Re-run semantic confusion test with updated mapping
 python src/evaluate_extension2.py --semantic-test \
-    --checkpoint-baseline results/phase1/checkpoints/mnist_dense_none_seed42.pt \
-    --checkpoint-regularized results/phase1/checkpoints/mnist_dense_full_seed42.pt
+    --checkpoint-baseline results/vision/checkpoints/mnist_dense_none_seed42.pt \
+    --checkpoint-regularized results/vision/checkpoints/mnist_dense_full_seed42.pt
 ```
 
 ---
@@ -185,7 +185,7 @@ python src/evaluate_extension2.py --semantic-test \
 
 ```bash
 # Step 0: Ensure you have all trained models
-# - MNIST models: results/phase1/checkpoints/mnist_dense_full_seed{42-46}.pt ✓
+# - MNIST models: results/vision/checkpoints/mnist_dense_full_seed{42-46}.pt ✓
 # - EMNIST-Digits models: Need to train (Step 1)
 # - EMNIST-Letters models: Need to retrain with d_output=26
 
@@ -197,7 +197,7 @@ bash scripts/train_emnist_all_seeds.sh
 
 # Step 3: Run all 4 evaluation steps
 python src/evaluate_extension2.py --full-pipeline \
-    --mnist-checkpoint results/phase1/checkpoints/mnist_dense_full_seed42.pt \
+    --mnist-checkpoint results/vision/checkpoints/mnist_dense_full_seed42.pt \
     --emnist-digits-checkpoint results/extension2/checkpoints/emnist_digits_seed42.pt \
     --emnist-letters-checkpoint results/extension2/checkpoints/emnist_regularized_seed42.pt \
     --output-dir results/extension2

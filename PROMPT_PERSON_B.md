@@ -79,7 +79,7 @@ from src.vision.spectral import load_checkpoint_eigenvalues
 
 # Load eigenvalues/eigenvectors directly
 eigenvalues, eigenvectors = load_checkpoint_eigenvalues(
-    'results/phase1/checkpoints/mnist_dense_full_seed42.pt'
+    'results/vision/checkpoints/mnist_dense_full_seed42.pt'
 )
 print(f"Eigenvalues shape: {eigenvalues.shape}")  # [10, 256]
 print(f"Eigenvectors shape: {eigenvectors.shape}")  # [10, 256, 784]
@@ -668,8 +668,8 @@ from src.vision.visualization import (
     plot_ablation_summary,
 )
 
-CHECKPOINT_DIR = "../results/phase1/checkpoints"
-FIGURE_DIR = "../results/phase1/figures"
+CHECKPOINT_DIR = "../results/vision/checkpoints"
+FIGURE_DIR = "../results/vision/figures"
 REPORT_FIGURE_DIR = "../Report/figures"
 
 Path(FIGURE_DIR).mkdir(parents=True, exist_ok=True)
@@ -905,7 +905,7 @@ ls jobs/train_array.job  # SLURM array job
 
 ### Step 2: Create Your Directories
 ```bash
-mkdir -p notebooks results/phase1/figures docs
+mkdir -p notebooks results/vision/figures docs
 ```
 
 ### Step 3: Test Loading Checkpoints
@@ -914,7 +914,7 @@ mkdir -p notebooks results/phase1/figures docs
 import torch
 from src.vision.spectral import load_checkpoint_eigenvalues, spectral_summary
 
-vals, vecs = load_checkpoint_eigenvalues("results/phase1/checkpoints/mnist_dense_full_seed42.pt")
+vals, vecs = load_checkpoint_eigenvalues("results/vision/checkpoints/mnist_dense_full_seed42.pt")
 print(f"Eigenvalues shape: {vals.shape}")  # [10, 256]
 print(f"Eigenvectors shape: {vecs.shape}")  # [10, 256, 784]
 print(spectral_summary(vals))
@@ -931,7 +931,7 @@ Run notebook once all 20 checkpoints exist.
 
 ### Step 7: Copy to Report
 ```bash
-cp results/phase1/figures/*.pdf Report/figures/
+cp results/vision/figures/*.pdf Report/figures/
 ```
 
 ---
@@ -939,7 +939,7 @@ cp results/phase1/figures/*.pdf Report/figures/
 ## EXPECTED OUTPUTS
 
 ```
-results/phase1/figures/
+results/vision/figures/
 ├── eigenspectrum_comparison.pdf   # Main result: reg vs no-reg
 ├── eigenspectrum_per_class.pdf    # Per-digit breakdown
 ├── eigenvectors_noreg.pdf         # Overfitting patterns

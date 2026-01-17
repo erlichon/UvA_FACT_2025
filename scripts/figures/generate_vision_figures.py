@@ -61,8 +61,8 @@ warnings.filterwarnings(
 
 @dataclass(frozen=True)
 class Dirs:
-    phase1_mnist_ckpts: Path
-    phase1_fashion_ckpts: Path
+    vision_mnist_ckpts: Path
+    vision_fashion_ckpts: Path
     noise_sweep_ckpts: Path
     size_sweep_ckpts: Path
     challenge_ckpts: Path
@@ -72,8 +72,8 @@ class Dirs:
 
 def get_dirs() -> Dirs:
     return Dirs(
-        phase1_mnist_ckpts=PROJECT_ROOT / "results/phase1/checkpoints",
-        phase1_fashion_ckpts=PROJECT_ROOT / "results/phase1_fashion/checkpoints",
+        vision_mnist_ckpts=PROJECT_ROOT / "results/vision/checkpoints",
+        vision_fashion_ckpts=PROJECT_ROOT / "results/vision/checkpoints_fashion",
         noise_sweep_ckpts=PROJECT_ROOT / "results/sweeps/noise_sweep/checkpoints",
         size_sweep_ckpts=PROJECT_ROOT / "results/sweeps/model_size/checkpoints",
         challenge_ckpts=PROJECT_ROOT / "results/challenge/checkpoints",
@@ -98,15 +98,15 @@ def generate_regularization_section(d: Dirs) -> None:
     print("\n=== Vision / Regularization ===")
 
     # Load MNIST + Fashion checkpoints into a dataframe for ablations/tradeoff plots.
-    mnist_df = load_all_checkpoints(d.phase1_mnist_ckpts, dataset="mnist")
-    fashion_df = load_all_checkpoints(d.phase1_fashion_ckpts, dataset="fashion")
+    mnist_df = load_all_checkpoints(d.vision_mnist_ckpts, dataset="mnist")
+    fashion_df = load_all_checkpoints(d.vision_fashion_ckpts, dataset="fashion")
     mnist_agg = aggregate_by_config(mnist_df)
     fashion_agg = aggregate_by_config(fashion_df)
 
     # Eigenspectrum comparison (seed42 reference for each config)
     eigenvalues_dict: Dict[str, torch.Tensor] = {}
     for config in ["none", "noise", "wd", "full"]:
-        path = d.phase1_mnist_ckpts / f"mnist_dense_{config}_seed42.pt"
+        path = d.vision_mnist_ckpts / f"mnist_dense_{config}_seed42.pt"
         vals, _ = load_checkpoint_eigenvalues(str(path))
         eigenvalues_dict[config] = vals
 
@@ -134,7 +134,7 @@ def generate_regularization_section(d: Dirs) -> None:
     )
     plt.close(fig)
 
-    vals_full, _ = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"))
+    vals_full, _ = load_checkpoint_eigenvalues(str(d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"))
     fig = plot_eigenspectrum_per_class(
         vals_full,
         title="MNIST (Full Reg): Eigenspectrum Across Digit Classes",
@@ -148,9 +148,9 @@ def generate_regularization_section(d: Dirs) -> None:
     plt.close(fig)
 
     # Eigenvector grids
-    vals_none, vecs_none = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_none_seed42.pt"))
-    vals_reg, vecs_reg = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"))
-    vals_noise, vecs_noise = load_checkpoint_eigenvalues(str(d.phase1_mnist_ckpts / "mnist_dense_noise_seed42.pt"))
+    vals_none, vecs_none = load_checkpoint_eigenvalues(str(d.vision_mnist_ckpts / "mnist_dense_none_seed42.pt"))
+    vals_reg, vecs_reg = load_checkpoint_eigenvalues(str(d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"))
+    vals_noise, vecs_noise = load_checkpoint_eigenvalues(str(d.vision_mnist_ckpts / "mnist_dense_noise_seed42.pt"))
 
     fig = plot_eigenvectors_grid(
         vecs_none,
@@ -196,7 +196,7 @@ def generate_regularization_section(d: Dirs) -> None:
     plt.close(fig)
 
     # Fashion eigenvectors: add noise-only too
-    fashion_noise_ckpt = d.phase1_fashion_ckpts / "fashion_dense_noise_seed42.pt"
+    fashion_noise_ckpt = d.vision_fashion_ckpts / "fashion_dense_noise_seed42.pt"
     if fashion_noise_ckpt.exists():
         vals_fashion_noise, vecs_fashion_noise = load_checkpoint_eigenvalues(str(fashion_noise_ckpt))
         fashion_classes = [
@@ -674,8 +674,8 @@ def _plot_challenge_from_checkpoint(
     pos_sorted = pos_idx[vals[pos_idx].argsort(descending=True)] if len(pos_idx) else torch.tensor([], dtype=torch.long)
     neg_sorted = neg_idx[vals[neg_idx].argsort()] if len(neg_idx) else torch.tensor([], dtype=torch.long)
 
-    fig = plt.figure(figsize=(11, 5.4))
-    gs = GridSpec(2, 4, figure=fig, width_ratios=[1.2, 1.0, 1.0, 1.0], wspace=0.25, hspace=0.25)
+    fig = plt.figure(figsize=(11, 6.0))
+    gs = GridSpec(2, 4, figure=fig, width_ratios=[1.2, 1.0, 1.0, 1.0], wspace=0.25, hspace=0.45)
 
     # Positive eigenvalue decay
     ax = fig.add_subplot(gs[0, 0])
@@ -689,7 +689,7 @@ def _plot_challenge_from_checkpoint(
         markersize=3,
     )
     ax.set_title("Positive eigenvalues", fontsize=11)
-    ax.set_xlabel("Index")
+    ax.set_xlabel("Index", fontsize=9)
     ax.set_ylabel("λ")
     ax.axhline(0, color="gray", linewidth=0.8)
     ax.grid(True, alpha=0.3)
@@ -936,7 +936,7 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
 
     for seed in seeds:
         # A) Noise regularization (std=0.15)
-        ckpt_noise_path = d.phase1_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"
+        ckpt_noise_path = d.vision_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"
         if not ckpt_noise_path.exists():
             print(f"WARNING: missing {ckpt_noise_path}, skipping seed {seed} for noise-reg.")
             continue
@@ -951,7 +951,7 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
         noise_curves_all.append(eval_curves_for_seed(model_noise, eigenvalues_noise, eigenvectors_noise, restrict_mask=None))
 
         # B) No regularization (with rare-edge restriction)
-        ckpt_noreg_path = d.phase1_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"
+        ckpt_noreg_path = d.vision_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"
         if not ckpt_noreg_path.exists():
             print(f"WARNING: missing {ckpt_noreg_path}, skipping seed {seed} for no-reg.")
             continue
@@ -996,25 +996,27 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
     agg_noise = aggregate(noise_curves_all)
     agg_noreg = aggregate(noreg_curves_all)
 
-    # Plot paper-style A/B panel
+    # Plot paper-style A/B panel - tighter layout with larger images
     set_publication_style()
-    fig = plt.figure(figsize=(14, 8))
-    # Dedicated label column so A)/B) can never overlap the first image.
+    fig = plt.figure(figsize=(15, 5.5))
+    # Narrower label column, larger image columns, moderate graph columns
     gs = GridSpec(
         2, 7,
         figure=fig,
-        width_ratios=[0.9, 1, 1, 1, 1, 1.5, 1.5],
-        hspace=0.5,
-        wspace=0.35,
-        left=0.06,
-        right=0.98,
+        width_ratios=[0.35, 1.2, 1.2, 1.2, 1.2, 1.6, 1.6],
+        hspace=0.35,
+        wspace=0.25,
+        left=0.04,
+        right=0.99,
+        top=0.88,
+        bottom=0.08,
     )
 
     # Column titles (skip label column 0)
-    col_titles = ["Eigenvector", "Adversarial mask", "Misclassified example", "Random mask", "Accuracy", "Misclassification"]
+    col_titles = ["Eigenvector", "Adv. mask", "Misclassified", "Rand. mask", "Accuracy", "Misclassification"]
     for col, title in enumerate(col_titles):
         ax_t = fig.add_subplot(gs[0, col + 1])
-        ax_t.set_title(title, fontsize=11)
+        ax_t.set_title(title, fontsize=10, pad=3)
         ax_t.axis("off")
 
     def im_signed(ax, v: torch.Tensor) -> None:
@@ -1040,15 +1042,15 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
         )
 
     rows = [
-        ("A) Noise regularization (std=0.15)", agg_noise, viz_eig_noise, viz_adv_noise, viz_rand_noise, viz_mis_noise),
-        ("B) Without regularization", agg_noreg, viz_eig_noreg, viz_adv_noreg, viz_rand_noreg, viz_mis_noreg),
+        ("A) Noise\n(σ=0.15)", agg_noise, viz_eig_noise, viz_adv_noise, viz_rand_noise, viz_mis_noise),
+        ("B) No reg", agg_noreg, viz_eig_noreg, viz_adv_noreg, viz_rand_noreg, viz_mis_noreg),
     ]
 
     for r, (row_label, agg, eig, adv_mask, rand_mask, mis_ex) in enumerate(rows):
-        # Label cell (dedicated column)
+        # Label cell (dedicated column) - compact multi-line label
         ax_lbl = fig.add_subplot(gs[r, 0])
         ax_lbl.axis("off")
-        ax_lbl.text(0.0, 0.5, row_label, fontsize=12, fontweight="bold", va="center", ha="left", wrap=True)
+        ax_lbl.text(0.5, 0.5, row_label, fontsize=10, fontweight="bold", va="center", ha="center")
 
         # First image cell (eigenvector)
         ax = fig.add_subplot(gs[r, 1])
@@ -1099,6 +1101,69 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
     plt.close(fig)
 
 
+def generate_explanation_section(d: Dirs, device: str = "cpu") -> None:
+    """Generate sample explanation figures for each digit class (0-9).
+    
+    These show how eigenvectors contribute to classifying a sample from each digit class.
+    """
+    print("\n=== Vision / Sample Explanations ===")
+    
+    from src.plot_utils.explanation import plot_sample_explanation
+    from image.datasets import MNIST
+    
+    # Load checkpoint
+    ckpt_path = d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"
+    if not ckpt_path.exists():
+        print(f"WARNING: checkpoint not found at {ckpt_path}; skipping explanation figures.")
+        return
+    
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
+    eigenvalues = ckpt["eigenvalues"]
+    eigenvectors = ckpt["eigenvectors"]
+    
+    # Load MNIST test set to get sample images
+    dataset = MNIST(train=False, device=device)
+    
+    # Get one sample per digit - dataset returns (img, label) where img is [1, H, W] and label is tensor
+    samples_by_digit = {}
+    for i in range(len(dataset)):
+        img, label = dataset[i]
+        label_int = int(label.item()) if hasattr(label, 'item') else int(label)
+        if label_int not in samples_by_digit:
+            samples_by_digit[label_int] = img
+        if len(samples_by_digit) == 10:
+            break
+    
+    # Generate explanation figure for each digit
+    for digit in range(10):
+        if digit not in samples_by_digit:
+            print(f"WARNING: No sample found for digit {digit}; skipping.")
+            continue
+        
+        sample = samples_by_digit[digit]
+        if sample.dim() == 3:  # [C, H, W] -> [H, W]
+            sample = sample.squeeze(0)
+        
+        fig = plot_sample_explanation(
+            sample=sample,
+            eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
+            top_k_eigenvectors=5,
+            top_k_classes=3,
+            figsize=(14, 6),
+        )
+        fig.suptitle(f"Sample Explanation: Digit {digit}", fontsize=12, y=1.02)
+        
+        _save_and_copy(
+            fig,
+            d.figure_out / f"vision_explanation_digit_{digit}.pdf",
+            d.report_figures / f"sample_explanation_digit_{digit}.pdf",
+        )
+        plt.close(fig)
+    
+    print(f"Generated explanation figures for all 10 digits.")
+
+
 def generate_appendix_adversarial_encoders(d: Dirs, device: str = "cpu") -> None:
     """Appendix: additional adversarial mask examples from existing models only."""
     from matplotlib.gridspec import GridSpec
@@ -1107,8 +1172,8 @@ def generate_appendix_adversarial_encoders(d: Dirs, device: str = "cpu") -> None
     # Conditions (use one seed for visualization)
     seed = 42
     conds = [
-        ("No reg", d.phase1_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"),
-        ("Noise std=0.15", d.phase1_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"),
+        ("No reg", d.vision_mnist_ckpts / f"mnist_dense_none_seed{seed}.pt"),
+        ("Noise std=0.15", d.vision_mnist_ckpts / f"mnist_dense_noise015_seed{seed}.pt"),
         ("Noise std=0.3", d.noise_sweep_ckpts / f"mnist_noise_0.3_seed42.pt"),
     ]
     # Filter missing
@@ -1179,7 +1244,7 @@ def generate_appendix_eigenspectrum_digits(d: Dirs, digit_list: Sequence[int] = 
     from matplotlib.gridspec import GridSpec
     from src.vision.spectral import load_checkpoint_eigenvalues
 
-    ckpt_path = d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"
+    ckpt_path = d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Missing checkpoint for appendix digits: {ckpt_path}")
 
@@ -1303,7 +1368,7 @@ def generate_appendix_sparsity(d: Dirs) -> None:
     for cfg in base_cfgs:
         vals_list, vec_list = [], []
         for seed in seeds:
-            ckpt_path = d.phase1_mnist_ckpts / f"mnist_dense_{cfg}_seed{seed}.pt"
+            ckpt_path = d.vision_mnist_ckpts / f"mnist_dense_{cfg}_seed{seed}.pt"
             if not ckpt_path.exists():
                 continue
             ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
@@ -1367,6 +1432,335 @@ def generate_appendix_sparsity(d: Dirs) -> None:
         d.report_figures / "appendix_mnist_eigenval_sparsity.pdf",
     )
     plt.close(fig)
+
+
+def generate_extension2_section(d: Dirs) -> None:
+    """Generate Extension 2 (Cross-Dataset Robustness) figures from JSON results and checkpoints."""
+    import json
+    from src.plot_utils.extension2 import (
+        DIGIT_LETTER_PAIRS,
+        plot_digit_letter_eigenvector_comparison,
+        plot_subspace_overlap_by_rank,
+        plot_cosine_similarity_heatmap,
+        plot_eigenvalue_distribution_overlay,
+        plot_principal_angles,
+        plot_eigenvector_embedding,
+    )
+    
+    print("\n=== Extension 2 / Cross-Dataset Robustness ===")
+    
+    ext2_dir = PROJECT_ROOT / "results/extension2"
+    ext2_ckpt_dir = ext2_dir / "checkpoints"
+    
+    # Load checkpoints for the new visualizations
+    mnist_ckpt = d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"
+    emnist_letters_ckpt = ext2_ckpt_dir / "emnist_letters_regularized_seed42.pt"
+    emnist_digits_ckpt = ext2_ckpt_dir / "emnist_digits_regularized_seed42.pt"
+    
+    mnist_data = None
+    emnist_letters_data = None
+    emnist_digits_data = None
+    
+    if mnist_ckpt.exists():
+        mnist_data = torch.load(mnist_ckpt, map_location="cpu", weights_only=False)
+        print(f"Loaded MNIST checkpoint: {mnist_ckpt.name}")
+    else:
+        print(f"WARNING: MNIST checkpoint not found: {mnist_ckpt}")
+    
+    if emnist_letters_ckpt.exists():
+        emnist_letters_data = torch.load(emnist_letters_ckpt, map_location="cpu", weights_only=False)
+        print(f"Loaded EMNIST-Letters checkpoint: {emnist_letters_ckpt.name}")
+    else:
+        print(f"WARNING: EMNIST-Letters checkpoint not found: {emnist_letters_ckpt}")
+    
+    if emnist_digits_ckpt.exists():
+        emnist_digits_data = torch.load(emnist_digits_ckpt, map_location="cpu", weights_only=False)
+        print(f"Loaded EMNIST-Digits checkpoint: {emnist_digits_ckpt.name}")
+    else:
+        print(f"WARNING: EMNIST-Digits checkpoint not found: {emnist_digits_ckpt}")
+    
+    # ==========================================================================
+    # 1. NEW: Subspace overlap by rank (line plot, replaces bar chart)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Subspace overlap by rank...")
+        fig = plot_subspace_overlap_by_rank(
+            mnist_vecs=mnist_data["eigenvectors"],
+            emnist_vecs=emnist_letters_data["eigenvectors"],
+            mnist_vals=mnist_data["eigenvalues"],
+            emnist_vals=emnist_letters_data["eigenvalues"],
+            pairs=DIGIT_LETTER_PAIRS,
+        )
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_extension2_subspace_overlap.pdf",
+            d.report_figures / "extension2_subspace_overlap.pdf",
+        )
+        plt.close(fig)
+        print("Generated: extension2_subspace_overlap.pdf")
+    
+    # ==========================================================================
+    # 2. FIXED: Mechanism stability results (correct JSON keys)
+    # ==========================================================================
+    mechanism_path = ext2_dir / "mechanism_stability_results.json"
+    if mechanism_path.exists():
+        with open(mechanism_path) as f:
+            mechanism_results = json.load(f)
+        
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        
+        # Left panel: Cross-dataset accuracy (FIXED: use 'functional' key)
+        if 'functional' in mechanism_results:
+            func = mechanism_results['functional']
+            
+            # Extract values
+            labels = ['MNIST→EMNIST', 'EMNIST→MNIST']
+            accuracies = [
+                func.get('mnist_on_emnist', 0),
+                func.get('emnist_on_mnist', 0),
+            ]
+            bidirectional = func.get('bidirectional_avg', 0)
+            
+            ax = axes[0]
+            x = np.arange(len(labels))
+            bars = ax.bar(x, accuracies, color=['#1f77b4', '#ff7f0e'], alpha=0.8)
+            ax.axhline(bidirectional, color='green', linestyle='--', linewidth=2,
+                      label=f'Bidirectional avg: {bidirectional:.1%}')
+            
+            # Add value labels on bars
+            for i, (bar, acc) in enumerate(zip(bars, accuracies)):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                       f'{acc:.1%}', ha='center', va='bottom', fontsize=10)
+            
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels, fontsize=11)
+            ax.set_ylabel('Accuracy', fontsize=12)
+            ax.set_title('Cross-Dataset Classification Accuracy', fontsize=12)
+            ax.legend(loc='lower right')
+            ax.set_ylim(0, 1.05)
+            ax.grid(axis='y', alpha=0.3)
+        
+        # Right panel: Per-digit eigenvector overlap (FIXED: use 'representational' key)
+        if 'representational' in mechanism_results:
+            repr_data = mechanism_results['representational']
+            per_class = repr_data.get('per_class_overlap', {})
+            
+            ax = axes[1]
+            digits = sorted([int(k) for k in per_class.keys()])
+            overlaps = [per_class[str(d)]['mean_cos'] for d in digits]
+            
+            bars = ax.bar(digits, overlaps, color='steelblue', alpha=0.8)
+            
+            # Add aggregate mean line
+            agg = repr_data.get('aggregate', {})
+            mean_overlap = agg.get('mean', np.mean(overlaps))
+            ax.axhline(mean_overlap, color='red', linestyle='--', linewidth=2,
+                      label=f'Mean: {mean_overlap:.3f}')
+            
+            ax.set_xticks(digits)
+            ax.set_xlabel('Digit Class', fontsize=12)
+            ax.set_ylabel('Eigenvector Overlap (mean cosine)', fontsize=12)
+            ax.set_title('MNIST↔EMNIST-Digits Eigenvector Similarity', fontsize=12)
+            ax.legend(loc='lower right')
+            ax.set_ylim(0, 0.7)
+            ax.grid(axis='y', alpha=0.3)
+        
+        plt.suptitle('Extension 2: Mechanism Stability Analysis', fontsize=14, y=1.02)
+        plt.tight_layout()
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_extension2_mechanism_stability.pdf",
+            d.report_figures / "extension2_mechanism_stability.pdf",
+        )
+        plt.close(fig)
+        print("Generated: extension2_mechanism_stability.pdf")
+    else:
+        print(f"WARNING: {mechanism_path} not found, skipping mechanism stability figure")
+    
+    # ==========================================================================
+    # 3. Eigenspectra comparison (MNIST vs EMNIST-Digits) with CI across seeds
+    # ==========================================================================
+    from src.plot_utils.extension2 import plot_eigenspectra_comparison_with_ci
+    
+    # Load all seeds for aggregation
+    seeds = [42, 43, 44, 45, 46]
+    mnist_eigenvalues_list = []
+    emnist_eigenvalues_list = []
+    
+    print("\nLoading eigenspectra from multiple seeds...")
+    for seed in seeds:
+        mnist_ckpt_seed = d.vision_mnist_ckpts / f"mnist_dense_full_seed{seed}.pt"
+        emnist_ckpt_seed = ext2_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt"
+        
+        if mnist_ckpt_seed.exists():
+            data = torch.load(mnist_ckpt_seed, map_location="cpu", weights_only=False)
+            mnist_eigenvalues_list.append(data["eigenvalues"])
+        
+        if emnist_ckpt_seed.exists():
+            data = torch.load(emnist_ckpt_seed, map_location="cpu", weights_only=False)
+            emnist_eigenvalues_list.append(data["eigenvalues"])
+    
+    print(f"Loaded {len(mnist_eigenvalues_list)} MNIST seeds, {len(emnist_eigenvalues_list)} EMNIST seeds")
+    
+    if len(mnist_eigenvalues_list) > 0 and len(emnist_eigenvalues_list) > 0:
+        fig = plot_eigenspectra_comparison_with_ci(
+            mnist_eigenvalues_list=mnist_eigenvalues_list,
+            emnist_eigenvalues_list=emnist_eigenvalues_list,
+            top_k=50,
+            ci_level=0.90,
+        )
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_extension2_eigenspectra.pdf",
+            d.report_figures / "extension2_eigenspectra.pdf",
+        )
+        plt.close(fig)
+        print("Generated: extension2_eigenspectra.pdf")
+    else:
+        print("WARNING: Not enough checkpoints found for eigenspectra comparison")
+    
+    # ==========================================================================
+    # 4. NEW: Digit-letter eigenvector comparisons (4 figures)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Digit-letter eigenvector comparisons...")
+        for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
+            fig = plot_digit_letter_eigenvector_comparison(
+                mnist_vecs=mnist_data["eigenvectors"],
+                mnist_vals=mnist_data["eigenvalues"],
+                emnist_vecs=emnist_letters_data["eigenvectors"],
+                emnist_vals=emnist_letters_data["eigenvalues"],
+                digit_class=digit_idx,
+                letter_class=letter_idx,
+                pair_label=label,
+                n_top=5,
+            )
+            filename = f"extension2_eigenvec_{label.replace('-', '_')}.pdf"
+            _save_and_copy(
+                fig,
+                d.figure_out / f"vision_{filename}",
+                d.report_figures / filename,
+            )
+            plt.close(fig)
+            print(f"Generated: {filename}")
+    
+    # ==========================================================================
+    # 5. NEW: Cosine similarity heatmaps (4 figures)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Cosine similarity heatmaps...")
+        for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
+            digit_label = label.split("-")[0]
+            letter_label = label.split("-")[1]
+            
+            fig = plot_cosine_similarity_heatmap(
+                digit_vecs=mnist_data["eigenvectors"][digit_idx],
+                letter_vecs=emnist_letters_data["eigenvectors"][letter_idx],
+                digit_vals=mnist_data["eigenvalues"][digit_idx],
+                letter_vals=emnist_letters_data["eigenvalues"][letter_idx],
+                k=10,
+                digit_label=digit_label,
+                letter_label=letter_label,
+            )
+            filename = f"extension2_cosine_heatmap_{label.replace('-', '_')}.pdf"
+            _save_and_copy(
+                fig,
+                d.figure_out / f"vision_{filename}",
+                d.report_figures / filename,
+            )
+            plt.close(fig)
+            print(f"Generated: {filename}")
+    
+    # ==========================================================================
+    # 6. NEW: Eigenvalue distribution overlays (4 figures)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Eigenvalue distribution overlays...")
+        for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
+            digit_label = label.split("-")[0]
+            letter_label = label.split("-")[1]
+            
+            fig = plot_eigenvalue_distribution_overlay(
+                digit_vals=mnist_data["eigenvalues"][digit_idx],
+                letter_vals=emnist_letters_data["eigenvalues"][letter_idx],
+                digit_label=digit_label,
+                letter_label=letter_label,
+            )
+            filename = f"extension2_eigenval_dist_{label.replace('-', '_')}.pdf"
+            _save_and_copy(
+                fig,
+                d.figure_out / f"vision_{filename}",
+                d.report_figures / filename,
+            )
+            plt.close(fig)
+            print(f"Generated: {filename}")
+    
+    # ==========================================================================
+    # 7. NEW: Principal angles visualization (1 figure with all pairs)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Principal angles visualization...")
+        fig = plot_principal_angles(
+            mnist_vecs=mnist_data["eigenvectors"],
+            emnist_vecs=emnist_letters_data["eigenvectors"],
+            mnist_vals=mnist_data["eigenvalues"],
+            emnist_vals=emnist_letters_data["eigenvalues"],
+            pairs=DIGIT_LETTER_PAIRS,
+            k=20,
+        )
+        _save_and_copy(
+            fig,
+            d.figure_out / "vision_extension2_principal_angles.pdf",
+            d.report_figures / "extension2_principal_angles.pdf",
+        )
+        plt.close(fig)
+        print("Generated: extension2_principal_angles.pdf")
+    
+    # ==========================================================================
+    # 8. NEW: t-SNE and PCA embeddings (2 figures)
+    # ==========================================================================
+    if mnist_data is not None and emnist_letters_data is not None:
+        print("\nGenerating: Eigenvector embeddings...")
+        
+        # PCA embedding
+        fig = plot_eigenvector_embedding(
+            mnist_vecs=mnist_data["eigenvectors"],
+            emnist_vecs=emnist_letters_data["eigenvectors"],
+            mnist_vals=mnist_data["eigenvalues"],
+            emnist_vals=emnist_letters_data["eigenvalues"],
+            pairs=DIGIT_LETTER_PAIRS,
+            k=5,
+            method="pca",
+        )
+        if fig is not None:
+            _save_and_copy(
+                fig,
+                d.figure_out / "vision_extension2_eigenvec_pca.pdf",
+                d.report_figures / "extension2_eigenvec_pca.pdf",
+            )
+            plt.close(fig)
+            print("Generated: extension2_eigenvec_pca.pdf")
+        
+        # t-SNE embedding
+        fig = plot_eigenvector_embedding(
+            mnist_vecs=mnist_data["eigenvectors"],
+            emnist_vecs=emnist_letters_data["eigenvectors"],
+            mnist_vals=mnist_data["eigenvalues"],
+            emnist_vals=emnist_letters_data["eigenvalues"],
+            pairs=DIGIT_LETTER_PAIRS,
+            k=5,
+            method="tsne",
+        )
+        if fig is not None:
+            _save_and_copy(
+                fig,
+                d.figure_out / "vision_extension2_eigenvec_tsne.pdf",
+                d.report_figures / "extension2_eigenvec_tsne.pdf",
+            )
+            plt.close(fig)
+            print("Generated: extension2_eigenvec_tsne.pdf")
+    
+    print("\n=== Extension 2 figure generation complete ===")
 
 
 def generate_paper_hub(d: Dirs) -> None:
@@ -1461,7 +1855,7 @@ def generate_paper_hub(d: Dirs) -> None:
         from src.vision.spectral import load_checkpoint_eigenvalues
         import plotly
 
-        ckpt = d.phase1_mnist_ckpts / "mnist_dense_full_seed42.pt"
+        ckpt = d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"
         if ckpt.exists():
             vals, vecs = load_checkpoint_eigenvalues(str(ckpt))
             digit_divs = []
@@ -1631,8 +2025,8 @@ def main() -> int:
         "--sections",
         type=str,
         nargs="+",
-        default=["regularization", "truncation_similarity", "challenge", "adversarial", "appendix", "hub"],
-        help="Sections to generate: regularization truncation_similarity challenge adversarial appendix hub",
+        default=["regularization", "truncation_similarity", "challenge", "adversarial", "explanation", "extension2", "appendix", "hub"],
+        help="Sections to generate: regularization truncation_similarity challenge adversarial explanation extension2 appendix hub",
     )
     parser.add_argument("--device", type=str, default=None, help="cpu|mps|cuda (default: auto)")
     parser.add_argument("--seed", type=int, default=42)
@@ -1679,6 +2073,10 @@ def main() -> int:
             )
     if "adversarial" in sections:
         generate_adversarial_section(d, device=device, target_class=args.target_class)
+    if "explanation" in sections:
+        generate_explanation_section(d, device=device)
+    if "extension2" in sections:
+        generate_extension2_section(d)
     if "appendix" in sections:
         generate_appendix_eigenspectrum_digits(d)
         generate_appendix_sparsity(d)

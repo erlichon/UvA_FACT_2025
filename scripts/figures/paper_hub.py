@@ -7,7 +7,6 @@ Design goals:
   self-contained HTML+PDF bundle. It does not run vision/language analyses.
 - No arXiv fallbacks: if a figure PDF is missing from our outputs, it appears as a
   disabled nav item marked "(missing)".
-- Exclude Figure 8 (OOM-prone).
 
 Outputs:
 - results/interactive/paper_hub_bundle/paper_hub.html
@@ -67,7 +66,7 @@ def _figure_search_roots() -> List[Path]:
         PROJECT_ROOT / "Report/figures",
         PROJECT_ROOT / "results/language/figures",
         PROJECT_ROOT / "results/vision/figures",
-        PROJECT_ROOT / "results/phase1/figures",
+        PROJECT_ROOT / "results/vision/figures",
     ]
 
 
@@ -90,7 +89,6 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
 
     Note:
     - Missing PDFs will be disabled automatically.
-    - Figure 8 is intentionally excluded.
     """
     sections: Dict[str, List[Dict[str, str]]] = {
         # -----------------------------
@@ -129,8 +127,13 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         "Vision / Adversarial masks": [
             {"label": "Figure 7: adversarial masks", "path": _fig_rel_path("figure_7_adversarial.pdf")},
         ],
-        "Vision / Explanations": [
-            {"label": "Sample explanation", "path": _fig_rel_path("sample_explanation.pdf")},
+        "Vision / Explanations (per digit)": [
+            {"label": f"Sample explanation: Digit {i}", "path": _fig_rel_path(f"sample_explanation_digit_{i}.pdf")}
+            for i in range(10)
+        ],
+        "Vision / Interactive Eigenspectrum (per digit)": [
+            {"label": f"Digit {i}: eigenspectrum + eigenvectors", "path": f"assets/eigenspectrum_digit_{i}.html"}
+            for i in range(10)
         ],
         "Vision / Appendix": [
             {"label": "Appendix: eigenspectrum digit 2", "path": _fig_rel_path("appendix_mnist_eigenspectrum_digit2.pdf")},
@@ -144,8 +147,40 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Appendix: adversarial masks (more examples)", "path": _fig_rel_path("appendix_adversarial_encoders.pdf")},
         ],
         # -----------------------------
-        # Language (Figure 9 only)
+        # Extension 2: Cross-Dataset Robustness
         # -----------------------------
+        "Extension 2 / Core Analysis": [
+            {"label": "Subspace overlap by rank (k=1-100)", "path": _fig_rel_path("extension2_subspace_overlap.pdf")},
+            {"label": "Mechanism stability analysis", "path": _fig_rel_path("extension2_mechanism_stability.pdf")},
+            {"label": "Eigenspectra: MNIST vs EMNIST-Digits", "path": _fig_rel_path("extension2_eigenspectra.pdf")},
+        ],
+        "Extension 2 / Eigenvector Comparisons": [
+            {"label": "Eigenvectors: 0 vs O", "path": _fig_rel_path("extension2_eigenvec_0_O.pdf")},
+            {"label": "Eigenvectors: 1 vs I", "path": _fig_rel_path("extension2_eigenvec_1_I.pdf")},
+            {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension2_eigenvec_2_Z.pdf")},
+            {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension2_eigenvec_5_S.pdf")},
+        ],
+        "Extension 2 / Cosine Similarity Heatmaps": [
+            {"label": "Cosine heatmap: 0 vs O", "path": _fig_rel_path("extension2_cosine_heatmap_0_O.pdf")},
+            {"label": "Cosine heatmap: 1 vs I", "path": _fig_rel_path("extension2_cosine_heatmap_1_I.pdf")},
+            {"label": "Cosine heatmap: 2 vs Z", "path": _fig_rel_path("extension2_cosine_heatmap_2_Z.pdf")},
+            {"label": "Cosine heatmap: 5 vs S", "path": _fig_rel_path("extension2_cosine_heatmap_5_S.pdf")},
+        ],
+        "Extension 2 / Eigenvalue & Subspace Analysis": [
+            {"label": "Eigenvalue distribution: 0 vs O", "path": _fig_rel_path("extension2_eigenval_dist_0_O.pdf")},
+            {"label": "Eigenvalue distribution: 1 vs I", "path": _fig_rel_path("extension2_eigenval_dist_1_I.pdf")},
+            {"label": "Eigenvalue distribution: 2 vs Z", "path": _fig_rel_path("extension2_eigenval_dist_2_Z.pdf")},
+            {"label": "Eigenvalue distribution: 5 vs S", "path": _fig_rel_path("extension2_eigenval_dist_5_S.pdf")},
+            {"label": "Principal angles (all pairs)", "path": _fig_rel_path("extension2_principal_angles.pdf")},
+            {"label": "Eigenvector PCA embedding", "path": _fig_rel_path("extension2_eigenvec_pca.pdf")},
+            {"label": "Eigenvector t-SNE embedding", "path": _fig_rel_path("extension2_eigenvec_tsne.pdf")},
+        ],
+        # -----------------------------
+        # Language (Figures 8, 9, 10)
+        # -----------------------------
+        "Language / Negation Circuit (Figure 8)": [
+            {"label": "Figure 8: Sentiment negation circuit", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
+        ],
         "Language / Correlation (Figure 9)": [
             {"label": "Figure 9A: correlation progression", "path": _fig_rel_path("figure_9a_correlation_progression.pdf")},
             {"label": "Figure 9B: correlation histogram", "path": _fig_rel_path("figure_9b_correlation_histogram.pdf")},
@@ -162,6 +197,33 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
     return sections
 
 
+def _generate_eigenspectrum_htmls(assets_dir: Path) -> bool:
+    """Generate interactive eigenspectrum HTML files if checkpoint available."""
+    import torch
+    
+    checkpoint_path = PROJECT_ROOT / "results/vision/checkpoints/mnist_dense_full_seed42.pt"
+    if not checkpoint_path.exists():
+        print(f"Checkpoint not found: {checkpoint_path}")
+        return False
+    
+    try:
+        from src.plot_utils.explanation import generate_all_digit_eigenspectra
+        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        eigenvalues = ckpt["eigenvalues"]
+        eigenvectors = ckpt["eigenvectors"]
+        
+        generate_all_digit_eigenspectra(
+            eigenvalues=eigenvalues,
+            eigenvectors=eigenvectors,
+            output_dir=str(assets_dir),
+            n_eigenvectors=5,
+        )
+        return True
+    except Exception as e:
+        print(f"Failed to generate eigenspectrum HTMLs: {e}")
+        return False
+
+
 def generate_paper_hub() -> None:
     import shutil
     import zipfile
@@ -169,19 +231,33 @@ def generate_paper_hub() -> None:
     hp = _get_paths()
     _ensure_dir(hp.figures_dir)
     _ensure_dir(hp.assets_dir)
+    
+    # Generate interactive eigenspectrum HTMLs
+    eigenspectrum_available = _generate_eigenspectrum_htmls(hp.assets_dir)
 
     sections = _build_sections()
 
-    # Copy PDFs into bundle figures/ and annotate missing status
+    # Copy PDFs into bundle figures/ and handle HTML files
     for sec in list(sections.keys()):
         kept: List[Dict[str, str]] = []
         for it in sections[sec]:
             name = Path(it["path"]).name
+            path_str = it["path"]
 
-            # Explicit exclusion safeguard: never ship Figure 8 even if present.
-            if name.startswith("figure_8"):
+            # Handle HTML files (interactive displays) - check in assets/
+            if name.endswith(".html"):
+                html_path = hp.bundle_dir / path_str
+                if html_path.exists():
+                    it2 = dict(it)
+                    it2["missing"] = "0"
+                    kept.append(it2)
+                else:
+                    it2 = dict(it)
+                    it2["missing"] = "1"
+                    kept.append(it2)
                 continue
 
+            # Handle PDF files
             src = _find_figure_pdf(name)
             if not src:
                 it2 = dict(it)

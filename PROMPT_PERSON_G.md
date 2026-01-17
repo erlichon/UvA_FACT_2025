@@ -241,7 +241,7 @@ echo "Fashion-MNIST: config=${CONFIG_NAME}, seed=${SEED}"
 python src/train.py \
     --config "configs/fashion_dense_${CONFIG_NAME}.yaml" \
     --seed "$SEED" \
-    --checkpoint-dir "results/phase1/checkpoints"
+    --checkpoint-dir "results/vision/checkpoints"
 ```
 
 ---

@@ -28,7 +28,7 @@
 - `src/vision/visualization.py` - Plotting functions
 - `notebooks/01_reproduction.ipynb` - Analysis notebook
 - `docs/paper_baselines.md` - Expected values from paper
-- Generated figures in `results/phase1/figures/`
+- Generated figures in `results/vision/figures/`
 
 ---
 
@@ -141,7 +141,7 @@ from src.vision.spectral import (
 **Usage Examples**:
 ```python
 # Load eigenvalues from checkpoint
-vals, vecs = load_checkpoint_eigenvalues('results/phase1/checkpoints/mnist_dense_full_seed42.pt')
+vals, vecs = load_checkpoint_eigenvalues('results/vision/checkpoints/mnist_dense_full_seed42.pt')
 print(vals.shape)  # [10, 256] - 10 classes, 256 eigenvalues each
 
 # Compute metrics
@@ -504,10 +504,10 @@ from pathlib import Path
 from src.vision.spectral import load_checkpoint_eigenvalues, spectral_summary
 
 # Load a single checkpoint
-vals, vecs = load_checkpoint_eigenvalues('results/phase1/checkpoints/mnist_dense_full_seed42.pt')
+vals, vecs = load_checkpoint_eigenvalues('results/vision/checkpoints/mnist_dense_full_seed42.pt')
 
 # Load full checkpoint for all data
-checkpoint = torch.load('results/phase1/checkpoints/mnist_dense_full_seed42.pt', map_location='cpu')
+checkpoint = torch.load('results/vision/checkpoints/mnist_dense_full_seed42.pt', map_location='cpu')
 config = checkpoint['config']
 metrics = checkpoint['metrics']
 seed = checkpoint['seed']
@@ -541,7 +541,7 @@ def load_all_results(checkpoint_dir: str) -> pd.DataFrame:
     return pd.DataFrame(results)
 
 # Usage
-results_df = load_all_results('results/phase1/checkpoints')
+results_df = load_all_results('results/vision/checkpoints')
 print(results_df.groupby('config').mean())
 ```
 
@@ -612,7 +612,7 @@ checkpoint = {
 
 ### Checkpoint Naming Convention
 ```
-results/phase1/checkpoints/mnist_dense_{config}_seed{seed}.pt
+results/vision/checkpoints/mnist_dense_{config}_seed{seed}.pt
 ```
 Where `config` is one of: `none`, `noise`, `wd`, `full`
 
@@ -672,7 +672,7 @@ Start by creating docs/paper_baselines.md, then implement visualization.py. Show
 After Phase 1 completion:
 
 ```
-results/phase1/figures/
+results/vision/figures/
 ├── eigenspectrum_comparison.pdf     # Main result: reg vs no-reg
 ├── eigenspectrum_per_class.pdf      # Per-digit breakdown
 ├── eigenvectors_noreg.pdf           # Overfitting patterns
