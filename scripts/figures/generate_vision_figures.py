@@ -616,7 +616,16 @@ def _plot_challenge_from_checkpoint(
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     eigenvalues: torch.Tensor = ckpt["eigenvalues"].cpu()
     eigenvectors: torch.Tensor = ckpt["eigenvectors"].cpu()
-    target_image: torch.Tensor = ckpt["target_image"].cpu()
+    
+    # Handle checkpoints that don't have target_image (older format)
+    if "target_image" in ckpt:
+        target_image: torch.Tensor = ckpt["target_image"].cpu()
+    else:
+        # Load target image from MNIST dataset (default: digit=1, index=0)
+        from image.datasets import MNIST as OrigMNIST
+        train_mnist = OrigMNIST(train=True, device="cpu")
+        mask = train_mnist.y == 1  # digit=1
+        target_image = train_mnist.x[mask][0].cpu()  # index=0
 
     d_hidden = int(ckpt.get("config", {}).get("d_hidden", 256))
 
@@ -753,35 +762,47 @@ def generate_challenge_section(d: Dirs, device: str = "cpu", seed: int = 42) -> 
     """Paper Figure 6 and challenge variants (if checkpoints exist) rendered separately."""
     print("\n=== Vision / Challenge task ===")
 
-    # Baseline (existing)
-    base_ckpt = d.challenge_ckpts / f"mnist_challenge_seed{seed}.pt"
-    if not base_ckpt.exists():
-        raise FileNotFoundError(f"Challenge checkpoint not found at {base_ckpt}.")
-    _plot_challenge_from_checkpoint(
-        ckpt_path=base_ckpt,
-        device=device,
-        title="Challenge task: eigendecomposition (True − False direction)",
-        out_path=d.figure_out / "vision_challenge_figure_6_challenge.pdf",
-        report_path=d.report_figures / "figure_6_challenge.pdf",
-    )
-
     # Variants (trained by scripts/train_challenge_variants.py)
+    # Note: Old mnist_challenge_seed{seed}.pt files are actually regular MNIST classifiers,
+    # not challenge task models, so we use the "none" variant as the main Figure 6.
     variants = [
-        ("none", "Challenge task (no reg): eigendecomposition (True − False)"),
-        ("noise", "Challenge task (noise only σ=0.5): eigendecomposition (True − False)"),
-        ("wd", "Challenge task (weight decay only λ=1.0): eigendecomposition (True − False)"),
-        ("full", "Challenge task (full reg σ=0.5, λ=1.0): eigendecomposition (True − False)"),
+        ("none", "Challenge task (no reg): eigendecomposition (True − False)", True),
+        ("noise", "Challenge task (noise only σ=0.5): eigendecomposition (True − False)", False),
+        ("wd", "Challenge task (weight decay only λ=1.0): eigendecomposition (True − False)", False),
+        ("full", "Challenge task (full reg σ=0.5, λ=1.0): eigendecomposition (True − False)", False),
     ]
-    for tag, title in variants:
+    
+    found_any = False
+    for tag, title, is_primary in variants:
         ckpt = d.challenge_ckpts / f"mnist_challenge_{tag}_seed{seed}.pt"
         if not ckpt.exists():
+            if is_primary:
+                print(f"  Warning: Primary challenge checkpoint not found at {ckpt}")
             continue
+        
+        found_any = True
+        # Primary variant also gets saved as figure_6_challenge.pdf
+        if is_primary:
+            _plot_challenge_from_checkpoint(
+                ckpt_path=ckpt,
+                device=device,
+                title="Challenge task: eigendecomposition (True − False direction)",
+                out_path=d.figure_out / "vision_challenge_figure_6_challenge.pdf",
+                report_path=d.report_figures / "figure_6_challenge.pdf",
+            )
+        
         _plot_challenge_from_checkpoint(
             ckpt_path=ckpt,
             device=device,
             title=title,
             out_path=d.figure_out / f"vision_challenge_figure_6_{tag}.pdf",
             report_path=d.report_figures / f"figure_6_challenge_{tag}.pdf",
+        )
+    
+    if not found_any:
+        raise FileNotFoundError(
+            f"No challenge checkpoints found in {d.challenge_ckpts}. "
+            "Run: python scripts/train/train_challenge_variants.py"
         )
 
 

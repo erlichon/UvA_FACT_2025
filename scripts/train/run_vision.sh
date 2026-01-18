@@ -228,17 +228,17 @@ train_challenge() {
     mkdir -p "$ckpt_dir"
     
     echo ">>> Challenge Task Training (Figure 6)"
+    echo "    Using train_challenge_variants.py for binary classification task"
     echo "    Seeds: ${SEEDS[*]}"
     echo ""
     
     for seed in "${SEEDS[@]}"; do
-        echo ">>> Training challenge task, seed = $seed"
+        echo ">>> Training challenge task variants, seed = $seed"
         
-        python src/train.py \
-            --config "configs/mnist_challenge.yaml" \
+        # Use the dedicated challenge training script (binary classification)
+        python scripts/train/train_challenge_variants.py \
             --seed "$seed" \
-            --checkpoint-dir "$ckpt_dir" \
-            $WANDB_FLAG \
+            --out-dir "$ckpt_dir" \
             $EPOCHS_OVERRIDE
     done
     

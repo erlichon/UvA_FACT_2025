@@ -50,8 +50,8 @@
     "scatter_files_count": 100,
     "max_scatter_samples": 1000,
     "paper_claim": "69% of features have >0.75 rank-2 correlation",
-    "wall_time_seconds": 26.99557614326477,
-    "co2_kg": 1.901555803301124e-05
+    "wall_time_seconds": 19.959754943847656,
+    "co2_kg": 2.445915767678997e-05
   },
   "per_feature": [
     {

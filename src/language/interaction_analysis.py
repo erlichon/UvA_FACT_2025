@@ -31,7 +31,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from language.transformer import Transformer
 from sae.tracer import Tracer
-from sae.functions import compute_effective_rank, compute_truncated_eigenvalues
+# Note: We use our own SVD-based implementations below instead of the original
+# from sae.functions import compute_effective_rank, compute_truncated_eigenvalues
 
 from src.utils import (
     get_device,
@@ -48,6 +49,63 @@ from src.language.interaction_utils import (
 from src.language.context import LanguageContext
 
 
+# =============================================================================
+# SVD-based implementations (more numerically stable for large matrices)
+# For symmetric matrices: singular values = |eigenvalues|
+# =============================================================================
+
+def _safe_svdvals(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    Compute singular values with CPU fallback for stability.
+    
+    SVD is more numerically stable than eigendecomposition and uses
+    less workspace memory, making it better for large matrices.
+    """
+    device = tensor.device
+    # Always compute on CPU for large matrices to avoid LAPACK workspace issues
+    if tensor.shape[-1] > 4096 or device.type == "mps":
+        return torch.linalg.svdvals(tensor.cpu()).to(device)
+    return torch.linalg.svdvals(tensor)
+
+
+def compute_effective_rank(data: torch.Tensor) -> torch.Tensor:
+    """
+    Compute effective rank using (L1/L2)^2 formula via SVD.
+    
+    For symmetric matrices, singular values equal |eigenvalues|,
+    so this is mathematically equivalent to the eigenvalue-based formula.
+    
+    Args:
+        data: Tensor of shape [..., n, n] (symmetric matrices)
+        
+    Returns:
+        Effective rank for each matrix in the batch
+    """
+    # For symmetric matrices: singular values = |eigenvalues|
+    vals = _safe_svdvals(data)
+    
+    l2 = vals.pow(2).sum(-1).sqrt()
+    l1 = vals.sum(-1)  # Already positive since these are singular values
+    
+    return (l1 / l2).pow(2)
+
+
+def compute_truncated_eigenvalues(data: torch.Tensor, k: int = 2) -> torch.Tensor:
+    """
+    Compute sum of top-k singular values (= top-k |eigenvalues| for symmetric matrices).
+    
+    Args:
+        data: Tensor of shape [..., n, n] (symmetric matrices)
+        k: Number of top values to sum
+        
+    Returns:
+        Sum of top-k singular values for each matrix
+    """
+    vals = _safe_svdvals(data)
+    # SVD returns values in descending order, so just take first k
+    return vals[..., :k].sum(-1)
+
+
 def rank_k_variance_explained(Q: torch.Tensor, k: int = 2) -> float:
     """
     Compute fraction of eigenvalue mass captured by top-k eigenvalues.
@@ -55,24 +113,26 @@ def rank_k_variance_explained(Q: torch.Tensor, k: int = 2) -> float:
     variance_explained = sum(|lambda_1|, ..., |lambda_k|) / sum(|lambda_i|)
 
     Paper claims 69% of features have >0.75 with k=2.
+    
+    Uses SVD for numerical stability (singular values = |eigenvalues| for symmetric matrices).
     """
-    # Symmetrize Q for eigendecomposition
+    # Symmetrize Q
     Q_sym = 0.5 * (Q + Q.T)
 
-    # Eigendecompose (MPS-safe)
+    # Use SVD instead of eigendecomposition for stability
     try:
-        eigenvalues, _ = safe_eigh(Q_sym)
+        singular_values = _safe_svdvals(Q_sym)
     except Exception:
         return float('nan')
 
-    # Compute variance explained by top-k eigenvalues
-    abs_eigenvalues = eigenvalues.abs()
-    total_mass = abs_eigenvalues.sum()
+    # Compute variance explained by top-k singular values
+    # (SVD returns values in descending order)
+    total_mass = singular_values.sum()
 
     if total_mass < 1e-10:
         return float('nan')
 
-    top_k_mass = abs_eigenvalues.topk(min(k, len(abs_eigenvalues))).values.sum()
+    top_k_mass = singular_values[:min(k, len(singular_values))].sum()
     return (top_k_mass / total_mass).item()
 
 

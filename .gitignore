@@ -30,3 +30,4 @@ arXiv-2410.08417v2/*.blg
 __pycache__/
 wandb/
 logs/
+results/Thumbs.db
