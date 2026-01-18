@@ -195,13 +195,15 @@ def save_checkpoint(
     """
     Save model checkpoint with eigenspectrum data.
     
+    Supports both dense and CP models with appropriate config fields.
+    
     Args:
         path: Output path for checkpoint file
         config: Experiment configuration dict
         model: Trained model instance
         history: Training history DataFrame
-        eigenvalues: Eigenvalues tensor [n_classes, d_hidden]
-        eigenvectors: Eigenvectors tensor [n_classes, d_hidden, d_input]
+        eigenvalues: Eigenvalues tensor [n_classes, d_hidden] or [n_classes, d_input] for CP
+        eigenvectors: Eigenvectors tensor [n_classes, d_hidden, d_input] or [n_classes, d_input, d_input] for CP
         seed: Random seed used
         epochs: Number of training epochs
         
@@ -218,19 +220,33 @@ def save_checkpoint(
     eff_rank = effective_rank(eigenvalues).mean().item()
 
     dataset_name = config.get('data', {}).get('dataset', 'mnist')
+    mode = config.get('model', {}).get('mode', 'dense')
+
+    # Build config dict with common fields
+    checkpoint_config = {
+        'mode': mode,
+        'd_hidden': config['model']['d_hidden'],
+        'epochs': epochs,
+        'lr': config['training'].get('lr', 1e-3),
+        'noise_std': config['regularization'].get('noise_std', 0.0),
+        'weight_decay': config['regularization']['weight_decay'],
+        'dataset': dataset_name,
+        'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
+        'apply_com': config.get('data', {}).get('apply_com', False),
+    }
+    
+    # Add CP-specific fields if in CP mode
+    if mode == 'cp':
+        checkpoint_config.update({
+            'rank': config['model']['rank'],
+            'cp_init_mode': config['model'].get('cp_init_mode', 'lambda'),
+            'l1_coeff': config['regularization'].get('l1_coeff', 0.0),
+            'lambda_l1_coeff': config['regularization'].get('lambda_l1_coeff', 0.0),
+            'lambda_l0_coeff': config['regularization'].get('lambda_l0_coeff', 0.0),
+        })
 
     checkpoint = {
-        'config': {
-            'mode': config.get('model', {}).get('mode', 'dense'),
-            'd_hidden': config['model']['d_hidden'],
-            'epochs': epochs,
-            'lr': config['training'].get('lr', 1e-3),
-            'noise_std': config['regularization']['noise_std'],
-            'weight_decay': config['regularization']['weight_decay'],
-            'dataset': dataset_name,
-            'variance_corrected_init': config.get('model', {}).get('variance_corrected_init', False),
-            'apply_com': config.get('data', {}).get('apply_com', False),
-        },
+        'config': checkpoint_config,
         'model_state_dict': model.state_dict(),
         'metrics': {
             'train_acc': float(final_train_acc),

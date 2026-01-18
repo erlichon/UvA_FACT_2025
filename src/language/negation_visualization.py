@@ -69,6 +69,43 @@ from src.language.context import LanguageContext
 from src.language.memory_efficient_eigen import top_k_eigenvectors_by_magnitude
 
 
+# Feature type classification for fw-medium layer 7 input features.
+#
+# IMPORTANT LIMITATION: fw-medium (trained on FineWeb-EDU, educational/scientific text)
+# does not show the same clean semantic clustering as ts-medium (trained on TinyStories).
+# The paper's Figure 8 uses ts-medium where input features clearly cluster into:
+# - negation: features firing on "not", "never", "wasn't"
+# - negative_sentiment: features firing on "bad", "hurt", "sad"  
+# - positive_sentiment: features firing on "good", "nice", "happy"
+#
+# fw-medium's input features show different patterns (structural, domain-specific)
+# rather than clear sentiment categories. This is documented here as a known limitation
+# of reproducing Figure 8 with fw-medium instead of ts-medium.
+#
+# Classification key:
+# - "negation": potential negation-related (e.g., "ever" in "Have you ever...")
+# - "contrast": contrastive conjunction (e.g., "while")
+# - "structural": structural patterns (e.g., "and", "of", "many")
+# - "other": unclear or domain-specific
+FEATURE_TYPES_FW_MEDIUM = {
+    "508": "structural",    # fires on "and" in lists
+    "582": "structural",    # fires on "series on" / "part of"
+    "723": "structural",    # fires on "many" / "many others"
+    "751": "other",         # no clear activations (output feature 'not-bad')
+    "1202": "other",        # no clear activations
+    "2034": "contrast",     # fires on "while" (contrastive)
+    "3620": "other",        # no clear activations
+    "3834": "other",        # output feature 'not-good' appearing as input
+    "4064": "structural",   # fires on "of"
+    "4556": "other",        # no clear activations
+    "4727": "other",        # fires on "journal" (domain-specific)
+    "4898": "other",        # fires on "year" (time-related)
+    "5175": "other",        # fires on proper names
+    "7198": "negation",     # fires on "ever" ("Have you ever..." - questioning/negation)
+    "7369": "other",        # fires on "News" (domain-specific)
+}
+
+
 @dataclass
 class Figure8Data:
     """Container for all Figure 8 data."""
@@ -485,8 +522,25 @@ def generate_figure_8_data(
     )
 
 
-def save_figure_8_data(data: Figure8Data, output_path: Path):
-    """Save Figure 8 data to JSON."""
+def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Optional[Dict[str, str]] = None):
+    """Save Figure 8 data to JSON.
+    
+    Args:
+        data: Figure8Data object with all panel data
+        output_path: Path to save JSON file
+        feature_types: Optional dict mapping feature indices to semantic types
+                       (e.g., {"508": "structural", "7198": "negation"})
+    """
+    # Get feature types for the features in this data
+    if feature_types is None:
+        feature_types = FEATURE_TYPES_FW_MEDIUM
+    
+    # Filter to only include features that are in the data
+    feature_indices = [str(f) for f in data.submatrix_feature_indices]
+    relevant_feature_types = {
+        f: feature_types.get(f, "other") for f in feature_indices
+    }
+    
     results = {
         "output_feature_idx": data.output_feature_idx,
         "layer": data.layer,
@@ -505,6 +559,8 @@ def save_figure_8_data(data: Figure8Data, output_path: Path):
             "correlation": data.correlation,
             "n_samples": len(data.z_true),
         },
+        # Include feature type classification for visualization
+        "feature_types": relevant_feature_types,
     }
     
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -512,6 +568,7 @@ def save_figure_8_data(data: Figure8Data, output_path: Path):
         json.dump(results, f, indent=2)
     
     print(f"\nFigure 8 data saved to: {output_path}")
+    print(f"Feature types included: {relevant_feature_types}")
 
 
 def main():

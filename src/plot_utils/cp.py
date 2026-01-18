@@ -1,14 +1,16 @@
 """
-Visualization utilities for CP decomposition analysis.
+Visualization utilities for CP decomposition analysis (Extension CP).
 
-Functions for visualizing eigenvectors, eigenvalues, and model comparisons.
+Functions for visualizing eigenvectors, eigenvalues, and CP model comparisons.
 """
 
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
+
+from .style import set_publication_style
 
 
 def get_top_eigenvectors(
@@ -72,7 +74,7 @@ def plot_eigenvector_grid(
     save_path: Optional[Path] = None,
     title: str = "Eigenvectors",
     cmap: str = 'RdBu'
-) -> None:
+) -> plt.Figure:
     """
     Create a grid plot of eigenvectors reshaped to 28×28 images.
     
@@ -83,6 +85,9 @@ def plot_eigenvector_grid(
         save_path: Optional path to save figure
         title: Figure title
         cmap: Colormap for visualization
+        
+    Returns:
+        matplotlib Figure object
     """
     n_rows, n_cols, _ = eigenvectors.shape
     
@@ -121,7 +126,7 @@ def plot_eigenvector_grid(
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Figure saved to: {save_path}")
     
-    plt.show()
+    return fig
 
 
 def visualize_top_eigenvectors(
@@ -129,7 +134,7 @@ def visualize_top_eigenvectors(
     n_top: int = 5,
     n_bottom: int = 5,
     save_path: Optional[Path] = None
-) -> None:
+) -> plt.Figure:
     """
     Visualize top and bottom eigenvectors from a checkpoint.
     
@@ -138,6 +143,9 @@ def visualize_top_eigenvectors(
         n_top: Number of top eigenvectors to show
         n_bottom: Number of bottom eigenvectors to show
         save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
     """
     # Load checkpoint
     checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
@@ -188,6 +196,93 @@ def visualize_top_eigenvectors(
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Figure saved to: {save_path}")
     
-    plt.show()
+    return fig
 
 
+def plot_cp_rank_comparison(
+    results_df,
+    metric_x: str = 'effective_rank',
+    metric_y: str = 'val_acc',
+    figsize: Tuple[int, int] = (10, 8),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP rank comparison scatter plot.
+    
+    Args:
+        results_df: DataFrame with columns [rank, init_mode, seed, effective_rank, val_acc, ...]
+        metric_x: X-axis metric name
+        metric_y: Y-axis metric name
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    
+    # Group by rank and compute mean/std
+    rank_stats = results_df.groupby('rank').agg({
+        metric_x: ['mean', 'std'],
+        metric_y: ['mean', 'std'],
+    }).reset_index()
+    rank_stats.columns = ['rank', 'x_mean', 'x_std', 'y_mean', 'y_std']
+    
+    # Color by log2(rank)
+    scatter = ax.scatter(
+        rank_stats['x_mean'],
+        rank_stats['y_mean'] * 100 if 'acc' in metric_y else rank_stats['y_mean'],
+        c=np.log2(rank_stats['rank']),
+        cmap='viridis',
+        s=150,
+        edgecolors='black',
+        linewidths=1.5,
+        zorder=3,
+    )
+    
+    # Add error bars
+    ax.errorbar(
+        rank_stats['x_mean'],
+        rank_stats['y_mean'] * 100 if 'acc' in metric_y else rank_stats['y_mean'],
+        xerr=rank_stats['x_std'],
+        yerr=rank_stats['y_std'] * 100 if 'acc' in metric_y else rank_stats['y_std'],
+        fmt='none',
+        color='gray',
+        alpha=0.5,
+        capsize=3,
+        zorder=2,
+    )
+    
+    # Add rank labels
+    for _, row in rank_stats.iterrows():
+        y_val = row['y_mean'] * 100 if 'acc' in metric_y else row['y_mean']
+        ax.annotate(
+            f"R={int(row['rank'])}",
+            (row['x_mean'], y_val),
+            textcoords="offset points",
+            xytext=(5, 5),
+            fontsize=9,
+        )
+    
+    ax.set_xlabel(metric_x.replace('_', ' ').title(), fontsize=12)
+    ylabel = metric_y.replace('_', ' ').title()
+    if 'acc' in metric_y:
+        ylabel += ' (%)'
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.set_title('CP Rank vs Performance', fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label('log₂(CP Rank)', fontsize=10)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Figure saved to: {save_path}")
+    
+    return fig

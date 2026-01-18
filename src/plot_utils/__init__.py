@@ -53,6 +53,12 @@ from src.plot_utils.language import (
     MODEL_COLORS,
     MODEL_LABELS,
 )
+from src.plot_utils.cp import (
+    get_top_eigenvectors,
+    plot_eigenvector_grid,
+    visualize_top_eigenvectors,
+    plot_cp_rank_comparison,
+)
 
 __all__ = [
     # Eigenspectrum plots (matplotlib)
@@ -93,4 +99,9 @@ __all__ = [
     "compute_fraction_above_threshold",
     "MODEL_COLORS",
     "MODEL_LABELS",
+    # CP decomposition plots
+    "get_top_eigenvectors",
+    "plot_eigenvector_grid",
+    "visualize_top_eigenvectors",
+    "plot_cp_rank_comparison",
 ]
