@@ -21,10 +21,11 @@ New (eigenvalue-aware metrics):
 9. Similarity vs k for eigenvalue_weighted metric
 10. Similarity vs k for quadratic_form metric
 11. Similarity vs k for cka metric
-12. Heatmaps for all three weighted metrics
-13. 4-way metric comparison (mean_cos + 3 weighted)
-14. Ranking analysis: where expected pairs rank among all letters
-15. Statistical comparison: t-test similar vs dissimilar pairs
+12. Heatmaps for all three weighted metrics (MNIST digits vs EMNIST letters)
+13. Quadratic form heatmap (MNIST digits vs EMNIST digits, 10x10 matrix)
+14. 4-way metric comparison (mean_cos + 3 weighted)
+15. Ranking analysis: where expected pairs rank among all letters
+16. Statistical comparison: t-test similar vs dissimilar pairs
 
 Usage:
     python scripts/figures/generate_extension2_figures.py
@@ -773,12 +774,99 @@ def generate_similarity_heatmap_weighted(
         
         # Print statistics
         similar_vals = [matrix[dig, let] for dig, let, _ in DIGIT_LETTER_PAIRS]
-        print(f"    {method}: similar mean={np.mean(similar_vals):.4f}, overall mean={matrix.mean():.4f}")
+        dissimilar_vals = []
+        for dig in range(10):
+            for let in range(26):
+                if (dig, let, None) not in DIGIT_LETTER_PAIRS:
+                    dissimilar_vals.append(matrix[dig, let])
         
-        # Print rank of expected match
-        for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
-            rank = (matrix[digit_idx] >= matrix[digit_idx, letter_idx]).sum()
-            print(f"      {label}: rank {rank}/26")
+        print(f"    Similar pairs: {np.mean(similar_vals):.4f} ± {np.std(similar_vals):.4f}")
+        print(f"    Dissimilar pairs: {np.mean(dissimilar_vals):.4f} ± {np.std(dissimilar_vals):.4f}")
+
+
+def generate_quadratic_form_heatmap_digits(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    digits_vecs: torch.Tensor,
+    digits_vals: torch.Tensor,
+    k: int = 20,
+) -> None:
+    """Generate quadratic form similarity heatmap for MNIST digits vs EMNIST digits (10x10 matrix)."""
+    print("\n=== Quadratic Form Heatmap: MNIST Digits vs EMNIST Digits ===")
+    
+    if digits_vecs is None or digits_vals is None:
+        print("  ⚠️  EMNIST Digits checkpoint not found, skipping...")
+        return
+    
+    # Compute 10x10 similarity matrix using quadratic_form metric
+    matrix = np.zeros((10, 10))
+    for mnist_digit in range(10):
+        for emnist_digit in range(10):
+            matrix[mnist_digit, emnist_digit] = compute_weighted_similarity(
+                mnist_vecs[mnist_digit].cpu(),
+                digits_vecs[emnist_digit].cpu(),
+                mnist_vals[mnist_digit].cpu(),
+                digits_vals[emnist_digit].cpu(),
+                k=k,
+                method='quadratic_form',
+            )
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Use RdBu_r colormap (red-blue reversed) for quadratic form
+    # Range typically [-0.2, 0.4] for quadratic form
+    vmin, vmax = -0.2, 0.4
+    im = ax.imshow(matrix, cmap='RdBu_r', aspect='auto', vmin=vmin, vmax=vmax)
+    
+    # Add text annotations
+    mid_val = (vmin + vmax) / 2
+    for mnist_digit in range(10):
+        for emnist_digit in range(10):
+            # Color text based on value (white for high, black for low)
+            color = 'white' if matrix[mnist_digit, emnist_digit] > mid_val + 0.1 * (vmax - vmin) else 'black'
+            ax.text(emnist_digit, mnist_digit, f'{matrix[mnist_digit, emnist_digit]:.2f}',
+                   ha='center', va='center', fontsize=9, color=color, weight='bold')
+    
+    # Set labels
+    ax.set_xticks(range(10))
+    ax.set_xticklabels(range(10), fontsize=11)
+    ax.set_yticks(range(10))
+    ax.set_yticklabels(range(10), fontsize=11)
+    ax.set_xlabel('EMNIST Digit', fontsize=13, fontweight='bold')
+    ax.set_ylabel('MNIST Digit', fontsize=13, fontweight='bold')
+    ax.set_title(f'Quadratic Form Similarity: MNIST ↔ EMNIST-Digits (k={k})', fontsize=14, fontweight='bold')
+    
+    # Mark diagonal (same digit) with blue boxes
+    for digit in range(10):
+        rect = plt.Rectangle((digit-0.5, digit-0.5), 1, 1,
+                             fill=False, edgecolor='blue', linewidth=2.5)
+        ax.add_patch(rect)
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, label='Quadratic Form Similarity', fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=10)
+    
+    plt.tight_layout()
+    
+    # Save
+    out_path = d.figure_out / "quadratic_form_heatmap_digits.pdf"
+    report_path = d.report_figures / "extension2_quadratic_form_heatmap_digits.pdf"
+    _save_and_copy(fig, out_path, report_path)
+    plt.close(fig)
+    
+    # Print statistics
+    diagonal_vals = [matrix[i, i] for i in range(10)]  # Same digit pairs
+    off_diagonal_vals = []
+    for i in range(10):
+        for j in range(10):
+            if i != j:
+                off_diagonal_vals.append(matrix[i, j])
+    
+    print(f"  Diagonal (same digit): {np.mean(diagonal_vals):.4f} ± {np.std(diagonal_vals):.4f}")
+    print(f"  Off-diagonal (different digits): {np.mean(off_diagonal_vals):.4f} ± {np.std(off_diagonal_vals):.4f}")
+    print(f"  Ratio (diagonal/off-diagonal): {np.mean(diagonal_vals) / (np.mean(off_diagonal_vals) + 1e-10):.2f}x")
 
 
 def generate_metric_comparison(
@@ -1109,6 +1197,7 @@ SECTION_MAP = {
     # New eigenvalue-aware metrics sections
     "similarity_weighted": generate_similarity_vs_k_weighted,
     "heatmap_weighted": generate_similarity_heatmap_weighted,
+    "heatmap_digits": generate_quadratic_form_heatmap_digits,
     "metric_comparison": generate_metric_comparison,
     "ranking": generate_ranking_analysis,
     "statistical": generate_statistical_comparison,
@@ -1149,6 +1238,8 @@ def main():
         # Handle functions with different signatures
         if section == "3way":
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals, letters_vecs, letters_vals)
+        elif section == "heatmap_digits":
+            func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals)
         elif section in ["eigenvectors", "heatmaps", "similarity", "similarity_heatmap", "selection", "angles",
                          "similarity_weighted", "heatmap_weighted", "metric_comparison", "ranking", "statistical"]:
             func(d, mnist_vecs, mnist_vals, letters_vecs, letters_vals)

@@ -171,6 +171,9 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
             {"label": "CKA Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_cka.pdf")},
         ],
+        "Extension 2 / Heatmaps (10x10 matrices)": [
+            {"label": "Quadratic Form: MNIST Digits vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
+        ],
         "Extension 2 / Metric Analysis": [
             {"label": "4-way Metric Comparison", "path": _fig_rel_path("extension2_metric_comparison_4way.pdf")},
             {"label": "Ranking Analysis (k=20)", "path": _fig_rel_path("extension2_ranking_analysis.pdf")},
