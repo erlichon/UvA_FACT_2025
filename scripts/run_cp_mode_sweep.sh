@@ -126,3 +126,4 @@ echo "Next steps:"
 echo "  1. Run notebooks/03_eigenvector_visualization.ipynb to visualize results"
 echo ""
 
+

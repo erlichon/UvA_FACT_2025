@@ -190,3 +190,4 @@ def visualize_top_eigenvectors(
     
     plt.show()
 
+
