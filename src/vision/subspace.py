@@ -429,3 +429,249 @@ def select_balanced_eigenvectors(
         selected_vecs.append(vecs[selected_idx])
 
     return torch.stack(selected_vecs)
+
+
+# =============================================================================
+# EIGENVALUE-AWARE SIMILARITY METRICS
+# =============================================================================
+# These metrics account for eigenvalue magnitudes, not just eigenvector directions.
+# This is crucial because class-specific information is encoded in eigenvalues.
+
+
+def compute_eigenvalue_weighted_cosine(
+    vecs_A: Float[Tensor, "k d_input"],
+    vecs_B: Float[Tensor, "k d_input"],
+    vals_A: Float[Tensor, "k"],
+    vals_B: Float[Tensor, "k"],
+) -> float:
+    """
+    Compute eigenvalue-weighted cosine similarity between two sets of eigenvectors.
+    
+    Formula: sim = Σᵢ Σⱼ |λᵢᴬ| · |λⱼᴮ| · cos²(vᵢᴬ, vⱼᴮ) / Z
+    
+    Where Z = (Σᵢ|λᵢᴬ|) · (Σⱼ|λⱼᴮ|) normalizes the result.
+    
+    This metric only counts similarity when:
+    1. Eigenvectors align (high cos²)
+    2. Both have high eigenvalues (high |λᵢ| · |λⱼ|)
+    
+    Args:
+        vecs_A: First set of eigenvectors [k, d_input]
+        vecs_B: Second set of eigenvectors [k, d_input]
+        vals_A: Eigenvalues for first set [k]
+        vals_B: Eigenvalues for second set [k]
+    
+    Returns:
+        Similarity score in [0, 1]
+    """
+    # Normalize eigenvectors
+    vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+    vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+    
+    # Cosine similarities squared: [k, k]
+    cos_sq = (vecs_A_norm @ vecs_B_norm.T) ** 2
+    
+    # Eigenvalue weights: |λᵢᴬ| · |λⱼᴮ|
+    weights = vals_A.abs().unsqueeze(1) * vals_B.abs().unsqueeze(0)  # [k, k]
+    
+    # Weighted sum normalized by product of L1 norms
+    Z = vals_A.abs().sum() * vals_B.abs().sum()
+    
+    if Z < 1e-10:
+        return 0.0
+    
+    return ((weights * cos_sq).sum() / Z).item()
+
+
+def compute_quadratic_form_similarity(
+    vecs_A: Float[Tensor, "k d_input"],
+    vecs_B: Float[Tensor, "k d_input"],
+    vals_A: Float[Tensor, "k"],
+    vals_B: Float[Tensor, "k"],
+) -> float:
+    """
+    Compute quadratic form similarity by comparing weight matrices directly.
+    
+    For a bilinear model, the class-specific weight matrix is:
+        A_c = Σᵢ λᵢ · vᵢ · vᵢᵀ (low-rank approximation)
+    
+    This metric computes:
+        sim = trace(A · B) / (||A||_F · ||B||_F)
+    
+    Mathematical simplification (for orthonormal eigenvectors):
+        trace(A · B) = Σᵢ Σⱼ λᵢᴬ · λⱼᴮ · (vᵢᴬ · vⱼᴮ)²
+        ||A||_F² = Σᵢ (λᵢ)²
+    
+    Key properties:
+    - Directly compares what the model computes (x^T A x)
+    - Eigenvalues with same sign contribute positively
+    - Opposite signs can cancel (unlike eigenvalue_weighted_cosine)
+    - Range: [-1, 1] (can be negative if eigenvalue signs oppose)
+    
+    Args:
+        vecs_A: First set of eigenvectors [k, d_input]
+        vecs_B: Second set of eigenvectors [k, d_input]
+        vals_A: Eigenvalues for first set [k]
+        vals_B: Eigenvalues for second set [k]
+    
+    Returns:
+        Similarity score in [-1, 1]
+    """
+    # Normalize eigenvectors
+    vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+    vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+    
+    # Cosine similarities squared: [k, k]
+    cos_sq = (vecs_A_norm @ vecs_B_norm.T) ** 2
+    
+    # Inner product: Σᵢ Σⱼ λᵢᴬ · λⱼᴮ · cos²(vᵢ, vⱼ)
+    # Note: Using actual eigenvalues (not absolute), so sign matters
+    inner_product = (vals_A.unsqueeze(1) * vals_B.unsqueeze(0) * cos_sq).sum()
+    
+    # Frobenius norms: ||A||_F = sqrt(Σᵢ λᵢ²)
+    norm_A = (vals_A ** 2).sum().sqrt()
+    norm_B = (vals_B ** 2).sum().sqrt()
+    
+    if norm_A < 1e-10 or norm_B < 1e-10:
+        return 0.0
+    
+    return (inner_product / (norm_A * norm_B)).item()
+
+
+def compute_cka_similarity(
+    vecs_A: Float[Tensor, "k d_input"],
+    vecs_B: Float[Tensor, "k d_input"],
+    vals_A: Float[Tensor, "k"],
+    vals_B: Float[Tensor, "k"],
+) -> float:
+    """
+    Compute CKA (Centered Kernel Alignment) on eigenvalue-weighted representations.
+    
+    Creates weighted representations:
+        W = [√|λ₁|·v₁, √|λ₂|·v₂, ...]^T  # [k, d_input]
+    
+    Then computes linear CKA between W_A and W_B:
+        CKA = HSIC(K, L) / √(HSIC(K, K) · HSIC(L, L))
+    
+    Where K = W_A @ W_A^T and L = W_B @ W_B^T are Gram matrices,
+    and HSIC is computed on centered matrices.
+    
+    Key properties:
+    - Invariant to orthogonal transformations
+    - Invariant to isotropic scaling
+    - Captures whether representations encode similar structure
+    - Range: [0, 1]
+    
+    Args:
+        vecs_A: First set of eigenvectors [k, d_input]
+        vecs_B: Second set of eigenvectors [k, d_input]
+        vals_A: Eigenvalues for first set [k]
+        vals_B: Eigenvalues for second set [k]
+    
+    Returns:
+        CKA similarity score in [0, 1]
+    """
+    # Create eigenvalue-weighted representations
+    # W = √|λ| * v for each eigenvector
+    W_A = vals_A.abs().sqrt().unsqueeze(1) * vecs_A  # [k, d]
+    W_B = vals_B.abs().sqrt().unsqueeze(1) * vecs_B  # [k, d]
+    
+    # Compute Gram matrices
+    K = W_A @ W_A.T  # [k, k]
+    L = W_B @ W_B.T  # [k, k]
+    
+    # Center the Gram matrices (double centering)
+    # K_centered = H @ K @ H where H = I - 1/n * 1*1^T
+    def center_gram(G):
+        n = G.shape[0]
+        row_mean = G.mean(dim=1, keepdim=True)
+        col_mean = G.mean(dim=0, keepdim=True)
+        total_mean = G.mean()
+        return G - row_mean - col_mean + total_mean
+    
+    K_c = center_gram(K)
+    L_c = center_gram(L)
+    
+    # Compute HSIC values
+    # HSIC(K, L) = trace(K_c @ L_c) / (n-1)^2
+    # For CKA, the (n-1)^2 cancels out in the ratio
+    hsic_kl = (K_c * L_c).sum()
+    hsic_kk = (K_c * K_c).sum()
+    hsic_ll = (L_c * L_c).sum()
+    
+    # CKA = HSIC(K, L) / sqrt(HSIC(K, K) * HSIC(L, L))
+    denominator = (hsic_kk * hsic_ll).sqrt()
+    
+    if denominator < 1e-10:
+        return 0.0
+    
+    cka = hsic_kl / denominator
+    
+    # Clamp to [0, 1] for numerical stability
+    return cka.clamp(0.0, 1.0).item()
+
+
+def compute_weighted_similarity(
+    vecs_A: Float[Tensor, "n_components d_input"],
+    vecs_B: Float[Tensor, "n_components d_input"],
+    vals_A: Float[Tensor, "n_components"],
+    vals_B: Float[Tensor, "n_components"],
+    k: int = 10,
+    method: str = 'quadratic_form',
+) -> float:
+    """
+    Compute eigenvalue-aware similarity between eigenvector sets.
+    
+    This is a wrapper function that:
+    1. Sorts eigenvectors by eigenvalue magnitude
+    2. Selects top-k eigenvectors and eigenvalues
+    3. Computes the specified similarity metric
+    
+    Args:
+        vecs_A: First set of eigenvectors [n, d_input]
+        vecs_B: Second set of eigenvectors [n, d_input]
+        vals_A: Eigenvalues for first set [n]
+        vals_B: Eigenvalues for second set [n]
+        k: Number of top eigenvectors to compare (default: 10)
+        method: Similarity metric:
+            - 'eigenvalue_weighted': Eigenvalue-weighted cosine similarity
+            - 'quadratic_form': Quadratic form (weight matrix) similarity
+            - 'cka': Centered Kernel Alignment
+    
+    Returns:
+        Similarity score (range depends on method)
+    
+    Example:
+        # Compare MNIST '0' with EMNIST 'O' using quadratic form similarity
+        sim = compute_weighted_similarity(
+            mnist_vecs[0], emnist_vecs[14],
+            mnist_vals[0], emnist_vals[14],
+            k=10, method='quadratic_form'
+        )
+    """
+    # Sort by eigenvalue magnitude and take top-k
+    _, idx_A = vals_A.abs().sort(descending=True)
+    _, idx_B = vals_B.abs().sort(descending=True)
+    
+    top_vecs_A = vecs_A[idx_A[:k]]
+    top_vecs_B = vecs_B[idx_B[:k]]
+    top_vals_A = vals_A[idx_A[:k]]
+    top_vals_B = vals_B[idx_B[:k]]
+    
+    if method == 'eigenvalue_weighted':
+        return compute_eigenvalue_weighted_cosine(
+            top_vecs_A, top_vecs_B, top_vals_A, top_vals_B
+        )
+    elif method == 'quadratic_form':
+        return compute_quadratic_form_similarity(
+            top_vecs_A, top_vecs_B, top_vals_A, top_vals_B
+        )
+    elif method == 'cka':
+        return compute_cka_similarity(
+            top_vecs_A, top_vecs_B, top_vals_A, top_vals_B
+        )
+    else:
+        raise ValueError(
+            f"Unknown method: {method}. "
+            f"Choose from: 'eigenvalue_weighted', 'quadratic_form', 'cka'"
+        )

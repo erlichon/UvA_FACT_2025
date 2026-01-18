@@ -149,31 +149,45 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         # -----------------------------
         # Extension 2: Cross-Dataset Robustness
         # -----------------------------
-        "Extension 2 / Core Analysis": [
-            {"label": "Subspace overlap by rank (k=1-100)", "path": _fig_rel_path("extension2_subspace_overlap.pdf")},
-            {"label": "Mechanism stability analysis", "path": _fig_rel_path("extension2_mechanism_stability.pdf")},
-            {"label": "Eigenspectra: MNIST vs EMNIST-Digits", "path": _fig_rel_path("extension2_eigenspectra.pdf")},
-        ],
         "Extension 2 / Eigenvector Comparisons": [
             {"label": "Eigenvectors: 0 vs O", "path": _fig_rel_path("extension2_eigenvec_0_O.pdf")},
             {"label": "Eigenvectors: 1 vs I", "path": _fig_rel_path("extension2_eigenvec_1_I.pdf")},
             {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension2_eigenvec_2_Z.pdf")},
             {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension2_eigenvec_5_S.pdf")},
+            {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension2_3way_comparison.pdf")},
         ],
-        "Extension 2 / Cosine Similarity Heatmaps": [
-            {"label": "Cosine heatmap: 0 vs O", "path": _fig_rel_path("extension2_cosine_heatmap_0_O.pdf")},
-            {"label": "Cosine heatmap: 1 vs I", "path": _fig_rel_path("extension2_cosine_heatmap_1_I.pdf")},
-            {"label": "Cosine heatmap: 2 vs Z", "path": _fig_rel_path("extension2_cosine_heatmap_2_Z.pdf")},
-            {"label": "Cosine heatmap: 5 vs S", "path": _fig_rel_path("extension2_cosine_heatmap_5_S.pdf")},
+        "Extension 2 / Similarity vs k (Subspace Metrics)": [
+            {"label": "Mean Cosine (original)", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
+            {"label": "Selection method comparison", "path": _fig_rel_path("extension2_selection_comparison.pdf")},
         ],
-        "Extension 2 / Eigenvalue & Subspace Analysis": [
-            {"label": "Eigenvalue distribution: 0 vs O", "path": _fig_rel_path("extension2_eigenval_dist_0_O.pdf")},
-            {"label": "Eigenvalue distribution: 1 vs I", "path": _fig_rel_path("extension2_eigenval_dist_1_I.pdf")},
-            {"label": "Eigenvalue distribution: 2 vs Z", "path": _fig_rel_path("extension2_eigenval_dist_2_Z.pdf")},
-            {"label": "Eigenvalue distribution: 5 vs S", "path": _fig_rel_path("extension2_eigenval_dist_5_S.pdf")},
-            {"label": "Principal angles (all pairs)", "path": _fig_rel_path("extension2_principal_angles.pdf")},
-            {"label": "Eigenvector PCA embedding", "path": _fig_rel_path("extension2_eigenvec_pca.pdf")},
-            {"label": "Eigenvector t-SNE embedding", "path": _fig_rel_path("extension2_eigenvec_tsne.pdf")},
+        "Extension 2 / Similarity vs k (Weighted Metrics)": [
+            {"label": "Eigenvalue-Weighted Cosine", "path": _fig_rel_path("extension2_similarity_vs_k_eigenvalue_weighted.pdf")},
+            {"label": "Quadratic Form Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_quadratic_form.pdf")},
+            {"label": "CKA Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_cka.pdf")},
+        ],
+        "Extension 2 / Heatmaps (10x26 matrices)": [
+            {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
+            {"label": "Eigenvalue-Weighted Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_eigenvalue_weighted.pdf")},
+            {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
+            {"label": "CKA Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_cka.pdf")},
+        ],
+        "Extension 2 / Metric Analysis": [
+            {"label": "4-way Metric Comparison", "path": _fig_rel_path("extension2_metric_comparison_4way.pdf")},
+            {"label": "Ranking Analysis (k=20)", "path": _fig_rel_path("extension2_ranking_analysis.pdf")},
+            {"label": "Statistical Comparison", "path": _fig_rel_path("extension2_statistical_comparison_all_metrics.pdf")},
+        ],
+        "Extension 2 / Pairwise Analysis": [
+            {"label": "Cosine heatmap: 0 vs O", "path": _fig_rel_path("extension2_cosine_0_O.pdf")},
+            {"label": "Cosine heatmap: 1 vs I", "path": _fig_rel_path("extension2_cosine_1_I.pdf")},
+            {"label": "Cosine heatmap: 2 vs Z", "path": _fig_rel_path("extension2_cosine_2_Z.pdf")},
+            {"label": "Cosine heatmap: 5 vs S", "path": _fig_rel_path("extension2_cosine_5_S.pdf")},
+            {"label": "Principal angles", "path": _fig_rel_path("extension2_principal_angles.pdf")},
+        ],
+        "Extension 2 / Eigenvalue Distributions": [
+            {"label": "Eigenvalues: 0 vs O", "path": _fig_rel_path("extension2_eigenval_0_O.pdf")},
+            {"label": "Eigenvalues: 1 vs I", "path": _fig_rel_path("extension2_eigenval_1_I.pdf")},
+            {"label": "Eigenvalues: 2 vs Z", "path": _fig_rel_path("extension2_eigenval_2_Z.pdf")},
+            {"label": "Eigenvalues: 5 vs S", "path": _fig_rel_path("extension2_eigenval_5_S.pdf")},
         ],
         # -----------------------------
         # Language (Figures 8, 9, 10)
