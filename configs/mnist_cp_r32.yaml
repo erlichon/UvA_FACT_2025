@@ -1,0 +1,20 @@
+name: mnist_cp_r32
+experiment_id: E3.3
+
+model:
+  mode: cp
+  rank: 32
+  d_hidden: 256
+
+training:
+  epochs: 100
+  lr: 0.001
+
+regularization:
+  noise_std: 0.0
+  weight_decay: 0.1
+
+
+data:
+  dataset: mnist
+

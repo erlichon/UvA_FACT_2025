@@ -1,0 +1,19 @@
+name: mnist_cp_r8
+experiment_id: E3.1
+
+model:
+  mode: cp
+  rank: 8
+  d_hidden: 256
+
+training:
+  epochs: 100
+  lr: 0.001
+
+regularization:
+  noise_std: 0.0    # NO noise for CP
+  weight_decay: 0.1  # Minimal
+
+data:
+  dataset: mnist
+

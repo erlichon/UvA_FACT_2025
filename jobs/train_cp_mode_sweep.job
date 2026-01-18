@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --partition=gpu_a100
+#SBATCH --gpus=1
+#SBATCH --job-name=cp_mode_sweep
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=9
+#SBATCH --time=03:00:00
+#SBATCH --array=0-20
+#SBATCH --output=logs/cp_mode_sweep_%A_%a.out
+
+module purge
+module load 2025
+module load Anaconda3/2025.06-1
+
+cd "$HOME/fact-project" || exit 1
+source activate fact
+
+# Map array index to rank and mode
+# 7 ranks × 3 modes = 21 runs
+# Index mapping:
+#   0-2:   rank 8   (fixed, lambda, gated)
+#   3-5:   rank 16  (fixed, lambda, gated)
+#   6-8:   rank 32  (fixed, lambda, gated)
+#   9-11:  rank 64  (fixed, lambda, gated)
+#   12-14: rank 128 (fixed, lambda, gated)
+#   15-17: rank 256 (fixed, lambda, gated)
+#   18-20: rank 784 (fixed, lambda, gated)
+
+RANKS=(8 16 32 64 128 256 784)
+MODES=(fixed lambda gated)
+
+RANK_IDX=$((SLURM_ARRAY_TASK_ID / 3))
+MODE_IDX=$((SLURM_ARRAY_TASK_ID % 3))
+
+RANK="${RANKS[$RANK_IDX]}"
+MODE="${MODES[$MODE_IDX]}"
+
+echo "========================================"
+echo "Array task: $SLURM_ARRAY_TASK_ID"
+echo "Rank: $RANK"
+echo "Mode: $MODE"
+echo "Date: $(date)"
+echo "Host: $(hostname)"
+echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader)"
+echo "========================================"
+
+python src/train_cp.py \
+    --rank "$RANK" \
+    --cp-init-mode "$MODE" \
+    --seed 42 \
+    --epochs 100 \
+    --checkpoint-dir results/phase2/checkpoints
+
+echo "========================================"
+echo "Training complete: $(date)"
+echo "========================================"
+
+
