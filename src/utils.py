@@ -17,8 +17,10 @@ import time
 import logging
 import warnings
 import os
+import random
 import yaml
 import torch
+import numpy as np
 import wandb
 
 # Suppress codecarbon warnings about RAPL permissions (common on HPC systems)
@@ -115,10 +117,52 @@ def load_config(path: str) -> dict:
 
 
 def set_seed(seed: int) -> None:
-    """Set random seeds for reproducibility."""
+    """
+    Set random seeds for full reproducibility across Python, NumPy, and PyTorch.
+    
+    This is NON-NEGOTIABLE for the error bars requirement in FACT-AI.
+    
+    Args:
+        seed: Random seed (e.g., 42, 43, 44, 45, 46)
+    """
+    # Python random
+    random.seed(seed)
+    
+    # NumPy
+    np.random.seed(seed)
+    
+    # PyTorch
     torch.manual_seed(seed)
+    
+    # CUDA
     if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
+        # CUDA determinism (may reduce performance but ensures reproducibility)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+
+def seed_worker(worker_id: int) -> None:
+    """
+    Worker init function for DataLoader to ensure reproducible multi-worker data loading.
+    
+    Without this, multi-process data loading (num_workers > 0) yields non-deterministic
+    batches even if the global seed is set.
+    
+    Usage:
+        dataloader = DataLoader(
+            dataset,
+            num_workers=4,
+            worker_init_fn=seed_worker,  # Pass this function
+        )
+    
+    Args:
+        worker_id: Worker identifier (provided by DataLoader)
+    """
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 @dataclass

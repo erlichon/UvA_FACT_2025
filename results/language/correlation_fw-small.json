@@ -46,10 +46,12 @@
       }
     },
     "scatter_data_saved": true,
+    "scatter_data_dir": "results/language/scatter_data",
+    "scatter_files_count": 100,
     "max_scatter_samples": 1000,
     "paper_claim": "69% of features have >0.75 rank-2 correlation",
-    "wall_time_seconds": 95.8457510471344,
-    "co2_kg": 0.00015057362948832302
+    "wall_time_seconds": 55.112037897109985,
+    "co2_kg": 9.551936368871913e-05
   },
   "per_feature": [
     {

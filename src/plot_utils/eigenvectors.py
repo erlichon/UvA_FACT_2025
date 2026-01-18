@@ -62,8 +62,10 @@ def plot_eigenvectors_grid(
     # If showing both signs, double the columns
     n_cols = n_top * 2 if show_both_signs else n_top
 
+    # Increase figure height when showing both signs to accommodate extra labels
+    extra_height = 1.2 if show_both_signs else 0.8
     fig, axes = plt.subplots(
-        n_rows, n_cols, figsize=(n_cols * 1.1, n_rows * 1.1 + 0.6)
+        n_rows, n_cols, figsize=(n_cols * 1.1, n_rows * 1.3 + extra_height)
     )
     if n_rows == 1:
         axes = axes[np.newaxis, :]
@@ -123,27 +125,27 @@ def plot_eigenvectors_grid(
             axes[row, col].imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
             axes[row, col].axis("off")
             
-            # Add eigenvalue label below each image
+            # Add eigenvalue label ABOVE each image
             axes[row, col].annotate(
                 f"λ={val:.1e}",
-                xy=(0.5, -0.02),
+                xy=(0.5, 1.02),
                 xycoords="axes fraction",
                 fontsize=6,
                 ha="center",
-                va="top",
+                va="bottom",
             )
 
             if row == 0:
                 if show_both_signs:
-                    # Clear column header distinction for positive vs negative
+                    # Column headers moved higher to avoid eigenvalue label overlap
                     if col < n_top:
-                        axes[row, col].set_title(f"+{col + 1}", fontsize=8)
+                        axes[row, col].set_title(f"+{col + 1}", fontsize=8, pad=12)
                     else:
-                        axes[row, col].set_title(f"-{col - n_top + 1}", fontsize=8)
+                        axes[row, col].set_title(f"-{col - n_top + 1}", fontsize=8, pad=12)
                 else:
                     # Show sign indicator in column header
                     sign = "+" if val > 0 else "-"
-                    axes[row, col].set_title(f"#{col + 1} ({sign})", fontsize=9)
+                    axes[row, col].set_title(f"#{col + 1} ({sign})", fontsize=9, pad=12)
 
         # Add class label on left
         axes[row, 0].annotate(
@@ -157,12 +159,17 @@ def plot_eigenvectors_grid(
 
     # Add super-titles for positive/negative sections if showing both signs
     if show_both_signs:
-        # Add "Positive" and "Negative" labels
-        fig.text(0.25, 0.99, "Positive Eigenvalues", ha='center', fontsize=11, fontweight='bold')
-        fig.text(0.75, 0.99, "Negative Eigenvalues", ha='center', fontsize=11, fontweight='bold')
-
-    fig.suptitle(title, y=1.03)
-    plt.tight_layout()
+        # Add "Positive" and "Negative" labels (positioned below main title)
+        # Use rect parameter in tight_layout to leave space at top
+        fig.text(0.25, 0.95, "Positive Eigenvalues", ha='center', fontsize=10, fontweight='bold',
+                transform=fig.transFigure)
+        fig.text(0.75, 0.95, "Negative Eigenvalues", ha='center', fontsize=10, fontweight='bold',
+                transform=fig.transFigure)
+        fig.suptitle(title, y=1.02, fontsize=12)
+        plt.tight_layout(rect=[0, 0, 1, 0.93])  # Leave space at top for titles
+    else:
+        fig.suptitle(title, y=1.02)
+        plt.tight_layout()
 
     if save_path:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)

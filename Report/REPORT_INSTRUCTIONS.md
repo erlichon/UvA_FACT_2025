@@ -152,8 +152,8 @@ import matplotlib.pyplot as plt
 
 # 1. Eigenspectrum comparison
 checkpoints = {
-    'none': 'results/phase1/checkpoints/mnist_dense_none_seed42.pt',
-    'full': 'results/phase1/checkpoints/mnist_dense_full_seed42.pt',
+    'none': 'results/vision/checkpoints/mnist_dense_none_seed42.pt',
+    'full': 'results/vision/checkpoints/mnist_dense_full_seed42.pt',
 }
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))

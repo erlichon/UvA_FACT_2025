@@ -83,8 +83,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Create directories
-mkdir -p results/phase1/checkpoints
-mkdir -p results/phase1_fashion/checkpoints
+mkdir -p results/vision/checkpoints
+mkdir -p results/vision/checkpoints_fashion
 mkdir -p results/sweeps/noise_sweep/checkpoints
 mkdir -p results/language
 mkdir -p logs
@@ -182,7 +182,7 @@ if ! $SKIP_VISION; then
             python src/train.py \
                 --config "configs/mnist_dense_${config}.yaml" \
                 --seed "$seed" \
-                --checkpoint-dir "results/phase1/checkpoints" \
+                --checkpoint-dir "results/vision/checkpoints" \
                 $EPOCHS_OVERRIDE \
                 || echo "Warning: MNIST ${config} seed ${seed} failed, continuing..."
         done
@@ -199,7 +199,7 @@ if ! $SKIP_VISION; then
             python src/train.py \
                 --config "configs/fashion_dense_${config}.yaml" \
                 --seed "$seed" \
-                --checkpoint-dir "results/phase1_fashion/checkpoints" \
+                --checkpoint-dir "results/vision/checkpoints_fashion" \
                 $EPOCHS_OVERRIDE \
                 || echo "Warning: Fashion-MNIST ${config} seed ${seed} failed, continuing..."
         done
@@ -215,7 +215,7 @@ if ! $SKIP_VISION; then
     python src/train.py \
         --config "configs/mnist_dense_full_20ep.yaml" \
         --seed 42 \
-        --checkpoint-dir "results/phase1/checkpoints" \
+        --checkpoint-dir "results/vision/checkpoints" \
         $EPOCHS_OVERRIDE \
         || echo "Warning: 20-epoch paper comparison failed, continuing..."
 
@@ -416,13 +416,13 @@ fi
 echo ""
 
 # Count checkpoints
-MNIST_COUNT=$(ls -1 results/phase1/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
-FASHION_COUNT=$(ls -1 results/phase1_fashion/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
+MNIST_COUNT=$(ls -1 results/vision/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
+FASHION_COUNT=$(ls -1 results/vision/checkpoints_fashion/*.pt 2>/dev/null | wc -l | tr -d ' ')
 SWEEP_COUNT=$(ls -1 results/sweeps/noise_sweep/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
 
 echo "Results saved to:"
-echo "  - results/phase1/checkpoints/ (MNIST: $MNIST_COUNT/21, includes 20-epoch)"
-echo "  - results/phase1_fashion/checkpoints/ (Fashion-MNIST: $FASHION_COUNT/20)"
+echo "  - results/vision/checkpoints/ (MNIST: $MNIST_COUNT/21, includes 20-epoch)"
+echo "  - results/vision/checkpoints_fashion/ (Fashion-MNIST: $FASHION_COUNT/20)"
 echo "  - results/sweeps/noise_sweep/checkpoints/ (Noise Sweep: $SWEEP_COUNT/6)"
 echo "  - results/language/negation_fw_medium.json (Section 5.1)"
 echo "  - results/language/correlation_ts-medium.json (Section 5.2 - Figure 9)"
@@ -434,7 +434,7 @@ echo ""
 echo "Vision Results Summary (sample):"
 echo "---------------------------------"
 for config in none full; do
-    checkpoint="results/phase1/checkpoints/mnist_dense_${config}_seed42.pt"
+    checkpoint="results/vision/checkpoints/mnist_dense_${config}_seed42.pt"
     if [ -f "$checkpoint" ]; then
         python -c "
 import torch
@@ -448,7 +448,7 @@ done
 echo ""
 echo "20-Epoch Paper Comparison:"
 echo "--------------------------"
-checkpoint="results/phase1/checkpoints/mnist_dense_full_20ep_seed42.pt"
+checkpoint="results/vision/checkpoints/mnist_dense_full_20ep_seed42.pt"
 if [ -f "$checkpoint" ]; then
     python -c "
 import torch

@@ -27,7 +27,7 @@ We are reproducing and extending "Bilinear MLPs enable weight-based mechanistic 
 - **Day 17** (Jan 24): **RESULT FREEZE** - No new experiments after this
 
 ### Dependencies
-- **Phase 1** (Person A+B): `results/phase1/checkpoints/` - Dense model checkpoints
+- **Phase 1** (Person A+B): `results/vision/checkpoints/` - Dense model checkpoints
 - **Person C**: `results/phase2/robustness/` - Robustness analysis
 - **Person D**: `results/phase2/checkpoints/` - CP model checkpoints
 
@@ -116,7 +116,7 @@ Write mathematical formulation for Section 5 of report (conceptual only, NO code
 
 **From Phase 1 (Dense Models)**:
 ```
-results/phase1/checkpoints/
+results/vision/checkpoints/
 ├── mnist_dense_none_seed{42-46}.pt    # Baseline (no reg)
 ├── mnist_dense_noise_seed{42-46}.pt   # Noise only
 ├── mnist_dense_wd_seed{42-46}.pt      # Weight decay only
@@ -183,7 +183,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "bilinear-decomposition-ma
 from src.vision.spectral import extract_from_checkpoint, compute_all_metrics
 
 
-def load_all_phase1_results(checkpoint_dir: str = "results/phase1/checkpoints") -> pd.DataFrame:
+def load_all_phase1_results(checkpoint_dir: str = "results/vision/checkpoints") -> pd.DataFrame:
     """Load all Phase 1 (dense model) results."""
     checkpoint_dir = Path(checkpoint_dir)
     configs = ['none', 'noise', 'wd', 'full']
@@ -558,7 +558,7 @@ from src.vision.visualization import (
 )
 
 # Paths
-P1_CHECKPOINT_DIR = "../results/phase1/checkpoints"
+P1_CHECKPOINT_DIR = "../results/vision/checkpoints"
 P2_CHECKPOINT_DIR = "../results/phase2/checkpoints"
 FIGURE_DIR = "../results/phase2/figures"
 REPORT_FIGURE_DIR = "../Report/figures"

@@ -1,0 +1,21 @@
+name: emnist_letters_phase1_reg_com
+experiment_id: Ext2.1d
+
+model:
+  mode: dense
+  d_hidden: 256
+  n_layer: 1
+  variance_corrected_init: false
+
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+regularization:
+  noise_std: 0.5
+  weight_decay: 1.0
+
+data:
+  dataset: emnist_letters
+  apply_com: true  # Explicitly enable CoM normalization

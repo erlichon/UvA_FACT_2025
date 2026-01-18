@@ -1,15 +1,17 @@
 *.pyc
 **/.DS_Store
-data/
-
+/data/
+jobs/
 Report/*.aux
 Report/*.log
 Report/*.out
 Report/*.synctex.gz
 Report/*.toc
 Report/*.fls
+Report/*.bbl
+Report/*.blg
 Report/*.fdb_latexmk
-
+results/language/scatter_data/
 
 arXiv-2410.08417v2/*.aux
 arXiv-2410.08417v2/*.log
@@ -28,3 +30,4 @@ arXiv-2410.08417v2/*.blg
 __pycache__/
 wandb/
 logs/
+results/Thumbs.db

@@ -53,6 +53,29 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 ./scripts/train/run_vision.sh all
 ```
 
+### Extension 2: Cross-Dataset Robustness
+
+Uses Phase 1 settings (noise=0.5, weight_decay=1.0) with CoM normalization.
+Cosine similarity only for subspace overlap.
+
+```bash
+# Train EMNIST models (CoM always enabled)
+./scripts/train/run_extension2.sh train all
+
+# Generate all Extension 2 figures
+./scripts/train/run_extension2.sh figures
+
+# Generate specific figure sections
+./scripts/train/run_extension2.sh figures similarity 3way
+
+# Full pipeline (train + figures)
+./scripts/train/run_extension2.sh all
+
+# Direct figure generation
+python scripts/figures/generate_extension2_figures.py
+python scripts/figures/generate_extension2_figures.py --sections eigenvectors heatmaps
+```
+
 ### Unified Language Script (Section 5) - PREFERRED
 
 ```bash
@@ -64,8 +87,8 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 ./scripts/train/run_language.sh figure9 --model fw-medium   # Single model
 ./scripts/train/run_language.sh figure9 --quick             # Quick mode
 
-# Figure 8: Negation circuit visualization
-./scripts/train/run_language.sh figure8 --device cpu        # CPU recommended for memory
+# Figure 8: Negation circuit visualization (memory-efficient, works on MPS)
+./scripts/train/run_language.sh figure8 --device mps
 
 # Negation discovery
 ./scripts/train/run_language.sh negation
@@ -143,23 +166,27 @@ squeue -u scur0075  # Monitor jobs
 | Module | Purpose |
 |--------|---------|
 | `src/models/bilinear_layer.py` | `BilinearDense` (wraps original), `BilinearCP` (extension) |
+| `src/data/` | Unified data module: `MNIST`, `FashionMNIST`, `EMNISTLetters`, `EMNISTDigits`, `USPS` with CoM support |
+| `src/data/transforms.py` | `CenterOfMassTransform` for input geometry normalization |
+| `src/training/core.py` | Training utilities: `train_model()`, `save_checkpoint()`, `log_training_history()` |
 | `src/vision/spectral.py` | `effective_rank()`, `top_k_coverage()`, `load_checkpoint_eigenvalues()` |
+| `src/vision/subspace.py` | `compute_subspace_overlap()`, `principal_angles()` for Extension 2 |
 | `src/vision/context.py` | `VisionContext` - unified context for vision experiments |
 | `src/vision/truncation.py` | `compute_truncation_accuracy()`, `compute_eigenvector_similarity()` (Figure 5) |
 | `src/vision/adversarial.py` | `compute_adversarial_mask()`, `apply_adversarial_perturbation()` (Figure 7) |
 | `src/data/challenge_dataset.py` | `ChallengeDataset` for similarity classification (Figure 6) |
 | `src/plot_utils/` | Publication plotting: `style.py`, `eigenspectrum.py`, `eigenvectors.py`, `ablation.py`, `language.py` |
-| `src/plot_utils/language.py` | Figure 9 & 10 plots: `plot_correlation_progression()`, `plot_correlation_histogram()` |
-| `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `track_emissions()`, wandb helpers |
+| `src/utils.py` | `get_device()`, `load_config()`, `set_seed()`, `seed_worker()`, `track_emissions()`, wandb helpers |
 | `src/language/context.py` | `LanguageContext` - unified context for language experiments |
+| `src/language/memory_efficient_eigen.py` | Memory-efficient iterative eigensolver for Figure 8 (avoids n_features² memory) |
 | `src/language/` | SAE training, negation discovery, interaction analysis, correlation verification |
-| `src/language/verify_correlation.py` | Correlation verification with CLI: `--model`, `--layer`, `--expansion`, `--k` |
 
 ### Scripts Organization
 
 | Directory | Purpose |
 |-----------|---------|
-| `scripts/train/` | Training & experiment runners (`run_vision.sh`, `run_language.sh`, `run_overnight_mps.sh`) |
+| `scripts/train/` | Training & experiment runners (`run_vision.sh`, `run_language.sh`, `run_extension2.sh`, `run_overnight_mps.sh`) |
+| `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `generate_extension2_figures.py`) |
 | `scripts/figures/` | Figure generation (`generate_vision_figures.py`, `generate_language_figures.py`, `paper_hub.py`) |
 | `tools/` | Operational utilities (`sync_to_snellius.sh`, `sync_from_snellius.sh`, `monitor_memory.sh`) |
 
@@ -206,7 +233,9 @@ model = ctx.get_model()
 sae = ctx.get_sae(position="mlp-out")
 ```
 
-### MPS Device Bugs
+### MPS Device Compatibility
+
+**Eigendecomposition** (`model.decompose()`) is MPS-safe - the original paper code automatically moves tensors to CPU for `torch.linalg.eigh()` when on MPS.
 
 **einsum on MPS produces incorrect results** for certain operations. The interaction analysis code forces CPU for einsum operations:
 ```python
@@ -217,6 +246,21 @@ if device.type == "mps":
 ```
 
 Language experiments are slow on MPS (~4-6 hours). Prefer Snellius GPU cluster.
+
+### Reproducibility (Seeding)
+
+Always use `set_seed()` from `src/utils.py` at the start of experiments. It handles:
+- Python `random.seed()`
+- NumPy `np.random.seed()`
+- PyTorch `torch.manual_seed()` and CUDA seeds
+- CUDA determinism settings (`torch.backends.cudnn.deterministic = True`)
+
+For DataLoader multi-worker determinism, use `seed_worker()`:
+```python
+from src.utils import set_seed, seed_worker
+set_seed(42)
+dataloader = DataLoader(dataset, num_workers=4, worker_init_fn=seed_worker)
+```
 
 ### Effective Rank Formula
 

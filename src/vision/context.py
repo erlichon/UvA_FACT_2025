@@ -58,12 +58,12 @@ class VisionContext:
     @property
     def mnist_checkpoints(self) -> Path:
         """MNIST checkpoint directory."""
-        return self.project_root / "results/phase1/checkpoints"
+        return self.project_root / "results/vision/checkpoints"
     
     @property
     def fashion_checkpoints(self) -> Path:
         """Fashion-MNIST checkpoint directory."""
-        return self.project_root / "results/phase1_fashion/checkpoints"
+        return self.project_root / "results/vision/checkpoints_fashion"
     
     @property
     def noise_sweep_checkpoints(self) -> Path:
@@ -91,9 +91,9 @@ class VisionContext:
         return self.project_root / "Report/figures"
     
     @property
-    def phase1_figures(self) -> Path:
-        """Phase 1 figures directory (legacy)."""
-        return self.project_root / "results/phase1/figures"
+    def vision_figures(self) -> Path:
+        """Vision figures directory."""
+        return self.project_root / "results/vision/figures"
     
     # --- Checkpoint Loading ---
     

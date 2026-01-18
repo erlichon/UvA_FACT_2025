@@ -6,7 +6,7 @@
 
 ## 0. Current State (Updated: 2026-01-14)
 
-### Section 4 (Vision) COMPLETE + ANALYZED + EXTENDED, Section 5 (Language) ~90% Complete
+### Section 4 (Vision) COMPLETE + ANALYZED + EXTENDED, Section 5 (Language) ~95% Complete
 
 **Status Summary**:
 | Person | Role | Status | Next Action |
@@ -82,7 +82,7 @@ After verifying model specifications and SAE availability, we discovered:
 - **Advantage**: ✅ Has both `mlp-in` and `mlp-out` SAEs available
 - **Advantage**: ✅ Larger model → clearer visualizations
 - **Config**: `configs/language_negation_fw.yaml`
-- **Status**: READY to run
+- **Status**: ✅ IMPLEMENTED (memory-efficient eigensolver, works on MPS)
 
 #### Section 5.2: Low-Rank Correlation (Figure 9)
 - **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 7)
@@ -94,8 +94,9 @@ After verifying model specifications and SAE availability, we discovered:
 |------------|--------|--------|-------|
 | SAE Training | SKIPPED | - | Using pretrained SAEs from HuggingFace |
 | Negation (ts-medium, L4) | SKIPPED | `language_negation_ts.yaml` | ❌ Missing mlp-in SAEs on HuggingFace |
-| Negation (fw-medium, L7) | READY | `language_negation_fw.yaml` | ✅ **TUTORIAL** (features 3834/751) - Figure 8 |
-| Figure 8 Generation | READY | - | Generate for fw-medium only |
+| Negation (fw-medium, L7) | ✅ READY | `language_negation_fw.yaml` | ✅ **TUTORIAL** (features 3834/751) - Figure 8 |
+| Figure 8 Generation | ✅ IMPLEMENTED | - | Memory-efficient eigensolver (works on MPS) |
+| Figure 9C (scatter plots) | ✅ IMPLEMENTED | - | Streaming scatter data (works on MPS) |
 | Correlation Sweep (all 3) | READY | `scripts/run_language_sweep.sh` | Full Figure 9 (all models work) |
 
 **Model Configuration & SAE Availability (VERIFIED 2026-01-14)**:
@@ -141,82 +142,79 @@ UvA_FACT_2025/
 ├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
 ├── src/
 │   ├── __init__.py
-│   ├── utils.py                  # Shared utilities (device, wandb, emissions) [COMPLETE]
+│   ├── utils.py                  # Shared utilities (device, wandb, seeding, emissions)
 │   ├── models/
 │   │   ├── __init__.py
-│   │   └── bilinear_layer.py     # BilinearDense + BilinearCP [COMPLETE]
-│   ├── data/
-│   │   ├── __init__.py
+│   │   └── bilinear_layer.py     # BilinearDense + BilinearCP
+│   ├── data/                     # Unified data module with CoM support
+│   │   ├── __init__.py           # Re-exports all datasets
+│   │   ├── transforms.py         # CenterOfMassTransform
+│   │   ├── mnist.py              # MNIST, FashionMNIST with CoM
+│   │   ├── emnist.py             # EMNISTLetters, EMNISTDigits with CoM
+│   │   ├── usps.py               # USPS (16x16 → 28x28 upscaling)
 │   │   └── challenge_dataset.py  # Challenge dataset (Figure 6)
-│   ├── vision/                   # Section 4 vision analysis (renamed from analysis/)
+│   ├── training/                 # Consolidated training utilities
 │   │   ├── __init__.py
-│   │   ├── context.py            # VisionContext - unified experiment setup (DRY)
-│   │   ├── spectral.py           # effective_rank, top_k_coverage, load_all_checkpoints
-│   │   ├── truncation.py         # Truncation accuracy, similarity (Figure 5)
-│   │   └── adversarial.py        # Adversarial mask generation (Figure 7)
+│   │   └── core.py               # train_model(), save_checkpoint(), log_*()
+│   ├── vision/                   # Section 4 vision analysis
+│   │   ├── __init__.py
+│   │   ├── context.py            # VisionContext (DRY)
+│   │   ├── spectral.py           # effective_rank, load_checkpoint_eigenvalues
+│   │   ├── subspace.py           # compute_subspace_overlap, principal_angles
+│   │   ├── truncation.py         # Figure 5 analysis
+│   │   └── adversarial.py        # Figure 7 analysis
 │   ├── plot_utils/               # Reusable plotting functions
 │   │   ├── __init__.py
-│   │   ├── style.py              # Publication style, colors, constants
-│   │   ├── eigenspectrum.py      # Eigenspectrum visualization
-│   │   ├── eigenvectors.py       # Eigenvector visualization (with λ labels)
-│   │   ├── ablation.py           # Ablation and trade-off plots
-│   │   └── language.py           # Language Figure 9 & 10 plots
+│   │   ├── style.py              # Publication style, colors
+│   │   ├── eigenspectrum.py      # Eigenvalue plots
+│   │   ├── eigenvectors.py       # Eigenvector visualization
+│   │   ├── ablation.py           # Ablation study plots
+│   │   ├── extension2.py         # Extension 2 plots
+│   │   └── language.py           # Figure 9 & 10 plots
 │   ├── language/                 # Section 5 language experiments
 │   │   ├── __init__.py
-│   │   ├── context.py            # LanguageContext - unified experiment setup (DRY)
+│   │   ├── context.py            # LanguageContext (DRY)
 │   │   ├── run_sae_training.py   # SAE training wrapper
 │   │   ├── negation_discovery.py # Negation circuit analysis
 │   │   ├── interaction_analysis.py # Interaction matrix analysis
 │   │   └── verify_correlation.py # Correlation verification
-│   └── train.py                  # Vision training script
+│   └── train.py                  # Unified vision training script
 ├── configs/
-│   ├── mnist_dense_{none,noise,wd,full,noise015}.yaml  # MNIST vision configs
-│   ├── fashion_dense_{none,noise,wd,full}.yaml  # Fashion-MNIST configs
-│   ├── mnist_challenge.yaml      # Challenge task config
+│   ├── mnist_dense_{none,noise,wd,full,noise015}.yaml
+│   ├── fashion_dense_{none,noise,wd,full}.yaml
+│   ├── emnist_letters_regularized.yaml  # Extension 2 (Phase 1 reg + CoM)
+│   ├── emnist_digits_regularized.yaml   # Extension 2 (Phase 1 reg + CoM)
+│   ├── mnist_challenge.yaml
 │   ├── sweeps/
-│   │   └── mnist_size_{30,50,100,300,500,1000}.yaml  # Model size sweep
-│   ├── language_sae.yaml         # SAE training config (supports model/layer overrides)
-│   ├── language_negation_{fw,ts}.yaml  # Negation discovery configs
-│   └── language_interaction.yaml # Interaction analysis config
+│   │   └── mnist_size_{30,50,100,300,500,1000}.yaml
+│   └── language_*.yaml
 ├── scripts/
 │   ├── train/                    # Training & experiment runners
-│   │   ├── run_vision.sh         # Unified vision experiments
+│   │   ├── run_vision.sh         # Unified vision (has extension2 subcommand)
+│   │   ├── run_extension2.sh     # Extension 2 runner (EMNIST, subspace tests)
 │   │   ├── run_language.sh       # Unified language experiments
 │   │   └── run_overnight_mps.sh  # Full overnight pipeline
 │   └── figures/                  # Figure generation
-│       ├── generate_vision_figures.py   # All vision figures (1-7)
-│       ├── generate_language_figures.py # Figure 9 & 10
-│       └── paper_hub.py          # Interactive figure viewer
+│       ├── generate_vision_figures.py     # All vision figures (Section 4)
+│       ├── generate_language_figures.py   # Language figures (Section 5)
+│       ├── generate_extension2_figures.py # Extension 2 figures
+│       └── paper_hub.py
 ├── tools/                        # Operational utilities
-│   ├── sync_to_snellius.sh       # Upload code to cluster
-│   ├── sync_from_snellius.sh     # Download results
-│   └── monitor_memory.sh         # Memory monitoring
-├── jobs/
-│   ├── train_array.job           # MNIST 20 runs (Snellius)
-│   ├── train_fashion_array.job   # Fashion-MNIST 20 runs
-│   └── language_full_pipeline.job # Full Section 5 pipeline
-├── docs/
-│   └── WANDB_GUIDE.md            # wandb usage guide
-├── tests/                        # Unit tests (82 tests)
+│   ├── sync_to_snellius.sh
+│   ├── sync_from_snellius.sh
+│   └── monitor_memory.sh
+├── jobs/                         # SLURM scripts
+├── tests/                        # Unit tests (86 tests)
 ├── results/
-│   ├── phase1/
-│   │   ├── checkpoints/          # MNIST vision checkpoints (26 files: 20 base + 5 noise015 + 1 20ep)
-│   │   └── figures/              # Generated figures (16 PDFs + 2 CSVs)
-│   ├── phase1_fashion/checkpoints/ # Fashion-MNIST checkpoints (20 files)
+│   ├── phase1/checkpoints/
+│   ├── phase1_fashion/checkpoints/
 │   ├── sweeps/
-│   │   ├── model_size/checkpoints/ # Model size sweep (30 files) [NEW]
-│   │   └── noise_sweep/checkpoints/ # Noise sweep (6 files)
-│   ├── challenge/checkpoints/    # Challenge task checkpoint [NEW]
-│   ├── adversarial/              # Adversarial experiment results [NEW]
-│   └── language/                 # Language results (JSON + figures)
-│       ├── correlation_{ts-medium,fw-small,fw-medium}.json  # Sweep results
-│       └── figures/              # Language figures (Figure 9A, 9B, etc.)
-├── logs/                         # Experiment logs
+│   ├── extension2/               # Extension 2 results
+│   │   ├── checkpoints/
+│   │   └── subspace/
+│   └── language/
 ├── notebooks/
-│   └── 01_reproduction.ipynb     # Vision analysis notebook
-├── Report/
-│   ├── figures/                  # Publication figures (Figures 1-7, 9)
-│   └── sections/                 # LaTeX sections
+├── Report/figures/
 ├── environment.yml               # Snellius GPU environment
 └── environment_cpu.yml           # Local CPU/MPS environment
 ```
@@ -812,13 +810,13 @@ checkpoint = {
     'eigenvalues': Tensor,       # Shape: [10, 256] (n_classes, d_hidden)
     'eigenvectors': Tensor,      # Shape: [10, 256, 784] (n_classes, d_hidden, d_input)
 }
-# Saved to: results/phase1/checkpoints/{config_name}_seed{seed}.pt
+# Saved to: results/vision/checkpoints/{config_name}_seed{seed}.pt
 ```
 
 **Person B Loading Example**:
 ```python
 import torch
-checkpoint = torch.load("results/phase1/checkpoints/mnist_dense_full_seed42.pt", map_location='cpu')
+checkpoint = torch.load("results/vision/checkpoints/mnist_dense_full_seed42.pt", map_location='cpu')
 eigenvalues = checkpoint['eigenvalues']   # [10, 256]
 eigenvectors = checkpoint['eigenvectors'] # [10, 256, 784]
 config = checkpoint['config']
