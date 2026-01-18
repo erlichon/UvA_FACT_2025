@@ -9,23 +9,21 @@ Figures generated:
 
 Original (subspace-based metrics):
 1. Eigenvector comparison: MNIST digit vs EMNIST letter (per pair)
-2. Cosine similarity heatmaps (per pair)
-3. Eigenvalue distribution overlays (per pair)
-4. Subspace overlap vs k (mean_cos method)
-5. Similarity heatmap (10x26 matrix, mean_cos)
-6. Principal angles between subspaces
-7. 3-way comparison: MNIST digit 0, EMNIST digit 0, EMNIST letter O
-8. Selection method comparison: magnitude vs balanced
+2. Eigenvalue distribution overlays (per pair)
+3. Subspace overlap vs k (mean_cos method)
+4. Similarity heatmap (10x26 matrix, mean_cos)
+5. Principal angles between subspaces
+6. 3-way comparison: MNIST digit 0, EMNIST digit 0, EMNIST letter O
+7. Selection method comparison: magnitude vs balanced
 
 New (eigenvalue-aware metrics):
-9. Similarity vs k for eigenvalue_weighted metric
-10. Similarity vs k for quadratic_form metric
-11. Similarity vs k for cka metric
-12. Heatmaps for all three weighted metrics (MNIST digits vs EMNIST letters)
-13. Quadratic form heatmap (MNIST digits vs EMNIST digits, 10x10 matrix)
-14. 4-way metric comparison (mean_cos + 3 weighted)
-15. Ranking analysis: where expected pairs rank among all letters
-16. Statistical comparison: t-test similar vs dissimilar pairs
+8. Similarity vs k for eigenvalue_weighted metric
+9. Similarity vs k for quadratic_form metric
+10. Heatmaps for eigenvalue_weighted and quadratic_form metrics
+11. Quadratic form heatmap (MNIST digits vs EMNIST digits, 10x10 matrix)
+12. 3-way metric comparison (mean_cos + 2 weighted)
+13. Ranking analysis: where expected pairs rank among all letters
+14. Statistical comparison: t-test similar vs dissimilar pairs
 
 Usage:
     python scripts/figures/generate_extension2_figures.py
@@ -64,7 +62,6 @@ from src.plot_utils.style import set_publication_style
 from src.plot_utils.extension2 import (
     DIGIT_LETTER_PAIRS,
     plot_digit_letter_eigenvector_comparison,
-    plot_cosine_similarity_heatmap,
     plot_eigenvalue_distribution_overlay,
     plot_subspace_overlap_by_rank,
     plot_principal_angles,
@@ -191,35 +188,6 @@ def generate_eigenvector_comparisons(
         digit, letter = label.split("-")
         out_path = d.figure_out / f"eigenvec_comparison_{digit}_{letter}.pdf"
         report_path = d.report_figures / f"extension2_eigenvec_{digit}_{letter}.pdf"
-        _save_and_copy(fig, out_path, report_path)
-        plt.close(fig)
-
-
-def generate_cosine_heatmaps(
-    d: Dirs,
-    mnist_vecs: torch.Tensor,
-    mnist_vals: torch.Tensor,
-    letters_vecs: torch.Tensor,
-    letters_vals: torch.Tensor,
-) -> None:
-    """Generate cosine similarity heatmaps for each digit-letter pair."""
-    print("\n=== Cosine Similarity Heatmaps ===")
-    
-    for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
-        digit, letter = label.split("-")
-        
-        fig = plot_cosine_similarity_heatmap(
-            mnist_vecs[digit_idx],
-            letters_vecs[letter_idx],
-            mnist_vals[digit_idx],
-            letters_vals[letter_idx],
-            k=10,
-            digit_label=digit,
-            letter_label=letter,
-        )
-        
-        out_path = d.figure_out / f"cosine_heatmap_{digit}_{letter}.pdf"
-        report_path = d.report_figures / f"extension2_cosine_{digit}_{letter}.pdf"
         _save_and_copy(fig, out_path, report_path)
         plt.close(fig)
 
@@ -922,7 +890,6 @@ def generate_similarity_vs_k_weighted(
     metrics = [
         ('eigenvalue_weighted', 'Eigenvalue-Weighted Cosine Similarity', (0, 1)),
         ('quadratic_form', 'Quadratic Form Similarity', (-0.5, 1)),
-        ('cka', 'CKA Similarity', (0, 1)),
     ]
     
     for method, title, ylim in metrics:
@@ -1124,7 +1091,6 @@ def generate_similarity_heatmap_weighted(
     metrics = [
         ('eigenvalue_weighted', 'Eigenvalue-Weighted Cosine', (0.0, 0.3)),
         ('quadratic_form', 'Quadratic Form', (-0.2, 0.4)),
-        ('cka', 'CKA', (0.0, 1.0)),
     ]
     
     for method, title, vrange in metrics:
@@ -1283,10 +1249,9 @@ def generate_metric_comparison(
         ('mean_cos', 'Mean Cosine (Principal Angles)'),
         ('eigenvalue_weighted', 'Eigenvalue-Weighted Cosine'),
         ('quadratic_form', 'Quadratic Form'),
-        ('cka', 'CKA'),
     ]
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     axes = axes.flatten()
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
     
@@ -1376,7 +1341,6 @@ def generate_ranking_analysis(
         ('mean_cos', 'Mean Cosine'),
         ('eigenvalue_weighted', 'Eigenvalue-Weighted'),
         ('quadratic_form', 'Quadratic Form'),
-        ('cka', 'CKA'),
     ]
     
     # Compute matrices for all metrics
@@ -1468,7 +1432,6 @@ def generate_statistical_comparison(
         ('mean_cos', 'Mean Cosine'),
         ('eigenvalue_weighted', 'Eigenvalue-Weighted'),
         ('quadratic_form', 'Quadratic Form'),
-        ('cka', 'CKA'),
     ]
     
     control_pairs = [
@@ -1583,9 +1546,8 @@ def generate_statistical_comparison(
 
 
 SECTION_MAP = {
-    # Original sections (unchanged)
+    # Original sections
     "eigenvectors": generate_eigenvector_comparisons,
-    "heatmaps": generate_cosine_heatmaps,
     "distributions": generate_eigenvalue_distributions,
     "similarity": generate_similarity_vs_k,
     "similarity_heatmap": generate_similarity_heatmap,
@@ -1593,7 +1555,7 @@ SECTION_MAP = {
     "eigenvector_table": generate_eigenvector_comparison_table,
     "selection": generate_selection_method_comparison,
     "angles": generate_principal_angles,
-    # New eigenvalue-aware metrics sections
+    # Eigenvalue-aware metrics sections
     "similarity_weighted": generate_similarity_vs_k_weighted,
     "heatmap_weighted": generate_similarity_heatmap_weighted,
     "heatmap_digits": generate_quadratic_form_heatmap_digits,
@@ -1639,7 +1601,7 @@ def main():
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals, letters_vecs, letters_vals)
         elif section == "heatmap_digits":
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals)
-        elif section in ["eigenvectors", "heatmaps", "similarity", "similarity_heatmap", "selection", "angles",
+        elif section in ["eigenvectors", "similarity", "similarity_heatmap", "selection", "angles",
                          "similarity_weighted", "heatmap_weighted", "metric_comparison", "ranking", "statistical"]:
             func(d, mnist_vecs, mnist_vals, letters_vecs, letters_vals)
         elif section == "distributions":

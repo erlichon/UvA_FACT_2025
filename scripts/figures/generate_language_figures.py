@@ -227,13 +227,13 @@ def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
     )
     save_figure(fig, "figure_10a_sae_training_effect.pdf", figure_dir, report_dir)
     
-    # Figure 10B: Rank-2 Histogram (v0 vs v4)
+    # Figure 10B: Rank-2 Histogram (all versions to show progression)
     print("Generating Figure 10B: Rank-2 Correlation Distribution...")
     fig = plot_sae_training_histogram(
         results,
         rank=2,
-        versions=['v0', 'v4'],
-        title="Rank-2 Correlation: Under-trained (v0) vs Well-trained (v4)",
+        versions=['v0', 'v1', 'v2', 'v3', 'v4'],
+        title="Rank-2 Correlation: Training Progression (v0 → v4)",
         show_paper_threshold=True,
     )
     save_figure(fig, "figure_10b_sae_training_histogram.pdf", figure_dir, report_dir)

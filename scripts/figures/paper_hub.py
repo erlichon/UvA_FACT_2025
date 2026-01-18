@@ -163,27 +163,21 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         "Extension 2 / Similarity vs k (Weighted Metrics)": [
             {"label": "Eigenvalue-Weighted Cosine", "path": _fig_rel_path("extension2_similarity_vs_k_eigenvalue_weighted.pdf")},
             {"label": "Quadratic Form Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_quadratic_form.pdf")},
-            {"label": "CKA Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_cka.pdf")},
         ],
         "Extension 2 / Heatmaps (10x26 matrices)": [
             {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
             {"label": "Eigenvalue-Weighted Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_eigenvalue_weighted.pdf")},
             {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
-            {"label": "CKA Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_cka.pdf")},
         ],
         "Extension 2 / Heatmaps (10x10 matrices)": [
             {"label": "Quadratic Form: MNIST Digits vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
         ],
         "Extension 2 / Metric Analysis": [
-            {"label": "4-way Metric Comparison", "path": _fig_rel_path("extension2_metric_comparison_4way.pdf")},
+            {"label": "3-way Metric Comparison", "path": _fig_rel_path("extension2_metric_comparison_4way.pdf")},
             {"label": "Ranking Analysis (k=20)", "path": _fig_rel_path("extension2_ranking_analysis.pdf")},
             {"label": "Statistical Comparison", "path": _fig_rel_path("extension2_statistical_comparison_all_metrics.pdf")},
         ],
-        "Extension 2 / Pairwise Analysis": [
-            {"label": "Cosine heatmap: 0 vs O", "path": _fig_rel_path("extension2_cosine_0_O.pdf")},
-            {"label": "Cosine heatmap: 1 vs I", "path": _fig_rel_path("extension2_cosine_1_I.pdf")},
-            {"label": "Cosine heatmap: 2 vs Z", "path": _fig_rel_path("extension2_cosine_2_Z.pdf")},
-            {"label": "Cosine heatmap: 5 vs S", "path": _fig_rel_path("extension2_cosine_5_S.pdf")},
+        "Extension 2 / Principal Angles": [
             {"label": "Principal angles", "path": _fig_rel_path("extension2_principal_angles.pdf")},
         ],
         "Extension 2 / Eigenvalue Distributions": [

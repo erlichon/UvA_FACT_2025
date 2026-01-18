@@ -538,79 +538,6 @@ def compute_quadratic_form_similarity(
     return (inner_product / (norm_A * norm_B)).item()
 
 
-def compute_cka_similarity(
-    vecs_A: Float[Tensor, "k d_input"],
-    vecs_B: Float[Tensor, "k d_input"],
-    vals_A: Float[Tensor, "k"],
-    vals_B: Float[Tensor, "k"],
-) -> float:
-    """
-    Compute CKA (Centered Kernel Alignment) on eigenvalue-weighted representations.
-    
-    Creates weighted representations:
-        W = [√|λ₁|·v₁, √|λ₂|·v₂, ...]^T  # [k, d_input]
-    
-    Then computes linear CKA between W_A and W_B:
-        CKA = HSIC(K, L) / √(HSIC(K, K) · HSIC(L, L))
-    
-    Where K = W_A @ W_A^T and L = W_B @ W_B^T are Gram matrices,
-    and HSIC is computed on centered matrices.
-    
-    Key properties:
-    - Invariant to orthogonal transformations
-    - Invariant to isotropic scaling
-    - Captures whether representations encode similar structure
-    - Range: [0, 1]
-    
-    Args:
-        vecs_A: First set of eigenvectors [k, d_input]
-        vecs_B: Second set of eigenvectors [k, d_input]
-        vals_A: Eigenvalues for first set [k]
-        vals_B: Eigenvalues for second set [k]
-    
-    Returns:
-        CKA similarity score in [0, 1]
-    """
-    # Create eigenvalue-weighted representations
-    # W = √|λ| * v for each eigenvector
-    W_A = vals_A.abs().sqrt().unsqueeze(1) * vecs_A  # [k, d]
-    W_B = vals_B.abs().sqrt().unsqueeze(1) * vecs_B  # [k, d]
-    
-    # Compute Gram matrices
-    K = W_A @ W_A.T  # [k, k]
-    L = W_B @ W_B.T  # [k, k]
-    
-    # Center the Gram matrices (double centering)
-    # K_centered = H @ K @ H where H = I - 1/n * 1*1^T
-    def center_gram(G):
-        n = G.shape[0]
-        row_mean = G.mean(dim=1, keepdim=True)
-        col_mean = G.mean(dim=0, keepdim=True)
-        total_mean = G.mean()
-        return G - row_mean - col_mean + total_mean
-    
-    K_c = center_gram(K)
-    L_c = center_gram(L)
-    
-    # Compute HSIC values
-    # HSIC(K, L) = trace(K_c @ L_c) / (n-1)^2
-    # For CKA, the (n-1)^2 cancels out in the ratio
-    hsic_kl = (K_c * L_c).sum()
-    hsic_kk = (K_c * K_c).sum()
-    hsic_ll = (L_c * L_c).sum()
-    
-    # CKA = HSIC(K, L) / sqrt(HSIC(K, K) * HSIC(L, L))
-    denominator = (hsic_kk * hsic_ll).sqrt()
-    
-    if denominator < 1e-10:
-        return 0.0
-    
-    cka = hsic_kl / denominator
-    
-    # Clamp to [0, 1] for numerical stability
-    return cka.clamp(0.0, 1.0).item()
-
-
 def compute_weighted_similarity(
     vecs_A: Float[Tensor, "n_components d_input"],
     vecs_B: Float[Tensor, "n_components d_input"],
@@ -636,7 +563,6 @@ def compute_weighted_similarity(
         method: Similarity metric:
             - 'eigenvalue_weighted': Eigenvalue-weighted cosine similarity
             - 'quadratic_form': Quadratic form (weight matrix) similarity
-            - 'cka': Centered Kernel Alignment
     
     Returns:
         Similarity score (range depends on method)
@@ -666,12 +592,8 @@ def compute_weighted_similarity(
         return compute_quadratic_form_similarity(
             top_vecs_A, top_vecs_B, top_vals_A, top_vals_B
         )
-    elif method == 'cka':
-        return compute_cka_similarity(
-            top_vecs_A, top_vecs_B, top_vals_A, top_vals_B
-        )
     else:
         raise ValueError(
             f"Unknown method: {method}. "
-            f"Choose from: 'eigenvalue_weighted', 'quadratic_form', 'cka'"
+            f"Choose from: 'eigenvalue_weighted', 'quadratic_form'"
         )
