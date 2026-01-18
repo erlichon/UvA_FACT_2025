@@ -21,10 +21,11 @@ New (eigenvalue-aware metrics):
 9. Similarity vs k for eigenvalue_weighted metric
 10. Similarity vs k for quadratic_form metric
 11. Similarity vs k for cka metric
-12. Heatmaps for all three weighted metrics
-13. 4-way metric comparison (mean_cos + 3 weighted)
-14. Ranking analysis: where expected pairs rank among all letters
-15. Statistical comparison: t-test similar vs dissimilar pairs
+12. Heatmaps for all three weighted metrics (MNIST digits vs EMNIST letters)
+13. Quadratic form heatmap (MNIST digits vs EMNIST digits, 10x10 matrix)
+14. 4-way metric comparison (mean_cos + 3 weighted)
+15. Ranking analysis: where expected pairs rank among all letters
+16. Statistical comparison: t-test similar vs dissimilar pairs
 
 Usage:
     python scripts/figures/generate_extension2_figures.py
@@ -43,6 +44,7 @@ import warnings
 import numpy as np
 import torch
 import matplotlib
+from scipy import stats
 
 matplotlib.use("Agg")  # non-interactive backend
 import matplotlib.pyplot as plt
@@ -438,6 +440,276 @@ def generate_3way_comparison(
     plt.close(fig)
 
 
+def generate_eigenvector_comparison_table(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    digits_vecs: Optional[torch.Tensor],
+    digits_vals: Optional[torch.Tensor],
+    letters_vecs: torch.Tensor,
+    letters_vals: torch.Tensor,
+    k: int = 10,
+) -> None:
+    """Generate LaTeX table comparing top-k eigenvectors using absolute cosine similarity.
+    
+    Uses balanced selection: k//2 positive and k-k//2 negative eigenvectors.
+    Computes mean results over 5 seeds (42, 43, 44, 45, 46).
+    
+    Compares:
+    - MNIST digit 0 vs EMNIST digit 0
+    - MNIST digit 0 vs EMNIST letter O
+    
+    Args:
+        d: Directory paths
+        mnist_vecs: MNIST eigenvectors [10, d_hidden, d_input] (seed 42, used for reference)
+        mnist_vals: MNIST eigenvalues [10, d_hidden] (seed 42, used for reference)
+        digits_vecs: EMNIST digits eigenvectors [10, d_hidden, d_input] or None (seed 42, used for reference)
+        digits_vals: EMNIST digits eigenvalues [10, d_hidden] or None (seed 42, used for reference)
+        letters_vecs: EMNIST letters eigenvectors [26, d_hidden, d_input] (seed 42, used for reference)
+        letters_vals: EMNIST letters eigenvalues [26, d_hidden] (seed 42, used for reference)
+        k: Number of eigenvectors to compare (default: 10, selects 5 positive + 5 negative)
+    """
+    print("\n=== Eigenvector Comparison Table (Balanced Selection, Mean over 5 seeds) ===")
+    
+    # Load checkpoints for all 5 seeds
+    seeds = [42, 43, 44, 45, 46]
+    ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
+    phase1_ckpt_dir = PROJECT_ROOT / "results/phase1/checkpoints"
+    
+    # Helper function to get balanced eigenvectors and eigenvalues
+    def get_balanced_eigenvectors_and_vals(vals, vecs, class_idx, k):
+        """Get balanced eigenvectors and corresponding eigenvalues."""
+        class_vals = vals[class_idx].cpu()
+        class_vecs = vecs[class_idx].cpu()
+        
+        pos_idx = torch.nonzero(class_vals > 0, as_tuple=False).squeeze(-1)
+        neg_idx = torch.nonzero(class_vals < 0, as_tuple=False).squeeze(-1)
+        
+        pos_sorted = pos_idx[class_vals[pos_idx].abs().argsort(descending=True)] if pos_idx.numel() > 0 else pos_idx
+        neg_sorted = neg_idx[class_vals[neg_idx].abs().argsort(descending=True)] if neg_idx.numel() > 0 else neg_idx
+        
+        k_pos = k // 2
+        k_neg = k - k_pos
+        
+        selected_idx = []
+        if k_pos > 0 and pos_sorted.numel() > 0:
+            selected_idx.extend(pos_sorted[:k_pos].tolist())
+        if k_neg > 0 and neg_sorted.numel() > 0:
+            selected_idx.extend(neg_sorted[:k_neg].tolist())
+        
+        # Fill remaining if needed
+        if len(selected_idx) < k:
+            selected_mask = torch.zeros_like(class_vals, dtype=torch.bool)
+            if len(selected_idx) > 0:
+                selected_mask[selected_idx] = True
+            remaining = torch.nonzero(~selected_mask, as_tuple=False).squeeze(-1)
+            if remaining.numel() > 0:
+                remaining_sorted = remaining[class_vals[remaining].abs().argsort(descending=True)]
+                needed = k - len(selected_idx)
+                selected_idx.extend(remaining_sorted[:needed].tolist())
+        
+        return class_vecs[selected_idx], class_vals[selected_idx]
+    
+    # Compute absolute cosine similarity
+    def abs_cosine_similarity(vecs_A, vecs_B):
+        """Compute absolute cosine similarity between two sets of eigenvectors."""
+        vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+        vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+        cos_matrix = vecs_A_norm @ vecs_B_norm.T
+        return cos_matrix.abs()
+    
+    # Accumulate similarities across seeds
+    sim_mnist_emnist_digit_by_seed = []
+    sim_mnist_emnist_letter_by_seed = []
+    loaded_seeds = []
+    
+    for seed in seeds:
+        # Try to load checkpoints for this seed
+        mnist_candidates = [
+            ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+            ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+            phase1_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+        ]
+        digits_candidates = [
+            ext2_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt",
+        ]
+        letters_candidates = [
+            ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+        ]
+        
+        mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
+        digits_ckpt = next((p for p in digits_candidates if p.exists()), None)
+        letters_ckpt = next((p for p in letters_candidates if p.exists()), None)
+        
+        if mnist_ckpt is None or digits_ckpt is None or letters_ckpt is None:
+            print(f"  Seed {seed}: Missing checkpoints, skipping...")
+            continue
+        
+        try:
+            mnist_vals_seed, mnist_vecs_seed = load_checkpoint_eigenvalues(str(mnist_ckpt))
+            digits_vals_seed, digits_vecs_seed = load_checkpoint_eigenvalues(str(digits_ckpt))
+            letters_vals_seed, letters_vecs_seed = load_checkpoint_eigenvalues(str(letters_ckpt))
+            
+            # Get balanced eigenvectors
+            mnist_0_vecs, mnist_0_vals = get_balanced_eigenvectors_and_vals(mnist_vals_seed, mnist_vecs_seed, 0, k)
+            digits_0_vecs, _ = get_balanced_eigenvectors_and_vals(digits_vals_seed, digits_vecs_seed, 0, k)
+            letters_o_vecs, _ = get_balanced_eigenvectors_and_vals(letters_vals_seed, letters_vecs_seed, 14, k)
+            
+            # Compute similarities
+            sim_mnist_emnist_digit = abs_cosine_similarity(mnist_0_vecs, digits_0_vecs)
+            sim_mnist_emnist_letter = abs_cosine_similarity(mnist_0_vecs, letters_o_vecs)
+            
+            sim_mnist_emnist_digit_by_seed.append(sim_mnist_emnist_digit)
+            sim_mnist_emnist_letter_by_seed.append(sim_mnist_emnist_letter)
+            loaded_seeds.append(seed)
+            
+        except Exception as e:
+            print(f"  Seed {seed}: Error loading checkpoint: {e}")
+            continue
+    
+    if len(loaded_seeds) == 0:
+        print("  ⚠️  No multi-seed checkpoints found, using single checkpoint...")
+        # Fallback to single seed
+        if digits_vecs is None or digits_vals is None:
+            print("  Skipping: EMNIST Digits checkpoint not available")
+            return
+        
+        mnist_0_vecs, mnist_0_vals = get_balanced_eigenvectors_and_vals(mnist_vals, mnist_vecs, 0, k)
+        digits_0_vecs, _ = get_balanced_eigenvectors_and_vals(digits_vals, digits_vecs, 0, k)
+        letters_o_vecs, _ = get_balanced_eigenvectors_and_vals(letters_vals, letters_vecs, 14, k)
+        
+        sim_mnist_emnist_digit = abs_cosine_similarity(mnist_0_vecs, digits_0_vecs)
+        sim_mnist_emnist_letter = abs_cosine_similarity(mnist_0_vecs, letters_o_vecs)
+        
+        sim_mnist_emnist_digit_mean = sim_mnist_emnist_digit
+        sim_mnist_emnist_letter_mean = sim_mnist_emnist_letter
+        loaded_seeds = [42]  # Mark as single seed for caption
+    else:
+        print(f"  Loaded {len(loaded_seeds)} seeds: {loaded_seeds}")
+        # Compute mean across seeds
+        sim_mnist_emnist_digit_stack = torch.stack(sim_mnist_emnist_digit_by_seed)  # [n_seeds, k, k]
+        sim_mnist_emnist_letter_stack = torch.stack(sim_mnist_emnist_letter_by_seed)  # [n_seeds, k, k]
+        
+        sim_mnist_emnist_digit_mean = sim_mnist_emnist_digit_stack.mean(dim=0)  # [k, k]
+        sim_mnist_emnist_letter_mean = sim_mnist_emnist_letter_stack.mean(dim=0)  # [k, k]
+        
+        # Get eigenvalue signs from first seed (seed 42)
+        mnist_0_vecs, mnist_0_vals = get_balanced_eigenvectors_and_vals(mnist_vals, mnist_vecs, 0, k)
+    
+    # Generate LaTeX table
+    latex_lines = []
+    latex_lines.append("\\begin{table}[htbp]")
+    latex_lines.append("\\centering")
+    caption = f"Absolute Cosine Similarity between Top 10 Eigenvectors (Balanced: 5 Positive + 5 Negative)"
+    if len(loaded_seeds) > 1:
+        caption += f", Mean over {len(loaded_seeds)} seeds"
+    latex_lines.append(f"\\caption{{{caption}}}")
+    latex_lines.append("\\label{tab:eigenvector_comparison}")
+    latex_lines.append("\\begin{tabular}{cc|cc}")
+    latex_lines.append("\\toprule")
+    latex_lines.append("Eigenvector & Eigenvalue & \\multicolumn{2}{c}{Maximum Absolute Cosine Similarity} \\\\")
+    latex_lines.append("\\cmidrule(lr){3-4}")
+    latex_lines.append("Rank & Sign & MNIST-0 vs & MNIST-0 vs \\\\")
+    latex_lines.append(" & & EMNIST-0 & EMNIST-O \\\\")
+    latex_lines.append("\\midrule")
+    
+    # For each eigenvector rank, compute mean and std of max similarity across seeds
+    max_sims_digit_by_rank = []  # List of lists: [rank][seed] = max similarity
+    max_sims_letter_by_rank = []
+    
+    if len(loaded_seeds) > 1:
+        for rank in range(k):
+            max_digit_per_seed = [sim[rank].max().item() for sim in sim_mnist_emnist_digit_by_seed]
+            max_letter_per_seed = [sim[rank].max().item() for sim in sim_mnist_emnist_letter_by_seed]
+            max_sims_digit_by_rank.append(max_digit_per_seed)
+            max_sims_letter_by_rank.append(max_letter_per_seed)
+    
+    # For each eigenvector rank, find the best match in the other set
+    for rank in range(k):
+        max_sim_mnist_emnist_digit_mean = sim_mnist_emnist_digit_mean[rank].max().item()
+        max_sim_mnist_emnist_letter_mean = sim_mnist_emnist_letter_mean[rank].max().item()
+        
+        # Get eigenvalue sign for MNIST (as reference)
+        val_sign = "+" if mnist_0_vals[rank].item() > 0 else "-"
+        
+        if len(loaded_seeds) > 1:
+            # Compute std across seeds for this rank's max similarity
+            max_sim_mnist_emnist_digit_std = np.std(max_sims_digit_by_rank[rank], ddof=1) if len(max_sims_digit_by_rank[rank]) > 1 else 0.0
+            max_sim_mnist_emnist_letter_std = np.std(max_sims_letter_by_rank[rank], ddof=1) if len(max_sims_letter_by_rank[rank]) > 1 else 0.0
+            
+            latex_lines.append(
+                f"{rank+1} & {val_sign} & ${max_sim_mnist_emnist_digit_mean:.3f} \\pm {max_sim_mnist_emnist_digit_std:.3f}$ & "
+                f"${max_sim_mnist_emnist_letter_mean:.3f} \\pm {max_sim_mnist_emnist_letter_std:.3f}$ \\\\"
+            )
+        else:
+            latex_lines.append(
+                f"{rank+1} & {val_sign} & {max_sim_mnist_emnist_digit_mean:.3f} & "
+                f"{max_sim_mnist_emnist_letter_mean:.3f} \\\\"
+            )
+    
+    # Add mean row with std
+    mean_mnist_emnist_digit = sim_mnist_emnist_digit_mean.max(dim=1)[0].mean().item()
+    mean_mnist_emnist_letter = sim_mnist_emnist_letter_mean.max(dim=1)[0].mean().item()
+    
+    # Compute std of the max similarities across ranks
+    if len(loaded_seeds) > 1:
+        # For each seed, get the max similarity per rank, then compute std across seeds
+        max_sims_digit_per_seed = [sim.max(dim=1)[0].mean().item() for sim in sim_mnist_emnist_digit_by_seed]
+        max_sims_letter_per_seed = [sim.max(dim=1)[0].mean().item() for sim in sim_mnist_emnist_letter_by_seed]
+        
+        std_mnist_emnist_digit = np.std(max_sims_digit_per_seed, ddof=1) if len(max_sims_digit_per_seed) > 1 else 0.0
+        std_mnist_emnist_letter = np.std(max_sims_letter_per_seed, ddof=1) if len(max_sims_letter_per_seed) > 1 else 0.0
+    else:
+        std_mnist_emnist_digit = 0.0
+        std_mnist_emnist_letter = 0.0
+    
+    latex_lines.append("\\midrule")
+    if len(loaded_seeds) > 1:
+        latex_lines.append(
+            f"\\textbf{{Mean}} & & $\\textbf{{{mean_mnist_emnist_digit:.3f} \\pm {std_mnist_emnist_digit:.3f}}}$ & "
+            f"$\\textbf{{{mean_mnist_emnist_letter:.3f} \\pm {std_mnist_emnist_letter:.3f}}}$ \\\\"
+        )
+    else:
+        mean_mnist_emnist_digit_str = f"{mean_mnist_emnist_digit:.3f}"
+        mean_mnist_emnist_letter_str = f"{mean_mnist_emnist_letter:.3f}"
+        latex_lines.append(
+            f"\\textbf{{Mean}} & & \\textbf{{{mean_mnist_emnist_digit_str}}} & "
+            f"\\textbf{{{mean_mnist_emnist_letter_str}}} \\\\"
+        )
+    
+    latex_lines.append("\\bottomrule")
+    latex_lines.append("\\end{tabular}")
+    latex_lines.append("\\end{table}")
+    
+    latex_table = "\n".join(latex_lines)
+    
+    # Save to file
+    table_path = d.figure_out / "eigenvector_comparison_table.tex"
+    # Save to Report directory (same level as figures)
+    report_table_path = PROJECT_ROOT / "Report" / "eigenvector_comparison_table.tex"
+    
+    _ensure_dir(table_path.parent)
+    _ensure_dir(report_table_path.parent)
+    
+    with open(table_path, 'w') as f:
+        f.write(latex_table)
+    
+    with open(report_table_path, 'w') as f:
+        f.write(latex_table)
+    
+    print(f"  Saved: {table_path.name}")
+    print(f"  Saved: {report_table_path.name}")
+    
+    # Print summary statistics
+    print(f"\n  Summary Statistics (mean over {len(loaded_seeds)} seeds):")
+    if len(loaded_seeds) > 1:
+        print(f"    MNIST-0 vs EMNIST-0: mean = {mean_mnist_emnist_digit:.3f} ± {std_mnist_emnist_digit:.3f}")
+        print(f"    MNIST-0 vs EMNIST-O: mean = {mean_mnist_emnist_letter:.3f} ± {std_mnist_emnist_letter:.3f}")
+    else:
+        print(f"    MNIST-0 vs EMNIST-0: mean = {mean_mnist_emnist_digit:.3f}")
+        print(f"    MNIST-0 vs EMNIST-O: mean = {mean_mnist_emnist_letter:.3f}")
+
+
 def generate_selection_method_comparison(
     d: Dirs,
     mnist_vecs: torch.Tensor,
@@ -638,7 +910,10 @@ def generate_similarity_vs_k_weighted(
     letters_vecs: torch.Tensor,
     letters_vals: torch.Tensor,
 ) -> None:
-    """Generate similarity vs k plots for all three weighted metrics."""
+    """Generate similarity vs k plots for all three weighted metrics.
+    
+    For quadratic_form, loads all 5 seeds and computes 90% confidence intervals.
+    """
     print("\n=== Similarity vs k (Weighted Metrics) ===")
     
     k_values = list(range(2, 101))
@@ -653,9 +928,118 @@ def generate_similarity_vs_k_weighted(
     for method, title, ylim in metrics:
         print(f"  Computing {method}...")
         
-        similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
-            mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
-        )
+        # For quadratic_form, load multiple seeds and compute CI
+        if method == 'quadratic_form':
+            # Load checkpoints for all 5 seeds
+            seeds = [42, 43, 44, 45, 46]
+            ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
+            
+            similar_overlaps_by_seed = {label: [] for _, _, label in DIGIT_LETTER_PAIRS}
+            control_overlaps_by_seed = []
+            loaded_seeds = []
+            
+            for seed in seeds:
+                # Try different checkpoint naming patterns
+                mnist_candidates = [
+                    ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+                    ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+                ]
+                letters_candidates = [
+                    ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+                ]
+                
+                mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
+                letters_ckpt = next((p for p in letters_candidates if p.exists()), None)
+                
+                if mnist_ckpt is None or letters_ckpt is None:
+                    print(f"    Seed {seed}: Missing checkpoints, skipping...")
+                    continue
+                
+                try:
+                    mnist_vals_seed, mnist_vecs_seed = load_checkpoint_eigenvalues(str(mnist_ckpt))
+                    letters_vals_seed, letters_vecs_seed = load_checkpoint_eigenvalues(str(letters_ckpt))
+                    
+                    # Compute similarity vs k for this seed
+                    seed_similar_overlaps = {}
+                    for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
+                        overlaps = []
+                        for k in k_values:
+                            overlap = compute_weighted_similarity(
+                                mnist_vecs_seed[digit_idx].cpu(),
+                                letters_vecs_seed[letter_idx].cpu(),
+                                mnist_vals_seed[digit_idx].cpu(),
+                                letters_vals_seed[letter_idx].cpu(),
+                                k=k,
+                                method=method,
+                            )
+                            overlaps.append(overlap)
+                        seed_similar_overlaps[label] = overlaps
+                        similar_overlaps_by_seed[label].append(overlaps)
+                    
+                    # Control pairs
+                    control_pairs = [(0, 23), (1, 22), (3, 7), (7, 14)]
+                    seed_control_overlaps_by_k = {k: [] for k in k_values}
+                    for d_idx, l_idx in control_pairs:
+                        for k in k_values:
+                            overlap = compute_weighted_similarity(
+                                mnist_vecs_seed[d_idx].cpu(),
+                                letters_vecs_seed[l_idx].cpu(),
+                                mnist_vals_seed[d_idx].cpu(),
+                                letters_vals_seed[l_idx].cpu(),
+                                k=k,
+                                method=method,
+                            )
+                            seed_control_overlaps_by_k[k].append(overlap)
+                    # Store as list of lists: [mean_over_pairs for each k]
+                    seed_control_means = [np.mean(seed_control_overlaps_by_k[k]) for k in k_values]
+                    control_overlaps_by_seed.append(seed_control_means)
+                    loaded_seeds.append(seed)
+                except Exception as e:
+                    print(f"    Seed {seed}: Error loading checkpoint: {e}")
+                    continue
+            
+            if len(loaded_seeds) == 0:
+                print("    ⚠️  No multi-seed checkpoints found, using single checkpoint...")
+                similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
+                    mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
+                )
+                use_ci = False
+            else:
+                print(f"    Loaded {len(loaded_seeds)} seeds: {loaded_seeds}")
+                # Compute mean and CI across seeds
+                similar_overlaps = {}
+                similar_overlaps_ci_low = {}
+                similar_overlaps_ci_high = {}
+                
+                for label in similar_overlaps_by_seed:
+                    overlaps_stack = np.array(similar_overlaps_by_seed[label])  # [n_seeds, n_k]
+                    overlaps_mean = np.mean(overlaps_stack, axis=0)
+                    overlaps_std = np.std(overlaps_stack, axis=0, ddof=1)
+                    sem = overlaps_std / np.sqrt(len(loaded_seeds))
+                    t_val = stats.t.ppf(0.95, len(loaded_seeds) - 1)  # 90% CI
+                    
+                    similar_overlaps[label] = overlaps_mean.tolist()
+                    similar_overlaps_ci_low[label] = (overlaps_mean - t_val * sem).tolist()
+                    similar_overlaps_ci_high[label] = (overlaps_mean + t_val * sem).tolist()
+                
+                # Control baseline
+                control_stack = np.array(control_overlaps_by_seed)  # [n_seeds, n_k]
+                control_mean_by_k = np.mean(control_stack, axis=0)  # Mean across seeds
+                control_std_by_k = np.std(control_stack, axis=0, ddof=1)  # Std across seeds
+                control_sem = control_std_by_k / np.sqrt(len(loaded_seeds))
+                t_val = stats.t.ppf(0.95, len(loaded_seeds) - 1)
+                
+                control_means = control_mean_by_k.tolist()
+                control_ci_low = (control_mean_by_k - t_val * control_sem).tolist()
+                control_ci_high = (control_mean_by_k + t_val * control_sem).tolist()
+                control_stds = control_std_by_k.tolist()
+                use_ci = True
+        else:
+            # For other metrics, use single checkpoint
+            similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
+                mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
+            )
+            use_ci = False
         
         fig, ax = plt.subplots(figsize=(10, 6))
         
@@ -663,18 +1047,33 @@ def generate_similarity_vs_k_weighted(
         for idx, (digit_idx, letter_idx, label) in enumerate(DIGIT_LETTER_PAIRS):
             ax.plot(k_values, similar_overlaps[label], 
                    label=f'{label} (similar)', color=colors[idx], linewidth=2)
+            
+            # Add CI bands for quadratic_form
+            if use_ci and method == 'quadratic_form':
+                ax.fill_between(k_values,
+                               similar_overlaps_ci_low[label],
+                               similar_overlaps_ci_high[label],
+                               color=colors[idx], alpha=0.2)
         
         # Plot control baseline
         ax.plot(k_values, control_means, 'k--', 
                label='Dissimilar (0-X, 1-W, 3-H, 7-O)', linewidth=1.5, alpha=0.7)
-        ax.fill_between(k_values,
-                       np.array(control_means) - np.array(control_stds),
-                       np.array(control_means) + np.array(control_stds),
-                       color='gray', alpha=0.2)
+        
+        if use_ci and method == 'quadratic_form':
+            ax.fill_between(k_values, control_ci_low, control_ci_high,
+                           color='gray', alpha=0.2)
+        else:
+            ax.fill_between(k_values,
+                           np.array(control_means) - np.array(control_stds),
+                           np.array(control_means) + np.array(control_stds),
+                           color='gray', alpha=0.2)
         
         ax.set_xlabel('k (number of eigenvectors)', fontsize=12)
         ax.set_ylabel('Similarity', fontsize=12)
-        ax.set_title(f'{title} vs Number of Eigenvectors', fontsize=14)
+        plot_title = f'{title} vs Number of Eigenvectors'
+        if use_ci and method == 'quadratic_form':
+            plot_title += f'\nMean across {len(loaded_seeds)} seeds (90% CI)'
+        ax.set_title(plot_title, fontsize=14)
         ax.legend(loc='best')
         ax.set_xlim(0, 100)
         ax.set_ylim(ylim[0], ylim[1])
@@ -773,12 +1172,99 @@ def generate_similarity_heatmap_weighted(
         
         # Print statistics
         similar_vals = [matrix[dig, let] for dig, let, _ in DIGIT_LETTER_PAIRS]
-        print(f"    {method}: similar mean={np.mean(similar_vals):.4f}, overall mean={matrix.mean():.4f}")
+        dissimilar_vals = []
+        for dig in range(10):
+            for let in range(26):
+                if (dig, let, None) not in DIGIT_LETTER_PAIRS:
+                    dissimilar_vals.append(matrix[dig, let])
         
-        # Print rank of expected match
-        for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
-            rank = (matrix[digit_idx] >= matrix[digit_idx, letter_idx]).sum()
-            print(f"      {label}: rank {rank}/26")
+        print(f"    Similar pairs: {np.mean(similar_vals):.4f} ± {np.std(similar_vals):.4f}")
+        print(f"    Dissimilar pairs: {np.mean(dissimilar_vals):.4f} ± {np.std(dissimilar_vals):.4f}")
+
+
+def generate_quadratic_form_heatmap_digits(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    digits_vecs: torch.Tensor,
+    digits_vals: torch.Tensor,
+    k: int = 20,
+) -> None:
+    """Generate quadratic form similarity heatmap for MNIST digits vs EMNIST digits (10x10 matrix)."""
+    print("\n=== Quadratic Form Heatmap: MNIST Digits vs EMNIST Digits ===")
+    
+    if digits_vecs is None or digits_vals is None:
+        print("  ⚠️  EMNIST Digits checkpoint not found, skipping...")
+        return
+    
+    # Compute 10x10 similarity matrix using quadratic_form metric
+    matrix = np.zeros((10, 10))
+    for mnist_digit in range(10):
+        for emnist_digit in range(10):
+            matrix[mnist_digit, emnist_digit] = compute_weighted_similarity(
+                mnist_vecs[mnist_digit].cpu(),
+                digits_vecs[emnist_digit].cpu(),
+                mnist_vals[mnist_digit].cpu(),
+                digits_vals[emnist_digit].cpu(),
+                k=k,
+                method='quadratic_form',
+            )
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Use RdBu_r colormap (red-blue reversed) for quadratic form
+    # Range typically [-0.2, 0.4] for quadratic form
+    vmin, vmax = -0.2, 0.4
+    im = ax.imshow(matrix, cmap='RdBu_r', aspect='auto', vmin=vmin, vmax=vmax)
+    
+    # Add text annotations
+    mid_val = (vmin + vmax) / 2
+    for mnist_digit in range(10):
+        for emnist_digit in range(10):
+            # Color text based on value (white for high, black for low)
+            color = 'white' if matrix[mnist_digit, emnist_digit] > mid_val + 0.1 * (vmax - vmin) else 'black'
+            ax.text(emnist_digit, mnist_digit, f'{matrix[mnist_digit, emnist_digit]:.2f}',
+                   ha='center', va='center', fontsize=9, color=color, weight='bold')
+    
+    # Set labels
+    ax.set_xticks(range(10))
+    ax.set_xticklabels(range(10), fontsize=11)
+    ax.set_yticks(range(10))
+    ax.set_yticklabels(range(10), fontsize=11)
+    ax.set_xlabel('EMNIST Digit', fontsize=13, fontweight='bold')
+    ax.set_ylabel('MNIST Digit', fontsize=13, fontweight='bold')
+    ax.set_title(f'Quadratic Form Similarity: MNIST ↔ EMNIST-Digits (k={k})', fontsize=14, fontweight='bold')
+    
+    # Mark diagonal (same digit) with blue boxes
+    for digit in range(10):
+        rect = plt.Rectangle((digit-0.5, digit-0.5), 1, 1,
+                             fill=False, edgecolor='blue', linewidth=2.5)
+        ax.add_patch(rect)
+    
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, label='Quadratic Form Similarity', fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=10)
+    
+    plt.tight_layout()
+    
+    # Save
+    out_path = d.figure_out / "quadratic_form_heatmap_digits.pdf"
+    report_path = d.report_figures / "extension2_quadratic_form_heatmap_digits.pdf"
+    _save_and_copy(fig, out_path, report_path)
+    plt.close(fig)
+    
+    # Print statistics
+    diagonal_vals = [matrix[i, i] for i in range(10)]  # Same digit pairs
+    off_diagonal_vals = []
+    for i in range(10):
+        for j in range(10):
+            if i != j:
+                off_diagonal_vals.append(matrix[i, j])
+    
+    print(f"  Diagonal (same digit): {np.mean(diagonal_vals):.4f} ± {np.std(diagonal_vals):.4f}")
+    print(f"  Off-diagonal (different digits): {np.mean(off_diagonal_vals):.4f} ± {np.std(off_diagonal_vals):.4f}")
+    print(f"  Ratio (diagonal/off-diagonal): {np.mean(diagonal_vals) / (np.mean(off_diagonal_vals) + 1e-10):.2f}x")
 
 
 def generate_metric_comparison(
@@ -1104,11 +1590,13 @@ SECTION_MAP = {
     "similarity": generate_similarity_vs_k,
     "similarity_heatmap": generate_similarity_heatmap,
     "3way": generate_3way_comparison,
+    "eigenvector_table": generate_eigenvector_comparison_table,
     "selection": generate_selection_method_comparison,
     "angles": generate_principal_angles,
     # New eigenvalue-aware metrics sections
     "similarity_weighted": generate_similarity_vs_k_weighted,
     "heatmap_weighted": generate_similarity_heatmap_weighted,
+    "heatmap_digits": generate_quadratic_form_heatmap_digits,
     "metric_comparison": generate_metric_comparison,
     "ranking": generate_ranking_analysis,
     "statistical": generate_statistical_comparison,
@@ -1147,8 +1635,10 @@ def main():
         func = SECTION_MAP[section]
         
         # Handle functions with different signatures
-        if section == "3way":
+        if section == "3way" or section == "eigenvector_table":
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals, letters_vecs, letters_vals)
+        elif section == "heatmap_digits":
+            func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals)
         elif section in ["eigenvectors", "heatmaps", "similarity", "similarity_heatmap", "selection", "angles",
                          "similarity_weighted", "heatmap_weighted", "metric_comparison", "ranking", "statistical"]:
             func(d, mnist_vecs, mnist_vals, letters_vecs, letters_vals)
