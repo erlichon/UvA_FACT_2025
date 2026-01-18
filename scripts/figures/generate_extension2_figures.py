@@ -44,6 +44,7 @@ import warnings
 import numpy as np
 import torch
 import matplotlib
+from scipy import stats
 
 matplotlib.use("Agg")  # non-interactive backend
 import matplotlib.pyplot as plt
@@ -639,7 +640,10 @@ def generate_similarity_vs_k_weighted(
     letters_vecs: torch.Tensor,
     letters_vals: torch.Tensor,
 ) -> None:
-    """Generate similarity vs k plots for all three weighted metrics."""
+    """Generate similarity vs k plots for all three weighted metrics.
+    
+    For quadratic_form, loads all 5 seeds and computes 90% confidence intervals.
+    """
     print("\n=== Similarity vs k (Weighted Metrics) ===")
     
     k_values = list(range(2, 101))
@@ -654,9 +658,118 @@ def generate_similarity_vs_k_weighted(
     for method, title, ylim in metrics:
         print(f"  Computing {method}...")
         
-        similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
-            mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
-        )
+        # For quadratic_form, load multiple seeds and compute CI
+        if method == 'quadratic_form':
+            # Load checkpoints for all 5 seeds
+            seeds = [42, 43, 44, 45, 46]
+            ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
+            
+            similar_overlaps_by_seed = {label: [] for _, _, label in DIGIT_LETTER_PAIRS}
+            control_overlaps_by_seed = []
+            loaded_seeds = []
+            
+            for seed in seeds:
+                # Try different checkpoint naming patterns
+                mnist_candidates = [
+                    ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+                    ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+                ]
+                letters_candidates = [
+                    ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+                ]
+                
+                mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
+                letters_ckpt = next((p for p in letters_candidates if p.exists()), None)
+                
+                if mnist_ckpt is None or letters_ckpt is None:
+                    print(f"    Seed {seed}: Missing checkpoints, skipping...")
+                    continue
+                
+                try:
+                    mnist_vals_seed, mnist_vecs_seed = load_checkpoint_eigenvalues(str(mnist_ckpt))
+                    letters_vals_seed, letters_vecs_seed = load_checkpoint_eigenvalues(str(letters_ckpt))
+                    
+                    # Compute similarity vs k for this seed
+                    seed_similar_overlaps = {}
+                    for digit_idx, letter_idx, label in DIGIT_LETTER_PAIRS:
+                        overlaps = []
+                        for k in k_values:
+                            overlap = compute_weighted_similarity(
+                                mnist_vecs_seed[digit_idx].cpu(),
+                                letters_vecs_seed[letter_idx].cpu(),
+                                mnist_vals_seed[digit_idx].cpu(),
+                                letters_vals_seed[letter_idx].cpu(),
+                                k=k,
+                                method=method,
+                            )
+                            overlaps.append(overlap)
+                        seed_similar_overlaps[label] = overlaps
+                        similar_overlaps_by_seed[label].append(overlaps)
+                    
+                    # Control pairs
+                    control_pairs = [(0, 23), (1, 22), (3, 7), (7, 14)]
+                    seed_control_overlaps_by_k = {k: [] for k in k_values}
+                    for d_idx, l_idx in control_pairs:
+                        for k in k_values:
+                            overlap = compute_weighted_similarity(
+                                mnist_vecs_seed[d_idx].cpu(),
+                                letters_vecs_seed[l_idx].cpu(),
+                                mnist_vals_seed[d_idx].cpu(),
+                                letters_vals_seed[l_idx].cpu(),
+                                k=k,
+                                method=method,
+                            )
+                            seed_control_overlaps_by_k[k].append(overlap)
+                    # Store as list of lists: [mean_over_pairs for each k]
+                    seed_control_means = [np.mean(seed_control_overlaps_by_k[k]) for k in k_values]
+                    control_overlaps_by_seed.append(seed_control_means)
+                    loaded_seeds.append(seed)
+                except Exception as e:
+                    print(f"    Seed {seed}: Error loading checkpoint: {e}")
+                    continue
+            
+            if len(loaded_seeds) == 0:
+                print("    ⚠️  No multi-seed checkpoints found, using single checkpoint...")
+                similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
+                    mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
+                )
+                use_ci = False
+            else:
+                print(f"    Loaded {len(loaded_seeds)} seeds: {loaded_seeds}")
+                # Compute mean and CI across seeds
+                similar_overlaps = {}
+                similar_overlaps_ci_low = {}
+                similar_overlaps_ci_high = {}
+                
+                for label in similar_overlaps_by_seed:
+                    overlaps_stack = np.array(similar_overlaps_by_seed[label])  # [n_seeds, n_k]
+                    overlaps_mean = np.mean(overlaps_stack, axis=0)
+                    overlaps_std = np.std(overlaps_stack, axis=0, ddof=1)
+                    sem = overlaps_std / np.sqrt(len(loaded_seeds))
+                    t_val = stats.t.ppf(0.95, len(loaded_seeds) - 1)  # 90% CI
+                    
+                    similar_overlaps[label] = overlaps_mean.tolist()
+                    similar_overlaps_ci_low[label] = (overlaps_mean - t_val * sem).tolist()
+                    similar_overlaps_ci_high[label] = (overlaps_mean + t_val * sem).tolist()
+                
+                # Control baseline
+                control_stack = np.array(control_overlaps_by_seed)  # [n_seeds, n_k]
+                control_mean_by_k = np.mean(control_stack, axis=0)  # Mean across seeds
+                control_std_by_k = np.std(control_stack, axis=0, ddof=1)  # Std across seeds
+                control_sem = control_std_by_k / np.sqrt(len(loaded_seeds))
+                t_val = stats.t.ppf(0.95, len(loaded_seeds) - 1)
+                
+                control_means = control_mean_by_k.tolist()
+                control_ci_low = (control_mean_by_k - t_val * control_sem).tolist()
+                control_ci_high = (control_mean_by_k + t_val * control_sem).tolist()
+                control_stds = control_std_by_k.tolist()
+                use_ci = True
+        else:
+            # For other metrics, use single checkpoint
+            similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
+                mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
+            )
+            use_ci = False
         
         fig, ax = plt.subplots(figsize=(10, 6))
         
@@ -664,18 +777,33 @@ def generate_similarity_vs_k_weighted(
         for idx, (digit_idx, letter_idx, label) in enumerate(DIGIT_LETTER_PAIRS):
             ax.plot(k_values, similar_overlaps[label], 
                    label=f'{label} (similar)', color=colors[idx], linewidth=2)
+            
+            # Add CI bands for quadratic_form
+            if use_ci and method == 'quadratic_form':
+                ax.fill_between(k_values,
+                               similar_overlaps_ci_low[label],
+                               similar_overlaps_ci_high[label],
+                               color=colors[idx], alpha=0.2)
         
         # Plot control baseline
         ax.plot(k_values, control_means, 'k--', 
                label='Dissimilar (0-X, 1-W, 3-H, 7-O)', linewidth=1.5, alpha=0.7)
-        ax.fill_between(k_values,
-                       np.array(control_means) - np.array(control_stds),
-                       np.array(control_means) + np.array(control_stds),
-                       color='gray', alpha=0.2)
+        
+        if use_ci and method == 'quadratic_form':
+            ax.fill_between(k_values, control_ci_low, control_ci_high,
+                           color='gray', alpha=0.2)
+        else:
+            ax.fill_between(k_values,
+                           np.array(control_means) - np.array(control_stds),
+                           np.array(control_means) + np.array(control_stds),
+                           color='gray', alpha=0.2)
         
         ax.set_xlabel('k (number of eigenvectors)', fontsize=12)
         ax.set_ylabel('Similarity', fontsize=12)
-        ax.set_title(f'{title} vs Number of Eigenvectors', fontsize=14)
+        plot_title = f'{title} vs Number of Eigenvectors'
+        if use_ci and method == 'quadratic_form':
+            plot_title += f'\nMean across {len(loaded_seeds)} seeds (90% CI)'
+        ax.set_title(plot_title, fontsize=14)
         ax.legend(loc='best')
         ax.set_xlim(0, 100)
         ax.set_ylim(ylim[0], ylim[1])
