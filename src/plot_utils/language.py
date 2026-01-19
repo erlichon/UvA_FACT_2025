@@ -631,11 +631,21 @@ def compute_fraction_above_threshold(
 # Figure 8: Sentiment Negation Circuit Visualization
 # =============================================================================
 
-# Feature type markers (matches paper Figure 8B)
+# Feature type markers (matches paper Figure 8B style)
+# Paper uses: blue squares (negative sentiment), green triangles (negation), orange triangles (positive)
+# Extended for fw-medium which has additional categories due to different training data
 FIGURE_8_MARKERS = {
+    # Paper's original categories
     "negation": {"color": "#2ca02c", "marker": "^", "label": "Negation", "s": 120},
     "positive": {"color": "#ff7f0e", "marker": "v", "label": "Positive sentiment", "s": 100},
     "negative": {"color": "#1f77b4", "marker": "s", "label": "Negative sentiment", "s": 100},
+    # Additional categories for fw-medium (FineWeb-EDU model)
+    "structural": {"color": "#9467bd", "marker": "o", "label": "Structural", "s": 80},
+    "contrast": {"color": "#e377c2", "marker": "D", "label": "Contrast", "s": 80},
+    # Generic cluster types (for circuits discovered via interaction analysis)
+    "cluster1": {"color": "#d62728", "marker": "v", "label": "Opposing (×−)", "s": 120},
+    "cluster2": {"color": "#2ca02c", "marker": "^", "label": "Boosting (×+)", "s": 120},
+    # Special markers
     "direction": {"color": "#d62728", "marker": "*", "label": "Direction", "s": 200},
     "other": {"color": "#7f7f7f", "marker": "o", "label": "Other", "s": 60},
 }
@@ -644,17 +654,21 @@ FIGURE_8_MARKERS = {
 def plot_figure_8a_submatrix(
     Q_submatrix: np.ndarray,
     feature_indices: List[int],
+    feature_types: Optional[Dict[str, str]] = None,
     ax: Optional[plt.Axes] = None,
     cmap: str = "RdBu_r",
+    sort_by_type: bool = True,
 ) -> plt.Figure:
     """
-    Plot Figure 8A: Interaction submatrix heatmap.
+    Plot Figure 8A: Interaction submatrix heatmap with colored markers.
     
     Args:
         Q_submatrix: The submatrix containing top interactions
         feature_indices: List of feature indices in the submatrix
+        feature_types: Optional dict mapping feature index to type for coloring/sorting
         ax: Optional matplotlib axes
         cmap: Colormap name
+        sort_by_type: Whether to sort features by semantic type
     
     Returns:
         matplotlib Figure
@@ -666,18 +680,61 @@ def plot_figure_8a_submatrix(
         fig = ax.figure
     
     Q = np.array(Q_submatrix)
+    feature_indices = list(feature_indices)  # Ensure it's a list
+    
+    # Sort features by type if requested and feature_types provided
+    if sort_by_type and feature_types:
+        # Sorting order: negative first, then positive, then negation, then other
+        # This matches the paper's Figure 8A layout
+        type_order = {"negative": 0, "positive": 1, "negation": 2, "structural": 3, "contrast": 4, "other": 5}
+        
+        # Create (original_idx, feature_id, sort_key) tuples
+        indexed_features = [
+            (i, f, type_order.get(feature_types.get(str(f), "other"), 5))
+            for i, f in enumerate(feature_indices)
+        ]
+        # Sort by type, then by feature index for stability
+        indexed_features.sort(key=lambda x: (x[2], x[1]))
+        
+        # Get the reordering
+        sort_order = [x[0] for x in indexed_features]
+        sorted_features = [x[1] for x in indexed_features]
+        
+        # Reorder the Q matrix
+        Q = Q[np.ix_(sort_order, sort_order)]
+        feature_indices = sorted_features
+    
     vmax = np.abs(Q).max()
     
     im = ax.imshow(Q, cmap=cmap, vmin=-vmax, vmax=vmax, aspect="equal")
     
-    # Feature labels
-    labels = [str(f) for f in feature_indices]
-    ax.set_xticks(range(len(labels)))
-    ax.set_yticks(range(len(labels)))
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=7)
-    ax.set_yticklabels(labels, fontsize=7)
+    # Set up tick positions
+    n = len(feature_indices)
+    ax.set_xticks(range(n))
+    ax.set_yticks(range(n))
     
-    ax.set_title("A) Top 15 Interactions")
+    # Create simple numeric labels
+    ax.set_xticklabels([str(f) for f in feature_indices], rotation=45, ha="right", fontsize=7)
+    ax.set_yticklabels([str(f) for f in feature_indices], fontsize=7)
+    
+    # Add colored markers next to labels using scatter plots on a secondary axis
+    if feature_types:
+        # Marker offset from the heatmap edge
+        marker_offset = -0.8
+        
+        for i, f in enumerate(feature_indices):
+            ftype = feature_types.get(str(f), "other")
+            style = FIGURE_8_MARKERS.get(ftype, FIGURE_8_MARKERS["other"])
+            
+            # Y-axis markers (left side)
+            ax.scatter(marker_offset, i, c=style["color"], marker=style["marker"], 
+                      s=40, clip_on=False, zorder=10)
+            
+            # X-axis markers (top)
+            ax.scatter(i, marker_offset, c=style["color"], marker=style["marker"], 
+                      s=40, clip_on=False, zorder=10)
+    
+    ax.set_title("A) Top Interactions")
     
     # Colorbar
     cbar = plt.colorbar(im, ax=ax, shrink=0.8, pad=0.02)
@@ -718,14 +775,24 @@ def plot_figure_8b_projections(
                    s=style["s"], alpha=0.8, edgecolors="white", linewidth=0.5)
     
     # Plot meaningful directions with special markers
+    # Use different colors for different direction types
+    direction_styles = {
+        "bad-good": {"color": "#d62728", "marker": "*", "s": 250},  # Red star
+        "[BOS] not": {"color": "#d62728", "marker": "*", "s": 250},  # Red star
+        "good": {"color": "#ff7f0e", "marker": "P", "s": 150},  # Orange plus
+        "bad": {"color": "#1f77b4", "marker": "X", "s": 150},  # Blue X
+    }
+    default_style = {"color": "#d62728", "marker": "*", "s": 200}
+    
     for dir_name, (v1, v2) in meaningful_directions.items():
-        style = FIGURE_8_MARKERS["direction"]
+        style = direction_styles.get(dir_name, default_style)
         ax.scatter(v1, v2, c=style["color"], marker=style["marker"],
                    s=style["s"], alpha=1.0, edgecolors="black", linewidth=1,
                    label=f'"{dir_name}"', zorder=10)
-        # Add text label
-        ax.annotate(dir_name, (v1, v2), xytext=(5, 5), textcoords="offset points",
-                    fontsize=8, fontweight="bold")
+        # Add text label with offset based on position
+        offset = (5, 5) if v1 >= 0 else (-40, 5)
+        ax.annotate(dir_name, (v1, v2), xytext=offset, textcoords="offset points",
+                    fontsize=8, fontweight="bold", color=style["color"])
     
     # Add reference lines
     ax.axhline(0, color="gray", linestyle="-", linewidth=0.5, alpha=0.5)
@@ -756,15 +823,21 @@ def plot_figure_8c_scatter(
     z_pred: np.ndarray,
     ax: Optional[plt.Axes] = None,
     feature_idx: Optional[int] = None,
+    show_legend: bool = True,
 ) -> plt.Figure:
     """
     Plot Figure 8C: True activation vs rank-2 approximation scatter.
+    
+    The dotted line (y=x) represents perfect correlation - where the rank-2
+    approximation would exactly match the true activation. Points above the
+    line indicate overprediction, points below indicate underprediction.
     
     Args:
         z_true: True SAE activations
         z_pred: Predicted activations (rank-2 approximation)
         ax: Optional matplotlib axes
         feature_idx: Optional feature index for title
+        show_legend: Whether to show legend explaining the y=x line
     
     Returns:
         matplotlib Figure
@@ -781,11 +854,14 @@ def plot_figure_8c_scatter(
     # Compute correlation
     corr = np.corrcoef(z_true, z_pred)[0, 1] if len(z_true) > 1 else 0
     
-    ax.scatter(z_true, z_pred, alpha=0.3, s=10, color="#2E86AB", edgecolors="none")
+    # Scatter plot
+    ax.scatter(z_true, z_pred, alpha=0.3, s=10, color="#2E86AB", edgecolors="none",
+               label="Active samples")
     
-    # Identity line
+    # Identity line (y=x) - represents perfect prediction
     max_val = max(z_true.max(), z_pred.max()) * 1.1
-    ax.plot([0, max_val], [0, max_val], "k--", alpha=0.5, linewidth=1.5, label="y=x")
+    ax.plot([0, max_val], [0, max_val], "k--", alpha=0.6, linewidth=1.5, 
+            label="y = x (perfect correlation)")
     
     # Correlation annotation
     ax.text(0.05, 0.95, f"r = {corr:.3f}", transform=ax.transAxes,
@@ -800,6 +876,10 @@ def plot_figure_8c_scatter(
         title += f" (Feature {feature_idx})"
     ax.set_title(title)
     
+    # Show legend explaining the y=x line
+    if show_legend:
+        ax.legend(loc="lower right", fontsize=8, framealpha=0.9)
+    
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, max_val)
     ax.set_ylim(0, max_val)
@@ -812,6 +892,7 @@ def plot_figure_8_composite(
     feature_types: Optional[Dict[str, str]] = None,
     figsize: Tuple[float, float] = (14, 4.5),
     save_path: Optional[str] = None,
+    sort_by_type: bool = True,
 ) -> plt.Figure:
     """
     Generate complete Figure 8 with all three panels.
@@ -819,26 +900,34 @@ def plot_figure_8_composite(
     Args:
         figure_8_data: Dict containing panel_a, panel_b, panel_c data
             (as produced by negation_visualization.py)
-        feature_types: Optional dict mapping feature index to type for coloring
+        feature_types: Optional dict mapping feature index to type for coloring.
+            If not provided, tries to read from figure_8_data["feature_types"]
         figsize: Figure size
         save_path: Optional path to save the figure
+        sort_by_type: Whether to sort Panel A features by semantic type
     
     Returns:
         matplotlib Figure
     """
     set_publication_style()
     
+    # Try to get feature_types from data if not provided
+    if feature_types is None:
+        feature_types = figure_8_data.get("feature_types", None)
+    
     fig, axes = plt.subplots(1, 3, figsize=figsize)
     
-    # Panel A: Interaction submatrix
+    # Panel A: Interaction submatrix (with type sorting and markers)
     panel_a = figure_8_data.get("panel_a", {})
     plot_figure_8a_submatrix(
         Q_submatrix=panel_a.get("Q_submatrix", []),
         feature_indices=panel_a.get("feature_indices", []),
+        feature_types=feature_types,
         ax=axes[0],
+        sort_by_type=sort_by_type,
     )
     
-    # Panel B: Eigenvector projections
+    # Panel B: Eigenvector projections (with type coloring)
     panel_b = figure_8_data.get("panel_b", {})
     plot_figure_8b_projections(
         feature_projections=panel_b.get("feature_projections", {}),
@@ -847,13 +936,14 @@ def plot_figure_8_composite(
         ax=axes[1],
     )
     
-    # Panel C: Activation scatter
+    # Panel C: Activation scatter (with legend explaining y=x line)
     panel_c = figure_8_data.get("panel_c", {})
     plot_figure_8c_scatter(
         z_true=panel_c.get("z_true", []),
         z_pred=panel_c.get("z_pred_rank2", []),
         ax=axes[2],
         feature_idx=figure_8_data.get("output_feature_idx"),
+        show_legend=True,
     )
     
     # Add main title
@@ -1001,20 +1091,21 @@ def plot_figure_9c_scatters(
         # Scatter plot
         ax.scatter(z_true, z_pred, alpha=0.3, s=8, color="#2E86AB", edgecolors="none")
         
-        # Identity line
+        # Identity line (y=x)
         max_val = max(z_true.max(), z_pred.max()) * 1.1
         ax.plot([0, max_val], [0, max_val], "k--", alpha=0.5, linewidth=1)
         
-        # Labels
-        ax.set_xlabel("True", fontsize=8)
-        ax.set_ylabel("Predicted", fontsize=8)
-        ax.set_title(f"Feature {feat['feat_idx']}\n(r = {corr:.2f}, n = {len(z_true)})", fontsize=9)
+        # Labels - match paper style ("Activation" / "Approximation")
+        ax.set_xlabel("Activation", fontsize=8)
+        ax.set_ylabel("Approximation", fontsize=8)
+        # Title with just correlation (paper style)
+        ax.set_title(f"r = {corr:.2f}", fontsize=9)
         ax.tick_params(axis='both', which='major', labelsize=7)
         
         ax.set_xlim(0, max_val)
         ax.set_ylim(0, max_val)
     
-    fig.suptitle(f"Figure 9C: True vs Predicted Activation ({model_name})", fontsize=12)
+    fig.suptitle(f"Rank-2 Correlation Scatter Plots ({model_short})", fontsize=12)
     
     plt.tight_layout()
     
@@ -1043,13 +1134,13 @@ def load_figure_8_data(json_path: Union[str, Path]) -> dict:
 # Figure 10: SAE Training Time Effect
 # =============================================================================
 
-# Colors for SAE versions (gradient from light to dark)
+# Colors for SAE versions (gradient from light to dark blue - more distinct)
 SAE_VERSION_COLORS = {
-    'v0': '#c6dbef',  # Light blue - under-trained
-    'v1': '#9ecae1',
-    'v2': '#6baed6',
-    'v3': '#3182bd',
-    'v4': '#08519c',  # Dark blue - well-trained
+    'v0': '#a6cee3',  # Light blue - under-trained (more visible)
+    'v1': '#7eb8da',  # Medium-light blue
+    'v2': '#4292c6',  # Medium blue
+    'v3': '#2171b5',  # Medium-dark blue
+    'v4': '#084594',  # Dark blue - well-trained
 }
 
 SAE_VERSION_LABELS = {
@@ -1105,13 +1196,13 @@ def plot_sae_training_effect(
     
     versions_data = results.get('versions', {})
     
-    # Line styles for clarity (no overlapping bands)
+    # Line styles for clarity - v0 more visible with thicker line
     line_styles = {
-        'v0': {'linestyle': '-', 'marker': 'o'},
-        'v1': {'linestyle': '--', 'marker': 's'},
-        'v2': {'linestyle': '-.', 'marker': '^'},
-        'v3': {'linestyle': ':', 'marker': 'D'},
-        'v4': {'linestyle': '-', 'marker': 'v'},
+        'v0': {'linestyle': '-', 'marker': 'o', 'linewidth': 2.0, 'markersize': 7},
+        'v1': {'linestyle': '--', 'marker': 's', 'linewidth': 2.0, 'markersize': 7},
+        'v2': {'linestyle': '-.', 'marker': '^', 'linewidth': 2.2, 'markersize': 7},
+        'v3': {'linestyle': ':', 'marker': 'D', 'linewidth': 2.5, 'markersize': 7},
+        'v4': {'linestyle': '-', 'marker': 'v', 'linewidth': 2.8, 'markersize': 8},
     }
     
     for version in ['v0', 'v1', 'v2', 'v3', 'v4']:
@@ -1124,12 +1215,15 @@ def plot_sae_training_effect(
         ranks = []
         means = []
         
-        # Extract data for each rank
-        for key, stats in sorted(summary.items()):
-            if key.startswith('rank_'):
-                rank = int(key.replace('rank_', ''))
-                ranks.append(rank)
-                means.append(stats['mean'])
+        # Extract data for each rank, sorting by numeric rank value (not alphabetically)
+        rank_items = [(int(key.replace('rank_', '')), stats) 
+                      for key, stats in summary.items() 
+                      if key.startswith('rank_')]
+        rank_items.sort(key=lambda x: x[0])  # Sort by numeric rank
+        
+        for rank, stats in rank_items:
+            ranks.append(rank)
+            means.append(stats['mean'])
         
         if not ranks:
             continue
@@ -1142,8 +1236,7 @@ def plot_sae_training_effect(
         style = line_styles.get(version, {})
         
         # Plot clean lines without error bands for readability
-        ax.plot(ranks, means, color=color, label=label, 
-                linewidth=2.5, markersize=8, **style)
+        ax.plot(ranks, means, color=color, label=label, **style)
     
     if show_paper_threshold:
         ax.axhline(y=0.75, color='#d62728', linestyle='--', linewidth=2,
@@ -1153,10 +1246,10 @@ def plot_sae_training_effect(
     ax.set_ylabel('Mean Pearson Correlation', fontsize=11)
     ax.set_title(title, fontsize=12)
     ax.set_ylim(0, 1)
-    ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
+    ax.legend(loc='lower right', fontsize=7, framealpha=0.9, handlelength=1.5)
     ax.grid(True, alpha=0.3)
     
-    # Set x-ticks
+    # Set x-ticks with log-scale spacing to handle [1, 2, 4, 8, 16, 30] properly
     all_ranks = set()
     for v_data in versions_data.values():
         summary = v_data.get('summary', {})
@@ -1164,7 +1257,10 @@ def plot_sae_training_effect(
             if key.startswith('rank_'):
                 all_ranks.add(int(key.replace('rank_', '')))
     if all_ranks:
-        ax.set_xticks(sorted(all_ranks))
+        sorted_ranks = sorted(all_ranks)
+        ax.set_xticks(sorted_ranks)
+        ax.set_xticklabels([str(r) for r in sorted_ranks])
+        ax.set_xscale('log', base=2)  # Log scale makes spacing more readable
     
     plt.tight_layout()
     return fig
@@ -1173,7 +1269,7 @@ def plot_sae_training_effect(
 def plot_sae_training_histogram(
     results: dict,
     rank: int = 2,
-    versions: List[str] = ['v0', 'v4'],
+    versions: List[str] = ['v0', 'v1', 'v2', 'v3', 'v4'],
     ax: Optional[plt.Axes] = None,
     title: Optional[str] = None,
     bins: int = 30,
@@ -1185,11 +1281,12 @@ def plot_sae_training_histogram(
     
     Shows the bimodal → unimodal distribution shift with training time.
     Uses step histograms for better readability when comparing versions.
+    Shows progression from under-trained (v0) to well-trained (v4) with progressive opacity.
     
     Args:
         results: Dict from sae_training_time_comparison.json
         rank: Rank to plot histogram for
-        versions: Which SAE versions to show (default: v0 and v4 for contrast)
+        versions: Which SAE versions to show (default: all v0-v4 for progression)
         ax: Optional matplotlib axes
         title: Plot title
         bins: Number of histogram bins
@@ -1210,8 +1307,12 @@ def plot_sae_training_histogram(
     
     versions_data = results.get('versions', {})
     
-    # Use step histogram style for cleaner comparison
+    # Progressive line styles and alpha - more visible as training increases
     line_styles = {'v0': '-', 'v1': '--', 'v2': '-.', 'v3': ':', 'v4': '-'}
+    # Progressive alpha: v0 more visible now, v4 fully opaque
+    alpha_values = {'v0': 0.65, 'v1': 0.72, 'v2': 0.8, 'v3': 0.9, 'v4': 1.0}
+    # Progressive line widths: thicker for better-trained
+    linewidth_values = {'v0': 1.8, 'v1': 2.0, 'v2': 2.2, 'v3': 2.4, 'v4': 2.6}
     
     for version in versions:
         if version not in versions_data:
@@ -1233,6 +1334,8 @@ def plot_sae_training_histogram(
         correlations = np.array(correlations)
         color = SAE_VERSION_COLORS.get(version, '#333333')
         label = SAE_VERSION_LABELS.get(version, version)
+        alpha = alpha_values.get(version, 1.0)
+        linewidth = linewidth_values.get(version, 2.0)
         
         # Compute statistics
         mean_corr = np.mean(correlations)
@@ -1241,8 +1344,9 @@ def plot_sae_training_histogram(
         
         # Use step histogram for clearer visualization
         counts, bin_edges = np.histogram(correlations, bins=bins, range=(-0.5, 1.0))
-        ax.stairs(counts, bin_edges, color=color, linewidth=2.5,
+        ax.stairs(counts, bin_edges, color=color, linewidth=linewidth,
                   linestyle=line_styles.get(version, '-'),
+                  alpha=alpha,
                   label=f'{label} (n={n_features}, mean={mean_corr:.2f}, {pct_above:.0f}%>0.75)')
     
     if show_paper_threshold:
@@ -1253,7 +1357,7 @@ def plot_sae_training_histogram(
     ax.set_ylabel('Number of Features', fontsize=11)
     ax.set_title(title, fontsize=12)
     ax.set_xlim(-0.5, 1.0)
-    ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
+    ax.legend(loc='upper left', fontsize=7, framealpha=0.9, handlelength=1.5)
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()

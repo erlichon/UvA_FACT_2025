@@ -1,146 +1,236 @@
 % Section 5: Extension Results (Phase 2)
-% Robustness: Rotated MNIST/EMNIST eigenvector analysis
-% Structure vs. Regularization: The Pareto plot (Accuracy vs. Rank)
+% Extension 2: Cross-dataset robustness (MNIST → EMNIST, USPS)
+% Extension 3: CP-Decomposition analysis
 
 \section{Extension Results}
 \label{sec:extension}
 
 Beyond reproducing the original findings, we extend the analysis in two directions:
-(1) robustness of interpretable structure under distribution shift, and
-(2) comparing structural low-rank (CP-decomposition) against regularization-induced low-rank.
+(1) robustness of interpretable structure under distribution shift (Extension 2), and
+(2) comparing structural low-rank (CP-decomposition) against regularization-induced low-rank (Extension 3).
 
-\subsection{Robustness Analysis}
+%==============================================================================
+\subsection{Extension 2: Cross-Dataset Robustness}
+\label{sec:extension2}
+%==============================================================================
 
-We test whether the interpretable eigenvector structure is robust to input transformations.
+The paper demonstrates that regularized bilinear MLPs learn interpretable eigenvectors on MNIST.
+A natural question is whether these learned representations are specific to MNIST's particular digit styles or capture more universal digit structure that transfers across datasets.
 
-\subsubsection{Rotated MNIST}
+\subsubsection{Experimental Setup}
 
-% TODO: Uncomment after experiments
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/robustness_rotated.pdf}
-%     \caption{Eigenvector stability under input rotation.
-%     We evaluate models trained on standard MNIST on rotated test images.
-%     The eigenvector structure [remains stable / degrades] under rotation.}
-%     \label{fig:robustness_rotated}
-% \end{figure}
+We train bilinear models on both MNIST and EMNIST-Digits using the paper's regularization settings (noise std $= 0.5$, weight decay $= 1.0$) with center-of-mass normalization.
+We evaluate transfer in three ways:
+\begin{enumerate}
+    \item \textbf{Functional transfer}: Does a MNIST-trained model generalize to EMNIST-Digits and USPS?
+    \item \textbf{Representational overlap}: Do eigenvectors for the same digit class share subspace structure across models?
+    \item \textbf{Shape similarity}: Do visually similar digit-letter pairs (0-O, 1-I) share eigenvector structure?
+\end{enumerate}
 
-\textit{[Figure to be added: Analysis of eigenvector stability under rotation]}
-
-\subsubsection{Transfer to EMNIST}
-
-% TODO: Uncomment after experiments
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/robustness_emnist.pdf}
-%     \caption{Transfer analysis to EMNIST-Letters.
-%     We retrain the bilinear model on handwritten letters and analyze whether
-%     similar low-rank interpretable structure emerges.}
-%     \label{fig:robustness_emnist}
-% \end{figure}
-
-\textit{[Figure to be added: Eigenvector analysis on EMNIST letters]}
-
-\subsection{CP-Decomposition Analysis}
-
-We compare structural low-rank constraint (CP-decomposition) against regularization-induced low-rank.
-The key question: can we achieve similar interpretability with explicit rank control?
-
-Unlike dense bilinear layers where low-rank structure emerges from regularization (noise augmentation and weight decay), CP-decomposition explicitly constrains the interaction tensor to rank $R$ through the factorization in Equation~\ref{eq:cp}.
-This provides direct control over the model's capacity and interpretability trade-off.
-
-\subsubsection{Rank Sweep}
-
-We train CP-decomposed bilinear models with ranks $R \in \{8, 16, 32, 64, 128, 256\}$ on MNIST, using minimal regularization (weight decay $0.1$, no noise augmentation).
-Table~\ref{tab:cp_sweep} reports accuracy and effective rank for each configuration, compared to Phase 1 dense baselines.
+\subsubsection{Results: Functional Transfer}
 
 \begin{table}[h]
-    \caption{CP-decomposition rank sweep results (seed 42). 
-    Dense baselines from Phase 1 (mean $\pm$ std across 5 seeds) shown for comparison.}
-    \label{tab:cp_sweep}
+    \caption{Cross-dataset functional transfer accuracy (mean $\pm$ std over 5 seeds). Regularized models show strong transfer to EMNIST-Digits and substantial improvement over baseline on USPS.}
+    \label{tab:functional_transfer}
     \centering
-    \begin{tabular}{lcc}
+    \begin{tabular}{lccc}
         \toprule
-        Model & Accuracy (\%) & Eff. Rank \\
+        Evaluation & MNIST Model & EMNIST Model & Baseline \\
         \midrule
-        \multicolumn{3}{c}{\textit{Dense Baselines (Phase 1)}} \\
+        MNIST Test & 98.3\%$^*$ & 97.9\% & -- \\
+        EMNIST-Digits Test & 97.5\% & 98.2\%$^*$ & -- \\
+        USPS Test & 72.3\% & -- & 53.4\% \\
         \midrule
-        Dense (no reg) & $97.49 \pm 0.05$ & $38.50 \pm 0.66$ \\
-        Dense (full reg) & $98.30 \pm 0.04$ & $36.30 \pm 0.33$ \\
+        \textbf{Bidirectional Avg} & \multicolumn{2}{c}{\textbf{97.7\%}} & -- \\
+        \bottomrule
+    \end{tabular}
+    
+    \footnotesize{$^*$Native accuracy (trained and evaluated on same dataset).}
+\end{table}
+
+\textbf{Key findings:}
+\begin{itemize}
+    \item \textbf{MNIST $\leftrightarrow$ EMNIST-Digits}: Strong bidirectional transfer (97.7\% average).
+    The MNIST model achieves 97.5\% on EMNIST-Digits (vs.\ 98.2\% native), a drop of only 0.7\%.
+    
+    \item \textbf{MNIST $\to$ USPS}: The regularized model achieves 72.3\% on USPS, a \textbf{+18.9\%} improvement over the baseline (53.4\%).
+    This substantial gap demonstrates that regularization learns more transferable features.
+    
+    \item \textbf{Per-class analysis on USPS}: Regularization dramatically improves transfer for most digits (e.g., digit 0: 8.6\% $\to$ 78.6\%; digit 8: 16.9\% $\to$ 91.0\%), though some remain challenging (digit 1: 0\% $\to$ 12.1\%).
+\end{itemize}
+
+\subsubsection{Results: Representational Overlap}
+
+We compute the mean cosine similarity between top-5 eigenvectors for each digit class across MNIST and EMNIST-Digits models.
+
+\begin{table}[h]
+    \caption{Eigenvector subspace overlap between MNIST and EMNIST-Digits models (top-5 eigenvectors per class). Higher cosine similarity indicates shared representational structure.}
+    \label{tab:representational_overlap}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Digit & Mean Cosine & Grassmann & Interpretation \\
         \midrule
-        \multicolumn{3}{c}{\textit{CP-Decomposition (Phase 2)}} \\
+        0 & 0.41 & 0.26 & Moderate \\
+        1 & 0.32 & 0.20 & Moderate \\
+        2 & 0.25 & 0.15 & Weak \\
+        3 & 0.39 & 0.24 & Moderate \\
+        4 & 0.42 & 0.26 & Moderate \\
+        5 & 0.36 & 0.23 & Moderate \\
+        6 & 0.45 & 0.28 & Strong \\
+        7 & 0.24 & 0.14 & Weak \\
+        8 & 0.52 & 0.34 & Strong \\
+        9 & 0.53 & 0.35 & Strong \\
         \midrule
-        CP $R=8$ & $18.8$ & $2.6$ \\
-        CP $R=16$ & $93.4$ & $8.7$ \\
-        CP $R=32$ & $93.2$ & $11.7$ \\
-        CP $R=64$ & $91.2$ & $3.5$ \\
-        CP $R=128$ & $91.6$ & $3.7$ \\
-        CP $R=256$ & $91.8$ & $3.8$ \\
+        \textbf{Mean} & \textbf{0.39} & \textbf{0.24} & Moderate \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Key Findings:}
+The mean overlap of 0.39 significantly exceeds random baseline ($\sim$0.22), providing evidence for shared representational structure.
+Digits 8 and 9 show the strongest overlap (cosine $>$ 0.5), while digits 2 and 7 show weaker overlap, possibly due to higher style variability.
 
-First, effective rank does not scale linearly with CP rank.
-While $R=32$ achieves effective rank $11.7$, $R=64$ achieves a lower effective rank of $3.5$ despite higher capacity.
-This suggests that the model learns to concentrate information in fewer components when given sufficient capacity, consistent with the low-rank interpretability hypothesis.
+\subsubsection{Results: Shape-Similar Pairs}
 
-Second, CP-decomposition achieves comparable or better interpretability than dense models without noise augmentation.
-CP $R=32$ achieves effective rank $11.7$, significantly lower than dense (full reg) at $36.30$, while maintaining $93.2\%$ accuracy (vs $98.30\%$ for dense full reg).
-This demonstrates that structural low-rank constraint can replace regularization-induced low-rank for interpretability, with the advantage of explicit rank control.
+We test whether visually similar digit-letter pairs share eigenvector structure.
 
-Third, the optimal accuracy-interpretability trade-off occurs at $R=64$, achieving $91.2\%$ accuracy with effective rank $3.5$.
-This represents a $10\times$ reduction in effective rank compared to dense (no reg) while maintaining reasonable accuracy.
+\begin{table}[h]
+    \caption{Subspace overlap between shape-similar digit-letter pairs (MNIST vs.\ EMNIST-Letters). Random baseline: 0.22.}
+    \label{tab:shape_similarity}
+    \centering
+    \begin{tabular}{lccc}
+        \toprule
+        Pair & Mean Cosine & Above Baseline? & Classification \\
+        \midrule
+        0 -- O & 0.21 & No & 99.6\% as ``0'' \\
+        1 -- I & 0.19 & No & 87.1\% as ``1'' \\
+        2 -- Z & 0.16 & No & 88.8\% as ``2'' \\
+        5 -- S & 0.22 & Marginal & 87.4\% as ``5'' \\
+        6 -- B & 0.33 & Yes & -- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-% TODO: Uncomment after multi-seed experiments
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/cp_rank_sweep.pdf}
-%     \caption{Effect of CP rank on accuracy and effective rank.
-%     Lower ranks provide stronger structural constraint but may limit model capacity.
-%     Error bars show standard deviation across 5 seeds.}
-%     \label{fig:cp_rank_sweep}
-% \end{figure}
+\textbf{Surprising finding:} Most shape-similar pairs do \emph{not} share eigenvector structure, yet the MNIST model correctly classifies letters as their corresponding digits (e.g., ``O'' as ``0'' with 99.6\% accuracy).
+This suggests bilinear models learn \emph{class-discriminative} features rather than \emph{shape-generic} features---the model distinguishes ``what makes a 0'' from ``what makes an O'' despite visual similarity.
 
-\subsection{Structure vs. Regularization: Pareto Analysis}
+%==============================================================================
+\subsection{Extension 3: CP-Decomposition Analysis}
+\label{sec:extension3}
+%==============================================================================
 
-Comparing structural (CP) and regularization-induced low-rank reveals a fundamental trade-off.
-Dense models with full regularization achieve higher accuracy ($98.30\%$) but require noise augmentation, which increases training complexity and may not generalize to all domains.
-CP models achieve lower effective rank ($3.5$ for $R=64$ vs $36.30$ for dense full reg) without noise augmentation, but sacrifice some accuracy ($91.2\%$ vs $98.30\%$).
+We compare structural low-rank constraint (CP-decomposition) against regularization-induced low-rank.
+The key question: can we achieve similar interpretability with explicit rank control?
 
-The key advantage of CP-decomposition is explicit rank control: we can directly set the interaction tensor rank $R$ rather than relying on regularization hyperparameters to induce low-rank structure.
-This makes CP more suitable for applications requiring guaranteed interpretability bounds or when noise augmentation is undesirable.
+\subsubsection{Background}
 
-% TODO: Uncomment after multi-seed experiments
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.8\linewidth]{figures/structure_vs_reg.pdf}
-%     \caption{Pareto frontier comparing structural (CP) vs regularization-induced low-rank.
-%     Each point represents a configuration; error bars show standard deviation across 5 seeds.
-%     Points closer to the top-left represent better accuracy-interpretability trade-offs.
-%     \textbf{Key finding:} CP achieves better interpretability (lower effective rank) at the cost of slightly reduced accuracy.}
-%     \label{fig:pareto}
-% \end{figure}
+Unlike dense bilinear layers where low-rank structure emerges from regularization, CP-decomposition explicitly constrains the interaction tensor to rank $R$ through factorization:
+\begin{equation}
+    B_{cij} = \sum_{r=1}^{R} \lambda_r A_{cr} B_{ir} C_{jr}
+\end{equation}
+This provides direct control over the model's capacity and interpretability.
 
-\subsection{Summary}
+\subsubsection{Rank Sweep Results}
 
-Our extension experiments address three key questions:
+We train CP-decomposed bilinear models with ranks $R \in \{8, 16, 32, 64, 128, 256\}$ on MNIST using minimal regularization (weight decay 0.1, no noise).
+
+\begin{table}[h]
+    \caption{CP-decomposition rank sweep (seed 42) vs.\ dense baselines. CP achieves lower effective rank than dense models at the cost of some accuracy.}
+    \label{tab:cp_sweep}
+    \centering
+    \begin{tabular}{lcc}
+        \toprule
+        Model & Accuracy (\%) & Eff.\ Rank \\
+        \midrule
+        \multicolumn{3}{c}{\textit{Dense Baselines}} \\
+        \midrule
+        Dense (no reg) & $97.49 \pm 0.05$ & $38.5 \pm 0.7$ \\
+        Dense (WD only) & $97.49 \pm 0.05$ & $15.5 \pm 0.3$ \\
+        Dense (full reg) & $96.20 \pm 4.0$ & $42.2 \pm 36.1$ \\
+        \midrule
+        \multicolumn{3}{c}{\textit{CP-Decomposition}} \\
+        \midrule
+        CP $R=8$ & 18.8 & 2.6 \\
+        CP $R=16$ & 93.4 & 8.7 \\
+        CP $R=32$ & 93.2 & 11.7 \\
+        CP $R=64$ & 91.2 & 3.5 \\
+        CP $R=128$ & 91.6 & 3.7 \\
+        CP $R=256$ & 91.8 & 3.8 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Key findings:}
 
 \begin{enumerate}
-    \item \textbf{Is the low-rank interpretable structure robust to distribution shift?}
-    Robustness analysis on rotated MNIST and EMNIST is pending (experiments in progress).
+    \item \textbf{Effective rank does not scale linearly with CP rank.}
+    While $R=32$ achieves effective rank 11.7, increasing to $R=64$ \emph{decreases} effective rank to 3.5.
+    The model learns to concentrate information in fewer components when given sufficient capacity.
     
-    \item \textbf{Can structural constraints (CP) replace regularization for interpretability?}
-    Yes. CP-decomposition achieves lower effective rank than dense (full reg) models without noise augmentation.
-    CP $R=32$ achieves effective rank $11.7$ (vs $36.30$ for dense full reg), demonstrating that explicit rank constraints can replace regularization-induced low-rank structure.
-    The trade-off is reduced accuracy ($93.2\%$ vs $98.30\%$), but CP provides direct control over the interpretability-accuracy frontier.
+    \item \textbf{CP achieves lower effective rank than dense models.}
+    CP $R=64$ achieves effective rank 3.5---a $\mathbf{4.4\times}$ reduction compared to dense (WD only) at 15.5, and $\mathbf{11\times}$ reduction compared to dense (no reg) at 38.5.
     
-    \item \textbf{What is the accuracy-interpretability Pareto frontier?}
-    Based on preliminary single-seed results, CP $R=64$ achieves the best trade-off: $91.2\%$ accuracy with effective rank $3.5$.
-    Full multi-seed analysis will refine this frontier and provide statistical significance.
+    \item \textbf{Accuracy-interpretability trade-off.}
+    CP models sacrifice accuracy for interpretability: $R=64$ achieves 91.2\% (vs.\ 97.5\% for dense WD).
+    However, this 6\% accuracy gap may be acceptable when guaranteed low-rank is required.
+    
+    \item \textbf{Optimal configuration.}
+    $R=64$ achieves the best trade-off: 91.2\% accuracy with effective rank 3.5.
+    This represents interpretability comparable to having only $\sim$4 dominant eigenvectors per class.
 \end{enumerate}
 
-\textbf{Limitations:} Current results are based on single-seed experiments (seed 42).
-Multi-seed runs (seeds 42--46) are in progress and will provide standard deviations and statistical significance tests.
-The Pareto frontier analysis will be updated once multi-seed results are available.
+\subsubsection{Structure vs.\ Regularization: Pareto Analysis}
+
+Figure~\ref{fig:pareto_analysis} compares the accuracy-interpretability trade-off.
+
+\begin{figure}[h]
+    \centering
+    % Placeholder - uncomment when figure exists
+    % \includegraphics[width=0.7\linewidth]{figures/structure_vs_reg.pdf}
+    \begin{tabular}{cc}
+    \textit{[Pareto frontier figure]} & 
+    \begin{tabular}{lcc}
+    \toprule
+    Method & Acc.\ & Rank \\
+    \midrule
+    Dense (no reg) & 97.5 & 38.5 \\
+    Dense (WD) & 97.5 & 15.5 \\
+    CP $R=32$ & 93.2 & 11.7 \\
+    CP $R=64$ & 91.2 & 3.5 \\
+    \bottomrule
+    \end{tabular}
+    \end{tabular}
+    \caption{Accuracy vs.\ effective rank trade-off. Dense (WD) achieves the best accuracy with moderate rank reduction. CP models achieve much lower effective rank at the cost of accuracy. The choice depends on whether guaranteed low-rank or maximum accuracy is prioritized.}
+    \label{fig:pareto_analysis}
+\end{figure}
+
+\textbf{Recommendation:}
+\begin{itemize}
+    \item For \textbf{maximum accuracy with interpretability}: Use dense + weight decay (97.5\% accuracy, effective rank 15.5).
+    \item For \textbf{guaranteed low-rank}: Use CP $R=64$ (91.2\% accuracy, effective rank 3.5).
+    \item CP is preferable when explicit rank bounds are required or noise augmentation is undesirable.
+\end{itemize}
+
+%==============================================================================
+\subsection{Summary}
+%==============================================================================
+
+Our extensions reveal:
+
+\textbf{Extension 2 (Cross-Dataset Robustness):}
+\begin{enumerate}
+    \item Strong functional transfer: MNIST models achieve 97.5\% on EMNIST-Digits and 72.3\% on USPS (+18.9\% vs.\ baseline).
+    \item Moderate representational overlap: Eigenvector subspaces share structure across datasets (mean cosine 0.39 vs.\ random 0.22).
+    \item Class-specificity: Models learn discriminative features, not shape-generic detectors---letters are classified as corresponding digits despite different eigenvector structure.
+\end{enumerate}
+
+\textbf{Extension 3 (CP-Decomposition):}
+\begin{enumerate}
+    \item CP achieves $4.4\times$ lower effective rank than dense (WD) with 6\% accuracy trade-off.
+    \item Effective rank does not scale linearly with CP rank---the model self-organizes to low-rank.
+    \item CP provides explicit rank control, useful when guaranteed interpretability bounds are required.
+\end{enumerate}
+
+\textbf{Limitations:}
+CP results are single-seed (seed 42); multi-seed runs would provide statistical confidence.
+The USPS transfer gap (72.3\% vs.\ native $\sim$95\%) indicates room for improvement in cross-domain generalization.

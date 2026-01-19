@@ -57,10 +57,20 @@ from src.vision.spectral import (
     spectral_summary,
     top_k_coverage,
 )
-from src.plot_utils.style import set_publication_style, COLORS
+from src.plot_utils.style import set_publication_style
 
 warnings.filterwarnings("ignore", message="Failed to load image Python extension:*")
 
+
+# CP-specific colors
+CP_COLORS = {
+    'rank': '#1f77b4',      # Blue - for rank comparisons
+    'fixed': '#2ca02c',     # Green - fixed init mode
+    'lambda': '#ff7f0e',    # Orange - lambda init mode  
+    'gated': '#d62728',     # Red - gated init mode
+    'cp': '#9467bd',        # Purple - CP models
+    'dense': '#8c564b',     # Brown - dense models
+}
 
 # Available sections for generation
 AVAILABLE_SECTIONS = [
@@ -224,7 +234,7 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
     x = np.arange(len(rank_stats))
     bars = ax.bar(x, rank_stats['acc_mean'] * 100, 
                   yerr=rank_stats['acc_std'] * 100,
-                  capsize=4, color=COLORS['primary'], edgecolor='black')
+                  capsize=4, color=CP_COLORS['rank'], edgecolor='black')
     
     ax.set_xticks(x)
     ax.set_xticklabels([f"R={int(r)}" for r in rank_stats['rank']])
@@ -248,7 +258,7 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
     
     bars = ax.bar(x, rank_stats['eff_rank_mean'],
                   yerr=rank_stats['eff_rank_std'],
-                  capsize=4, color=COLORS['secondary'], edgecolor='black')
+                  capsize=4, color=CP_COLORS['cp'], edgecolor='black')
     
     # Add theoretical max line (CP rank limits effective rank)
     ax.plot(x, rank_stats['rank'], 'r--', linewidth=2, 
@@ -298,7 +308,7 @@ def generate_mode_comparison(ctx: VisionContext, cp_df: pd.DataFrame):
     # Figure: Mode comparison bar chart
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    mode_colors = {'fixed': COLORS['primary'], 'lambda': COLORS['secondary'], 'gated': COLORS['tertiary']}
+    mode_colors = {'fixed': CP_COLORS['fixed'], 'lambda': CP_COLORS['lambda'], 'gated': CP_COLORS['gated']}
     x = np.arange(len(mode_stats))
     
     # Accuracy comparison

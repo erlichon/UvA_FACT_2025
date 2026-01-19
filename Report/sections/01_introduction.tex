@@ -5,23 +5,37 @@
 \section{Introduction}
 \label{sec:introduction}
 
-Mechanistic interpretability aims to understand neural networks by reverse-engineering their internal computations.
-The dominant approach uses Sparse Autoencoders (SAEs) trained post-hoc on model activations to discover interpretable features~\citep{goodfellow2016deep}.
-While effective, this approach requires substantial additional compute and yields features that may not faithfully represent the original model's computations.
+Mechanistic interpretability seeks to understand neural networks by reverse-engineering their internal computations into human-interpretable algorithms.
+The dominant approach trains Sparse Autoencoders (SAEs) post-hoc on model activations to discover interpretable features~\citep{goodfellow2016deep}.
+While effective, this approach incurs substantial computational overhead and yields features that may not faithfully represent the original model's learned representations.
 
-An alternative paradigm is \emph{intrinsic} interpretability: designing architectures whose weights are directly interpretable without post-hoc analysis.
-\citet{pearce2024bilinear} propose bilinear MLPs as such an architecture.
-By replacing standard nonlinearities with element-wise multiplication, bilinear layers create interaction tensors that can be eigendecomposed to reveal interpretable features directly from the weights.
+\citet{pearce2024bilinear} propose an alternative paradigm: \emph{intrinsic} interpretability through architectural design.
+Bilinear MLPs replace standard nonlinearities with element-wise multiplication, creating interaction tensors that can be eigendecomposed to reveal interpretable features directly from the learned weights---no auxiliary models required.
+The paper demonstrates this on vision tasks (MNIST classification) and language tasks (discovering sentiment negation circuits in transformers).
 
 This work contributes to \textbf{FACT-AI Topic 1.4: Transparency}.
-Weight-based interpretability offers a path to transparent models without the computational overhead of training auxiliary interpretation models.
-If the learned eigenvectors correspond to human-interpretable concepts (e.g., digit templates for MNIST), the model's decision process becomes directly auditable.
+Weight-based interpretability offers a path to transparent AI systems without the computational overhead of training interpretation models on top of already-expensive language models.
+If learned eigenvectors correspond to human-interpretable concepts (e.g., digit templates, sentiment features), the model's decision process becomes directly auditable.
 
-We make the following contributions:
+We reproduce both main experimental sections of \citet{pearce2024bilinear} and report our contributions:
+
 \begin{itemize}
-    \item \textbf{Vision Reproduction (Section 4):} We reproduce the MNIST experiments, verifying that regularization induces low-rank structure in bilinear MLPs with interpretable eigenvectors.
-    \item \textbf{Language Reproduction (Section 5):} We reproduce the GPT-2 experiments, analyzing bilinear attention and comparing with Sparse Autoencoders.
-    \item \textbf{Ablation:} We disentangle the contributions of noise augmentation and weight decay to interpretability.
-    \item \textbf{Extension:} We propose CP-decomposition as a structural alternative to regularization-induced low-rank, enabling explicit rank control.
+    \item \textbf{Vision Reproduction (Section 4):} We successfully reproduce the MNIST and Fashion-MNIST experiments, confirming that weight decay reduces effective rank from 38.5 to 21.4 (MNIST) while maintaining 97--98\% accuracy.
+    Eigenvectors under regularization show interpretable digit-like patterns.
+    
+    \item \textbf{Language Reproduction (Section 5):} We partially reproduce the negation circuit discovery.
+    We confirm that negation features form opposing directions in SAE feature space (cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---mean rank-2 correlations (0.37--0.55) fall well below the paper's claimed 69\% above 0.75.
+    
+    \item \textbf{Root Cause Analysis:} We trace the language discrepancy to SAE training time.
+    Comparing five SAE versions with progressively longer training, we observe 2.5$\times$ improvement in rank-2 correlation (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that ``correlation drastically improves with longer SAE training.''
+    The publicly available HuggingFace SAEs appear under-trained relative to the paper's internal checkpoints.
+    
+    \item \textbf{Ablation Study:} We disentangle noise augmentation and weight decay, finding that weight decay alone achieves the lowest effective rank, while noise augmentation improves accuracy but \emph{increases} effective rank.
+    
+    \item \textbf{Extension:} We explore cross-dataset robustness, analyzing subspace overlap between MNIST and EMNIST-Digits to test whether interpretable structure transfers across related domains.
+    
     \item \textbf{Environmental Analysis:} We report computational costs and CO2 emissions following responsible AI practices.
 \end{itemize}
+
+Our reproduction reveals an important nuance: while the bilinear decomposition \emph{methodology} is sound and reproducible, the quality of low-rank approximations depends critically on SAE training---a factor not immediately apparent from the paper's main claims.
+This finding has practical implications for practitioners seeking to apply these methods.

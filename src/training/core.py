@@ -176,7 +176,7 @@ def log_spectral_metrics(eigenvalues: torch.Tensor, wandb_enabled: bool) -> Dict
 
     # Log eigenvalue histogram for each class (first 3 classes to avoid clutter)
     for cls_idx in range(min(3, eigenvalues.shape[0])):
-        cls_eigenvalues = eigenvalues[cls_idx].abs().cpu().numpy()
+        cls_eigenvalues = eigenvalues[cls_idx].abs().detach().cpu().numpy()
         wandb.run.summary[f"eigenvalues_class_{cls_idx}"] = wandb.Histogram(cls_eigenvalues)
 
     return summary
@@ -256,8 +256,8 @@ def save_checkpoint(
             'effective_rank': float(eff_rank),
         },
         'seed': seed,
-        'eigenvalues': eigenvalues.cpu(),
-        'eigenvectors': eigenvectors.cpu(),
+        'eigenvalues': eigenvalues.detach().cpu(),
+        'eigenvectors': eigenvectors.detach().cpu(),
     }
 
     path.parent.mkdir(parents=True, exist_ok=True)

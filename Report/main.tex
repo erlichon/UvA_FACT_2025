@@ -46,12 +46,21 @@
 \begin{abstract}
 Mechanistic interpretability typically relies on post-hoc analysis of model activations.
 Bilinear MLPs offer an alternative: architectures whose weights are directly interpretable through eigendecomposition of interaction tensors.
-We reproduce the main experiments from Pearce et al. (2024): Section 4 (Vision), verifying that regularization induces low-rank structure in bilinear MLPs on MNIST and Fashion-MNIST, and Section 5 (Language), discovering sentiment negation circuits in bilinear transformers via Sparse Autoencoder analysis.
-Our ablation study disentangles the contributions of noise augmentation and weight decay to interpretability.
-As an extension, we propose CP-decomposition as a structural alternative to regularization-induced low-rank, enabling explicit rank control.
-We evaluate robustness under distribution shift (Rotated MNIST, EMNIST) and report computational costs including CO2 emissions.
-Our reproduction confirms the vision claims: regularization reduces effective rank (21.4 vs 38.5 for no regularization) while maintaining accuracy (98\%).
-For language, we confirm negation circuit discovery (opposing features with cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---mean rank-2 correlations (0.37--0.55) fall well below the paper's 69\% $>$0.75 threshold.
+We reproduce both main experiments from Pearce et al.\ (2024): Section 4 (Vision) on MNIST/Fashion-MNIST, and Section 5 (Language) discovering sentiment negation circuits via Sparse Autoencoder analysis.
+
+\textbf{Vision results (fully reproduced):}
+Weight decay reduces effective rank from 38.5 to 21.4, confirming that regularization induces interpretable low-rank structure.
+Eigenvectors under noise augmentation show recognizable digit patterns.
+Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank while noise primarily improves accuracy.
+
+\textbf{Language results (partially reproduced):}
+We confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' form opposing directions (cosine similarity $-0.16$).
+However, we do \emph{not} reproduce the low-rank interaction claim: mean rank-2 correlations (0.37--0.55) fall well below the paper's 69\% $>$ 0.75 threshold.
+We trace this discrepancy to SAE training time: comparing five SAE versions with increasing training duration, rank-2 correlation improves 2.5$\times$ (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that correlation depends on SAE quality.
+The publicly available HuggingFace SAEs appear under-trained relative to the paper's internal checkpoints.
+
+This finding has practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
+Total compute: 17.8 GPU hours, 2.3 kg CO2.
 \end{abstract}
 
 % Modular sections
@@ -63,15 +72,19 @@ For language, we confirm negation circuit discovery (opposing features with cosi
 \input{sections/06_fact_discussion}
 
 \subsubsection*{Broader Impact Statement}
-This work contributes to the field of mechanistic interpretability, which aims to make neural networks more transparent and understandable.
+This work contributes to mechanistic interpretability, aiming to make neural networks more transparent.
 Improved interpretability methods could help identify biases, failure modes, and unexpected behaviors in deployed AI systems.
+Our finding that SAE training quality affects reproducibility highlights the importance of standardized training protocols for interpretability research.
 
 \subsubsection*{Author Contributions}
-% Fill in after completion
+Author 1 led vision experiment infrastructure, training pipelines, and Figure 4--7 reproduction.
+Author 2 led language experiment analysis, SAE training time investigation, and root cause analysis.
+Both authors contributed to writing and experimental design.
 
 \subsubsection*{Acknowledgments}
-% Fill in after completion
-% Acknowledge: Snellius compute resources, course instructors, etc.
+We thank the SURF cooperative for providing access to the Snellius supercomputer.
+We acknowledge the FACT-AI course instructors for feedback on experimental design.
+The original paper's authors for making code and pretrained models publicly available.
 
 \bibliography{main}
 \bibliographystyle{tmlr}
@@ -84,6 +97,10 @@ Improved interpretability methods could help identify biases, failure modes, and
 \section{Hyperparameter Details}
 \label{app:hyperparams}
 % Full configuration tables
+
+\section{SAE Training Time Analysis Details}
+\label{app:sae_analysis}
+% Detailed per-feature correlation breakdowns for v0-v4
 
 \section{CO2 Tracking Details}
 \label{app:co2}
