@@ -66,6 +66,8 @@ After verifying model specifications and SAE availability, we discovered:
 
 #### Section 5.1: Negation Circuit Discovery (Figure 8)
 
+> **See**: `docs/FIGURE_8_INVESTIGATION.md` for full analysis
+
 **Paper's Intended Model (ts-medium)** - NOT REPRODUCIBLE:
 - **Model**: `tdooms/ts-medium` (6 layers, 29.4M params, TinyStories)
 - **SAE Layer**: 4 (middle of 6-layer model)
@@ -74,15 +76,36 @@ After verifying model specifications and SAE availability, we discovered:
 - **Issue**: ❌ Layer 4 missing `mlp-in` SAEs on HuggingFace
 - **Status**: SKIPPED (cannot reproduce without both SAEs)
 
-**Our Reproduction (fw-medium)** - TUTORIAL EXAMPLE:
+**Our Reproduction (fw-medium)** - ✅ SUCCESS WITH FEATURE 751:
 - **Model**: `tdooms/fw-medium` (16 layers, 335M params, FineWeb-EDU)
 - **SAE Layer**: 7 (middle of 16-layer model)
 - **Expansion**: 8
-- **Features**: 3834 (not-good), 751 (not-bad)
+- **Best Feature**: **751 ("not-bad")** - Strong AND-gate structure (score 0.96)
+- **Weaker Feature**: 3834 ("not-good") - Weak AND-gate structure (score ~0.5)
 - **Advantage**: ✅ Has both `mlp-in` and `mlp-out` SAEs available
-- **Advantage**: ✅ Larger model → clearer visualizations
-- **Config**: `configs/language_negation_fw.yaml`
-- **Status**: ✅ IMPLEMENTED (memory-efficient eigensolver, works on MPS)
+- **Status**: ✅ **STRONG REPRODUCTION** using feature 751
+
+**Key Discovery (2026-01-18)**: Comprehensive circuit search revealed feature 751 has much stronger AND-gate structure:
+
+| Feature | AND Score | Top Eigenvalue | Max Cross-Interaction | Cluster Structure |
+|---------|-----------|----------------|----------------------|-------------------|
+| **751 (not-bad)** | **0.96** | **0.53** | **0.08** | Clear (3 vs 12) |
+| 3834 (not-good) | ~0.5 | 0.04 | 0.008 | Weak |
+
+**Generated Figures**:
+- `figure_8_feature751.pdf` - **Recommended main figure** (strong AND-gate)
+- `figure_8_comparison_751_vs_3834.pdf` - Side-by-side comparison
+- `figure_8_negation_circuit.pdf` - Sentiment-based (weak)
+
+**Key Finding**: The sentiment negation circuit is **domain-dependent**:
+- **TinyStories** (children's stories) → Strong sentiment patterns, clear AND-gate structure
+- **FineWeb-EDU** (educational text) → Feature 751 has strongest circuit; 3834 is weaker
+
+**Scripts for Analysis**:
+- `scripts/figures/run_circuit_search.sh` - Comprehensive AND-gate search (completed)
+- `scripts/figures/generate_figure8_feature751.py` - Generate Figure 8 with feature 751
+- `scripts/figures/find_sentiment_features.py` - Sentiment feature search
+- `scripts/figures/find_best_interactions.py` - Interaction-based feature discovery
 
 #### Section 5.2: Low-Rank Correlation (Figure 9)
 - **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 7)
@@ -810,13 +833,13 @@ checkpoint = {
     'eigenvalues': Tensor,       # Shape: [10, 256] (n_classes, d_hidden)
     'eigenvectors': Tensor,      # Shape: [10, 256, 784] (n_classes, d_hidden, d_input)
 }
-# Saved to: results/vision/checkpoints/{config_name}_seed{seed}.pt
+# Saved to: checkpoints/vision/mnist/{config_name}_seed{seed}.pt
 ```
 
 **Person B Loading Example**:
 ```python
 import torch
-checkpoint = torch.load("results/vision/checkpoints/mnist_dense_full_seed42.pt", map_location='cpu')
+checkpoint = torch.load("checkpoints/vision/mnist/mnist_dense_full_seed42.pt", map_location='cpu')
 eigenvalues = checkpoint['eigenvalues']   # [10, 256]
 eigenvectors = checkpoint['eigenvectors'] # [10, 256, 784]
 config = checkpoint['config']

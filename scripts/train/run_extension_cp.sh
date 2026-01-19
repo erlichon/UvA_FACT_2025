@@ -21,7 +21,7 @@ set -e
 SEEDS="42,43,44,45,46"
 RANKS="8,16,32,64,128,256,784"
 MODES="lambda"
-CHECKPOINT_DIR="results/extension_cp/checkpoints"
+CHECKPOINT_DIR="checkpoints/extension_cp"
 EPOCHS=""
 NO_WANDB=""
 

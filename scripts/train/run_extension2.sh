@@ -18,7 +18,7 @@ set -e
 
 # Default values
 SEEDS="42,43,44,45,46"
-CHECKPOINT_DIR="results/extension2/checkpoints"
+CHECKPOINT_DIR="checkpoints/extension2"
 
 # Parse global options
 while [[ "$1" == --* ]]; do

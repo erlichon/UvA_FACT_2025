@@ -350,3 +350,5 @@ Import from modules rather than defining functions inline. Generate final figure
 - `WORKPLAN.md`: Experiment matrix and timeline
 - `.cursorrules`: Additional code conventions and research questions
 - `docs/WANDB_GUIDE.md`: Comprehensive wandb usage guide
+- `docs/FIGURE_8_INVESTIGATION.md`: Figure 8 reproduction investigation and findings
+- `docs/TS_MEDIUM_SAE_LIMITATION.md`: SAE availability limitations for ts-medium

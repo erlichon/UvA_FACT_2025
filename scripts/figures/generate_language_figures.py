@@ -25,6 +25,8 @@ import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 
+from src.paths import LANGUAGE_FIGURES, LANGUAGE_RESULTS
+
 # Figure 9 and 8 plotting utilities
 from src.plot_utils.language import (
     load_correlation_results,
@@ -41,17 +43,18 @@ from src.plot_utils.language import (
 )
 
 
-def save_figure(fig, filename: str, figure_dir: Path, report_dir: Path):
-    """Save figure to both results and report directories."""
+def save_figure(fig, filename: str, figure_dir: Path):
+    """Save figure to the specified directory."""
     if fig is None:
         return
-    fig.savefig(figure_dir / filename, bbox_inches='tight', dpi=300)
-    fig.savefig(report_dir / filename, bbox_inches='tight', dpi=300)
+    figure_dir.mkdir(parents=True, exist_ok=True)
+    out_path = figure_dir / filename
+    fig.savefig(out_path, bbox_inches='tight', dpi=300)
     plt.close(fig)
-    print(f"  Saved: {filename}")
+    print(f"  Saved: {out_path}")
 
 
-def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
+def generate_figure_9(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 9 (A, B, C) from correlation sweep results.
     
@@ -81,7 +84,7 @@ def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
         title="Average Correlation vs Approximation Rank",
         show_paper_threshold=True,
     )
-    save_figure(fig, "figure_9a_correlation_progression.pdf", figure_dir, report_dir)
+    save_figure(fig, "figure_9a_correlation_progression.pdf", figure_dir)
     
     # Figure 9B: Correlation Histogram
     print("Generating Figure 9B: Rank-2 Correlation Histogram...")
@@ -91,7 +94,7 @@ def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
         title="Rank-2 Correlation Distribution",
         show_paper_threshold=True,
     )
-    save_figure(fig, "figure_9b_correlation_histogram.pdf", figure_dir, report_dir)
+    save_figure(fig, "figure_9b_correlation_histogram.pdf", figure_dir)
     
     # Figure 9C: Scatter plots (fw-medium only, as per paper)
     print("Generating Figure 9C: True vs Predicted Scatter Plots...")
@@ -111,7 +114,7 @@ def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
                 seed=42,
                 scatter_dir=scatter_dir if has_streaming_scatter else None,
             )
-            save_figure(fig, "figure_9c_scatter_plots.pdf", figure_dir, report_dir)
+            save_figure(fig, "figure_9c_scatter_plots.pdf", figure_dir)
         else:
             print("  Note: No scatter data available for Figure 9C.")
             print("  Re-run sweep with: --save-scatter")
@@ -130,7 +133,7 @@ def generate_figure_9(results_dir: Path, figure_dir: Path, report_dir: Path):
     return True
 
 
-def generate_figure_8(results_dir: Path, figure_dir: Path, report_dir: Path):
+def generate_figure_8(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 8 (Sentiment Negation Circuit) from negation visualization results.
     
@@ -162,7 +165,7 @@ def generate_figure_8(results_dir: Path, figure_dir: Path, report_dir: Path):
     # Generate composite figure
     print("Generating Figure 8 composite...")
     fig = plot_figure_8_composite(figure_8_data)
-    save_figure(fig, "figure_8_negation_circuit.pdf", figure_dir, report_dir)
+    save_figure(fig, "figure_8_negation_circuit.pdf", figure_dir)
     
     # Print summary
     print("\n--- Figure 8 Summary ---")
@@ -175,7 +178,7 @@ def generate_figure_8(results_dir: Path, figure_dir: Path, report_dir: Path):
     return True
 
 
-def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
+def generate_figure_10(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 10 (SAE Training Time Effect) from v0-v4 comparison results.
     
@@ -225,7 +228,7 @@ def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
         title="Effect of SAE Training on Low-Rank Approximation Quality",
         show_paper_threshold=True,
     )
-    save_figure(fig, "figure_10a_sae_training_effect.pdf", figure_dir, report_dir)
+    save_figure(fig, "figure_10a_sae_training_effect.pdf", figure_dir)
     
     # Figure 10B: Rank-2 Histogram (all versions to show progression)
     print("Generating Figure 10B: Rank-2 Correlation Distribution...")
@@ -236,7 +239,7 @@ def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
         title="Rank-2 Correlation: Training Progression (v0 → v4)",
         show_paper_threshold=True,
     )
-    save_figure(fig, "figure_10b_sae_training_histogram.pdf", figure_dir, report_dir)
+    save_figure(fig, "figure_10b_sae_training_histogram.pdf", figure_dir)
     
     # Quantitative improvement
     v0_r2 = versions.get('v0', {}).get('summary', {}).get('rank_2', {}).get('mean', 0)
@@ -252,26 +255,24 @@ def generate_figure_10(results_dir: Path, figure_dir: Path, report_dir: Path):
 
 
 def main():
-    # Paths
-    RESULTS_DIR = PROJECT_ROOT / "results/language"
-    FIGURE_DIR = PROJECT_ROOT / "results/language/figures"
-    REPORT_FIGURE_DIR = PROJECT_ROOT / "Report/figures"
+    # Paths (using centralized paths)
+    RESULTS_DIR = LANGUAGE_RESULTS
+    FIGURE_DIR = LANGUAGE_FIGURES
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
-    REPORT_FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
     print("Language Figure Generation")
     print("="*60)
     
     # === Figure 9: Correlation Analysis (from sweep) ===
-    generate_figure_9(RESULTS_DIR, FIGURE_DIR, REPORT_FIGURE_DIR)
+    generate_figure_9(RESULTS_DIR, FIGURE_DIR)
     
     # === Figure 8: Sentiment Negation Circuit ===
-    generate_figure_8(RESULTS_DIR, FIGURE_DIR, REPORT_FIGURE_DIR)
+    generate_figure_8(RESULTS_DIR, FIGURE_DIR)
     
     # === Figure 10: SAE Training Time Effect ===
-    generate_figure_10(RESULTS_DIR, FIGURE_DIR, REPORT_FIGURE_DIR)
+    generate_figure_10(RESULTS_DIR, FIGURE_DIR)
 
     # --- Load negation results (legacy) ---
     negation_file = RESULTS_DIR / "negation_fw_medium.json"
@@ -295,9 +296,7 @@ def main():
     print(f"\n{'='*60}")
     print("Figure Generation Complete!")
     print(f"{'='*60}")
-    print(f"Figures saved to:")
-    print(f"  - {FIGURE_DIR}")
-    print(f"  - {REPORT_FIGURE_DIR}")
+    print(f"Figures saved to: {FIGURE_DIR}")
 
 
 if __name__ == "__main__":

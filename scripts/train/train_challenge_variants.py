@@ -150,7 +150,7 @@ def main() -> int:
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--out-dir", type=str, default="results/challenge/checkpoints")
+    parser.add_argument("--out-dir", type=str, default="checkpoints/vision/challenge")
     args = parser.parse_args()
 
     if args.device:

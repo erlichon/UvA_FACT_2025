@@ -124,9 +124,9 @@ train_base() {
     fi
     
     for dataset in "${datasets[@]}"; do
-        local ckpt_dir="results/vision/checkpoints"
+        local ckpt_dir="checkpoints/vision/mnist"
         if [ "$dataset" == "fashion" ]; then
-            ckpt_dir="results/vision/checkpoints_fashion"
+            ckpt_dir="checkpoints/vision/fashion"
         fi
         mkdir -p "$ckpt_dir"
         
@@ -156,7 +156,7 @@ train_noise() {
     print_header
     activate_conda
     
-    local ckpt_dir="results/sweeps/noise_sweep/checkpoints"
+    local ckpt_dir="checkpoints/vision/noise_sweep"
     mkdir -p "$ckpt_dir"
     
     local noise_levels=(0.0 0.1 0.2 0.3 0.4 0.5)
@@ -189,7 +189,7 @@ train_size() {
     print_header
     activate_conda
     
-    local ckpt_dir="results/sweeps/model_size/checkpoints"
+    local ckpt_dir="checkpoints/vision/size_sweep"
     mkdir -p "$ckpt_dir"
     
     local sizes=(30 50 100 300 500 1000)
@@ -252,7 +252,7 @@ train_adversarial() {
     print_header
     activate_conda
     
-    local ckpt_dir="results/vision/checkpoints"
+    local ckpt_dir="checkpoints/vision/mnist"
     mkdir -p "$ckpt_dir"
     
     echo ">>> Adversarial Training (Figure 7)"

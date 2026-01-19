@@ -9,13 +9,14 @@ Design goals:
   disabled nav item marked "(missing)".
 
 Outputs:
-- results/interactive/paper_hub_bundle/paper_hub.html
-- results/interactive/paper_hub.html (stable redirect)
-- results/interactive/paper_hub_bundle.zip (shareable bundle)
+- Report/paper_hub_bundle/paper_hub.html
+- Report/paper_hub.html (stable redirect)
+- Report/paper_hub_bundle.zip (shareable bundle)
 """
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,18 @@ from typing import Dict, List, Optional
 
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.paths import (
+    VISION_FIGURES,
+    LANGUAGE_FIGURES,
+    EXTENSION2_FIGURES,
+    EXTENSION_CP_FIGURES,
+    PAPER_HUB_ROOT,
+    PAPER_HUB_BUNDLE,
+    PAPER_HUB_ZIP,
+    MNIST_CHECKPOINTS,
+)
 
 
 @dataclass(frozen=True)
@@ -41,32 +54,32 @@ def _ensure_dir(p: Path) -> None:
 
 
 def _get_paths() -> HubPaths:
-    interactive_dir = PROJECT_ROOT / "results/interactive"
-    bundle_dir = interactive_dir / "paper_hub_bundle"
+    bundle_dir = PAPER_HUB_BUNDLE
     figures_dir = bundle_dir / "figures"
     assets_dir = bundle_dir / "assets"
     return HubPaths(
-        interactive_dir=interactive_dir,
+        interactive_dir=PAPER_HUB_ROOT,
         bundle_dir=bundle_dir,
         figures_dir=figures_dir,
         assets_dir=assets_dir,
         bundle_html=bundle_dir / "paper_hub.html",
-        stable_html=interactive_dir / "paper_hub.html",
-        bundle_zip=interactive_dir / "paper_hub_bundle.zip",
+        stable_html=PAPER_HUB_ROOT / "paper_hub.html",
+        bundle_zip=PAPER_HUB_ZIP,
     )
 
 
 def _figure_search_roots() -> List[Path]:
     """
     Ordered search roots for generated PDFs.
-
+    
+    Searches in the consolidated Report/figures/ subdirectories.
     IMPORTANT: no arXiv figure fallbacks here.
     """
     return [
-        PROJECT_ROOT / "Report/figures",
-        PROJECT_ROOT / "results/language/figures",
-        PROJECT_ROOT / "results/vision/figures",
-        PROJECT_ROOT / "results/vision/figures",
+        VISION_FIGURES,
+        LANGUAGE_FIGURES,
+        EXTENSION2_FIGURES,
+        EXTENSION_CP_FIGURES,
     ]
 
 
@@ -212,7 +225,7 @@ def _generate_eigenspectrum_htmls(assets_dir: Path) -> bool:
     """Generate interactive eigenspectrum HTML files if checkpoint available."""
     import torch
     
-    checkpoint_path = PROJECT_ROOT / "results/vision/checkpoints/mnist_dense_full_seed42.pt"
+    checkpoint_path = MNIST_CHECKPOINTS / "mnist_dense_full_seed42.pt"
     if not checkpoint_path.exists():
         print(f"Checkpoint not found: {checkpoint_path}")
         return False

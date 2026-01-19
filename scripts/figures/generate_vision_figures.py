@@ -30,6 +30,15 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
+from src.paths import (
+    MNIST_CHECKPOINTS,
+    FASHION_CHECKPOINTS,
+    NOISE_SWEEP_CHECKPOINTS,
+    SIZE_SWEEP_CHECKPOINTS,
+    CHALLENGE_CHECKPOINTS,
+    VISION_FIGURES,
+    EXTENSION2_CHECKPOINTS,
+)
 from src.vision.spectral import (
     load_checkpoint_eigenvalues,
     load_all_checkpoints,
@@ -67,18 +76,16 @@ class Dirs:
     size_sweep_ckpts: Path
     challenge_ckpts: Path
     figure_out: Path
-    report_figures: Path
 
 
 def get_dirs() -> Dirs:
     return Dirs(
-        vision_mnist_ckpts=PROJECT_ROOT / "results/vision/checkpoints",
-        vision_fashion_ckpts=PROJECT_ROOT / "results/vision/checkpoints_fashion",
-        noise_sweep_ckpts=PROJECT_ROOT / "results/sweeps/noise_sweep/checkpoints",
-        size_sweep_ckpts=PROJECT_ROOT / "results/sweeps/model_size/checkpoints",
-        challenge_ckpts=PROJECT_ROOT / "results/challenge/checkpoints",
-        figure_out=PROJECT_ROOT / "results/vision/figures",
-        report_figures=PROJECT_ROOT / "Report/figures",
+        vision_mnist_ckpts=MNIST_CHECKPOINTS,
+        vision_fashion_ckpts=FASHION_CHECKPOINTS,
+        noise_sweep_ckpts=NOISE_SWEEP_CHECKPOINTS,
+        size_sweep_ckpts=SIZE_SWEEP_CHECKPOINTS,
+        challenge_ckpts=CHALLENGE_CHECKPOINTS,
+        figure_out=VISION_FIGURES,
     )
 
 
@@ -86,11 +93,11 @@ def _ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
 
 
-def _save_and_copy(fig: plt.Figure, out_path: Path, report_path: Path, dpi: int = 300) -> None:
+def _save_figure(fig: plt.Figure, out_path: Path, dpi: int = 300) -> None:
+    """Save figure to the specified path."""
     _ensure_dir(out_path.parent)
-    _ensure_dir(report_path.parent)
     fig.savefig(out_path, bbox_inches="tight", dpi=dpi)
-    fig.savefig(report_path, bbox_inches="tight", dpi=dpi)
+    print(f"Saved: {out_path}")
 
 
 def generate_regularization_section(d: Dirs) -> None:
@@ -115,11 +122,7 @@ def generate_regularization_section(d: Dirs) -> None:
         title="MNIST: Eigenspectrum by Regularization Type (shaded = 90% CI across classes)",
         top_k=100,
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenspectrum_comparison.pdf",
-        d.report_figures / "eigenspectrum_comparison.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenspectrum_comparison.pdf")
     plt.close(fig)
 
     fig = plot_eigenvalue_decay(
@@ -127,11 +130,7 @@ def generate_regularization_section(d: Dirs) -> None:
         top_k=30,
         title="MNIST: Normalized Eigenvalue Decay",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenvalue_decay.pdf",
-        d.report_figures / "eigenvalue_decay.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenvalue_decay.pdf")
     plt.close(fig)
 
     vals_full, _ = load_checkpoint_eigenvalues(str(d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"))
@@ -140,11 +139,7 @@ def generate_regularization_section(d: Dirs) -> None:
         title="MNIST (Full Reg): Eigenspectrum Across Digit Classes",
         combined=True,
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenspectrum_per_class.pdf",
-        d.report_figures / "eigenspectrum_per_class.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenspectrum_per_class.pdf")
     plt.close(fig)
 
     # Eigenvector grids
@@ -159,11 +154,7 @@ def generate_regularization_section(d: Dirs) -> None:
         title="MNIST (No Reg): Top Eigenvectors",
         show_both_signs=True,
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenvectors_noreg.pdf",
-        d.report_figures / "eigenvectors_noreg.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenvectors_noreg.pdf")
     plt.close(fig)
 
     fig = plot_eigenvectors_grid(
@@ -173,11 +164,7 @@ def generate_regularization_section(d: Dirs) -> None:
         title="MNIST (Full Regularization: σ=0.5, λ=1.0): Top Eigenvectors",
         show_both_signs=True,
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenvectors_reg.pdf",
-        d.report_figures / "eigenvectors_reg.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenvectors_reg.pdf")
     plt.close(fig)
 
     # Noise-only eigenvectors (requested)
@@ -188,11 +175,7 @@ def generate_regularization_section(d: Dirs) -> None:
         title="MNIST (Noise only: σ=0.5, λ=0.0): Top Eigenvectors",
         show_both_signs=True,
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_eigenvectors_noise.pdf",
-        d.report_figures / "eigenvectors_noise.pdf",
-    )
+    _save_figure(fig, d.figure_out / "eigenvectors_noise.pdf")
     plt.close(fig)
 
     # Fashion eigenvectors: add noise-only too
@@ -211,11 +194,7 @@ def generate_regularization_section(d: Dirs) -> None:
             class_names=fashion_classes,
             show_both_signs=True,
         )
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_regularization_fashion_eigenvectors_noise.pdf",
-            d.report_figures / "fashion_eigenvectors_noise.pdf",
-        )
+        _save_figure(fig, d.figure_out / "fashion_eigenvectors_noise.pdf")
         plt.close(fig)
     else:
         print(f"WARNING: {fashion_noise_ckpt} missing; skipping fashion noise-only eigenvectors.")
@@ -226,11 +205,7 @@ def generate_regularization_section(d: Dirs) -> None:
         metrics=["accuracy", "effective_rank"],
         title="MNIST: Ablation Study",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_mnist_ablation.pdf",
-        d.report_figures / "mnist_ablation.pdf",
-    )
+    _save_figure(fig, d.figure_out / "mnist_ablation.pdf")
     plt.close(fig)
 
     fig = plot_ablation_bars(
@@ -238,11 +213,7 @@ def generate_regularization_section(d: Dirs) -> None:
         metrics=["accuracy", "effective_rank"],
         title="Fashion-MNIST: Ablation Study",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_fashion_ablation.pdf",
-        d.report_figures / "fashion_ablation.pdf",
-    )
+    _save_figure(fig, d.figure_out / "fashion_ablation.pdf")
     plt.close(fig)
 
     # Trade-off
@@ -250,22 +221,14 @@ def generate_regularization_section(d: Dirs) -> None:
         mnist_df,
         title="MNIST: Accuracy vs Interpretability",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_tradeoff_mnist.pdf",
-        d.report_figures / "accuracy_vs_effrank_mnist.pdf",
-    )
+    _save_figure(fig, d.figure_out / "accuracy_vs_effrank_mnist.pdf")
     plt.close(fig)
 
     fig = plot_accuracy_vs_effective_rank(
         fashion_df,
         title="Fashion-MNIST: Accuracy vs Interpretability",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_tradeoff_fashion.pdf",
-        d.report_figures / "accuracy_vs_effrank_fashion.pdf",
-    )
+    _save_figure(fig, d.figure_out / "accuracy_vs_effrank_fashion.pdf")
     plt.close(fig)
 
     # Cross-dataset
@@ -275,11 +238,7 @@ def generate_regularization_section(d: Dirs) -> None:
         metric="effective_rank",
         title="Effective Rank: MNIST vs Fashion-MNIST",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_cross_dataset_effrank.pdf",
-        d.report_figures / "cross_dataset_effrank.pdf",
-    )
+    _save_figure(fig, d.figure_out / "cross_dataset_effrank.pdf")
     plt.close(fig)
 
     fig = plot_metric_comparison(
@@ -288,11 +247,7 @@ def generate_regularization_section(d: Dirs) -> None:
         metric="accuracy",
         title="Accuracy: MNIST vs Fashion-MNIST",
     )
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_regularization_cross_dataset_accuracy.pdf",
-        d.report_figures / "cross_dataset_accuracy.pdf",
-    )
+    _save_figure(fig, d.figure_out / "cross_dataset_accuracy.pdf")
     plt.close(fig)
 
     # Gate check printout
@@ -341,11 +296,7 @@ def generate_regularization_section(d: Dirs) -> None:
             ax.set_title(f"σ={nl}\nacc={accs[nl]*100:.1f}%", fontsize=9)
             ax.axis("off")
         # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_regularization_figure_4_noise_eigenvectors.pdf",
-            d.report_figures / "figure_4_noise_eigenvectors.pdf",
-        )
+        _save_figure(fig, d.figure_out / "figure_4_noise_eigenvectors.pdf")
         plt.close(fig)
 
         # (b) Effective rank vs noise
@@ -358,11 +309,7 @@ def generate_regularization_section(d: Dirs) -> None:
         ax.set_title("Effect of input noise on effective rank")
         ax.grid(True, alpha=0.3)
         # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_regularization_figure_4_noise_vs_rank.pdf",
-            d.report_figures / "figure_4_noise_vs_rank.pdf",
-        )
+        _save_figure(fig, d.figure_out / "figure_4_noise_vs_rank.pdf")
         plt.close(fig)
 
         # (c) Accuracy vs noise (useful but not strictly required)
@@ -373,11 +320,7 @@ def generate_regularization_section(d: Dirs) -> None:
         ax.set_title("Effect of input noise on accuracy")
         ax.grid(True, alpha=0.3)
         # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_regularization_figure_4_noise_vs_accuracy.pdf",
-            d.report_figures / "figure_4_noise_vs_accuracy.pdf",
-        )
+        _save_figure(fig, d.figure_out / "figure_4_noise_vs_accuracy.pdf")
         plt.close(fig)
     else:
         print("INFO: noise sweep checkpoints not found; skipping Figure 4 generation.")
@@ -436,11 +379,7 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
     ax.set_xlim(0, max_rank)
     ax.set_ylim(0.0, 1.05)  # IMPORTANT: do not truncate at 0.4
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_truncation_similarity_figure_5a_similarity.pdf",
-        d.report_figures / "figure_5a_similarity.pdf",
-    )
+    _save_figure(fig, d.figure_out / "figure_5a_similarity.pdf")
     plt.close(fig)
 
     # ---------- Figure 5B: truncation error (log scale) ----------
@@ -481,11 +420,7 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
     ax.legend(title="Model Size", fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3, which="both")
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_truncation_similarity_figure_5b_truncation.pdf",
-        d.report_figures / "figure_5b_truncation.pdf",
-    )
+    _save_figure(fig, d.figure_out / "figure_5b_truncation.pdf")
     plt.close(fig)
 
     # ---------- Appendix: accuracy drop under truncation ----------
@@ -510,11 +445,7 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
     ax.legend(title="Model Size", fontsize=8, loc="upper right", ncol=2)
     ax.grid(True, alpha=0.3)
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_mnist_acc_drop.pdf",
-        d.report_figures / "appendix_mnist_acc_drop.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_mnist_acc_drop.pdf")
     plt.close(fig)
 
     # ---------- Appendix: inter-model size similarity vs reference (300) ----------
@@ -560,11 +491,7 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
         color="0.35",
     )
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_mnist_inter_similarity.pdf",
-        d.report_figures / "appendix_mnist_inter_similarity.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_mnist_inter_similarity.pdf")
     plt.close(fig)
 
     # ---------- Appendix: inter-size similarity matrix (top eigenvector) ----------
@@ -591,11 +518,7 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("Cosine similarity")
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_mnist_inter_size_similarity.pdf",
-        d.report_figures / "appendix_mnist_inter_size_similarity.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_mnist_inter_size_similarity.pdf")
     plt.close(fig)
 
 
@@ -605,7 +528,6 @@ def _plot_challenge_from_checkpoint(
     device: str,
     title: str,
     out_path: Path,
-    report_path: Path,
 ) -> None:
     """
     Paper-style Figure 6 renderer for a single challenge checkpoint.
@@ -754,7 +676,7 @@ def _plot_challenge_from_checkpoint(
     ax_b.axis("off")
 
     fig.suptitle(title, fontsize=12, y=1.02)
-    _save_and_copy(fig, out_path, report_path)
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -787,16 +709,14 @@ def generate_challenge_section(d: Dirs, device: str = "cpu", seed: int = 42) -> 
                 ckpt_path=ckpt,
                 device=device,
                 title="Challenge task: eigendecomposition (True − False direction)",
-                out_path=d.figure_out / "vision_challenge_figure_6_challenge.pdf",
-                report_path=d.report_figures / "figure_6_challenge.pdf",
+                out_path=d.figure_out / "figure_6_challenge.pdf",
             )
         
         _plot_challenge_from_checkpoint(
             ckpt_path=ckpt,
             device=device,
             title=title,
-            out_path=d.figure_out / f"vision_challenge_figure_6_{tag}.pdf",
-            report_path=d.report_figures / f"figure_6_challenge_{tag}.pdf",
+            out_path=d.figure_out / f"figure_6_challenge_{tag}.pdf",
         )
     
     if not found_any:
@@ -810,7 +730,6 @@ def plot_challenge_decay_panels(
     *,
     variants: Dict[str, Dict],
     out_path: Path,
-    report_path: Path,
     n_vals: int = 20,
 ) -> None:
     """
@@ -847,7 +766,7 @@ def plot_challenge_decay_panels(
         ax.grid(True, alpha=0.3)
 
     fig.suptitle("Challenge task: eigenvalue decay by regularization", fontsize=12, y=1.02)
-    _save_and_copy(fig, out_path, report_path)
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -1114,11 +1033,7 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
         annotate_point(ax, "Mis", float(agg["adv_misclass_mean"][alpha_idx]), float(agg["adv_misclass_std"][alpha_idx]))
 
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "vision_adversarial_figure_7_adversarial.pdf",
-        d.report_figures / "figure_7_adversarial.pdf",
-    )
+    _save_figure(fig, d.figure_out / "figure_7_adversarial.pdf")
     plt.close(fig)
 
 
@@ -1175,11 +1090,7 @@ def generate_explanation_section(d: Dirs, device: str = "cpu") -> None:
         )
         fig.suptitle(f"Sample Explanation: Digit {digit}", fontsize=12, y=1.02)
         
-        _save_and_copy(
-            fig,
-            d.figure_out / f"vision_explanation_digit_{digit}.pdf",
-            d.report_figures / f"sample_explanation_digit_{digit}.pdf",
-        )
+        _save_figure(fig, d.figure_out / f"sample_explanation_digit_{digit}.pdf")
         plt.close(fig)
     
     print(f"Generated explanation figures for all 10 digits.")
@@ -1250,11 +1161,7 @@ def generate_appendix_adversarial_encoders(d: Dirs, device: str = "cpu") -> None
 
     fig.suptitle("Appendix: adversarial masks (more examples)", fontsize=12, y=1.02)
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_adversarial_encoders.pdf",
-        d.report_figures / "appendix_adversarial_encoders.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_adversarial_encoders.pdf")
     plt.close(fig)
 
 
@@ -1334,7 +1241,7 @@ def generate_appendix_eigenspectrum_digits(d: Dirs, digit_list: Sequence[int] = 
 
         # Avoid tight_layout warnings; saved with bbox_inches='tight'.
         out_name = f"appendix_mnist_eigenspectrum_digit{digit}.pdf"
-        _save_and_copy(fig, d.figure_out / out_name, d.report_figures / out_name)
+        _save_figure(fig, d.figure_out / out_name)
         plt.close(fig)
 
 
@@ -1420,11 +1327,7 @@ def generate_appendix_sparsity(d: Dirs) -> None:
     ax.grid(True, alpha=0.3, axis="y")
 
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_mnist_eigenvec_sparsity.pdf",
-        d.report_figures / "appendix_mnist_eigenvec_sparsity.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_mnist_eigenvec_sparsity.pdf")
     plt.close(fig)
 
     # Plot eigenvalue sparsity
@@ -1447,11 +1350,7 @@ def generate_appendix_sparsity(d: Dirs) -> None:
     ax.grid(True, alpha=0.3, axis="y")
 
     # Avoid tight_layout warnings; saved with bbox_inches='tight'.
-    _save_and_copy(
-        fig,
-        d.figure_out / "appendix_mnist_eigenval_sparsity.pdf",
-        d.report_figures / "appendix_mnist_eigenval_sparsity.pdf",
-    )
+    _save_figure(fig, d.figure_out / "appendix_mnist_eigenval_sparsity.pdf")
     plt.close(fig)
 
 
@@ -1512,11 +1411,7 @@ def generate_extension2_section(d: Dirs) -> None:
             emnist_vals=emnist_letters_data["eigenvalues"],
             pairs=DIGIT_LETTER_PAIRS,
         )
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_extension2_subspace_overlap.pdf",
-            d.report_figures / "extension2_subspace_overlap.pdf",
-        )
+        _save_figure(fig, d.figure_out / "extension2_subspace_overlap.pdf")
         plt.close(fig)
         print("Generated: extension2_subspace_overlap.pdf")
     
@@ -1588,11 +1483,7 @@ def generate_extension2_section(d: Dirs) -> None:
         
         plt.suptitle('Extension 2: Mechanism Stability Analysis', fontsize=14, y=1.02)
         plt.tight_layout()
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_extension2_mechanism_stability.pdf",
-            d.report_figures / "extension2_mechanism_stability.pdf",
-        )
+        _save_figure(fig, d.figure_out / "extension2_mechanism_stability.pdf")
         plt.close(fig)
         print("Generated: extension2_mechanism_stability.pdf")
     else:
@@ -1630,11 +1521,7 @@ def generate_extension2_section(d: Dirs) -> None:
             top_k=50,
             ci_level=0.90,
         )
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_extension2_eigenspectra.pdf",
-            d.report_figures / "extension2_eigenspectra.pdf",
-        )
+        _save_figure(fig, d.figure_out / "extension2_eigenspectra.pdf")
         plt.close(fig)
         print("Generated: extension2_eigenspectra.pdf")
     else:
@@ -1657,11 +1544,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 n_top=5,
             )
             filename = f"extension2_eigenvec_{label.replace('-', '_')}.pdf"
-            _save_and_copy(
-                fig,
-                d.figure_out / f"vision_{filename}",
-                d.report_figures / filename,
-            )
+            _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
     
@@ -1684,11 +1567,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 letter_label=letter_label,
             )
             filename = f"extension2_cosine_heatmap_{label.replace('-', '_')}.pdf"
-            _save_and_copy(
-                fig,
-                d.figure_out / f"vision_{filename}",
-                d.report_figures / filename,
-            )
+            _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
     
@@ -1708,11 +1587,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 letter_label=letter_label,
             )
             filename = f"extension2_eigenval_dist_{label.replace('-', '_')}.pdf"
-            _save_and_copy(
-                fig,
-                d.figure_out / f"vision_{filename}",
-                d.report_figures / filename,
-            )
+            _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
     
@@ -1729,11 +1604,7 @@ def generate_extension2_section(d: Dirs) -> None:
             pairs=DIGIT_LETTER_PAIRS,
             k=20,
         )
-        _save_and_copy(
-            fig,
-            d.figure_out / "vision_extension2_principal_angles.pdf",
-            d.report_figures / "extension2_principal_angles.pdf",
-        )
+        _save_figure(fig, d.figure_out / "extension2_principal_angles.pdf")
         plt.close(fig)
         print("Generated: extension2_principal_angles.pdf")
     
@@ -1754,11 +1625,7 @@ def generate_extension2_section(d: Dirs) -> None:
             method="pca",
         )
         if fig is not None:
-            _save_and_copy(
-                fig,
-                d.figure_out / "vision_extension2_eigenvec_pca.pdf",
-                d.report_figures / "extension2_eigenvec_pca.pdf",
-            )
+            _save_figure(fig, d.figure_out / "extension2_eigenvec_pca.pdf")
             plt.close(fig)
             print("Generated: extension2_eigenvec_pca.pdf")
         
@@ -1773,11 +1640,7 @@ def generate_extension2_section(d: Dirs) -> None:
             method="tsne",
         )
         if fig is not None:
-            _save_and_copy(
-                fig,
-                d.figure_out / "vision_extension2_eigenvec_tsne.pdf",
-                d.report_figures / "extension2_eigenvec_tsne.pdf",
-            )
+            _save_figure(fig, d.figure_out / "extension2_eigenvec_tsne.pdf")
             plt.close(fig)
             print("Generated: extension2_eigenvec_tsne.pdf")
     
@@ -1800,7 +1663,7 @@ def generate_paper_hub(d: Dirs) -> None:
     zip_path = out_dir / "paper_hub_bundle.zip"
 
     def fig_src_path(name: str) -> Optional[Path]:
-        p = d.report_figures / name
+        p = d.figure_out / name
         return p if p.exists() else None
 
     def fig_rel_path(name: str) -> str:
@@ -2089,8 +1952,7 @@ def main() -> int:
         if len(variants) >= 2:
             plot_challenge_decay_panels(
                 variants=variants,
-                out_path=d.figure_out / "vision_challenge_eigenvalue_decay_by_reg.pdf",
-                report_path=d.report_figures / "figure_6_challenge_eigenvalue_decay_by_reg.pdf",
+                out_path=d.figure_out / "figure_6_challenge_eigenvalue_decay_by_reg.pdf",
             )
     if "adversarial" in sections:
         generate_adversarial_section(d, device=device, target_class=args.target_class)

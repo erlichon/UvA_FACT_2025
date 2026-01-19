@@ -28,6 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from image.model import Model, Config
 
+from src.paths import MNIST_CHECKPOINTS, FASHION_CHECKPOINTS, EXTENSION_CP_CHECKPOINTS
 from src.models.cp_model import CPImageModel
 from src.utils import (
     get_device,
@@ -293,7 +294,13 @@ def main():
     if args.checkpoint_dir:
         checkpoint_dir = Path(args.checkpoint_dir)
     else:
-        checkpoint_dir = Path("results/extension_cp/checkpoints") if mode == 'cp' else Path("results/vision/checkpoints")
+        dataset_name = config.get('data', {}).get('dataset', 'mnist')
+        if mode == 'cp':
+            checkpoint_dir = EXTENSION_CP_CHECKPOINTS
+        elif dataset_name == 'fashion':
+            checkpoint_dir = FASHION_CHECKPOINTS
+        else:
+            checkpoint_dir = MNIST_CHECKPOINTS
     
     # Determine config name for checkpoint
     if mode == 'cp':

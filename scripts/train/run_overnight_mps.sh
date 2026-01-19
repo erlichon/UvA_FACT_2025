@@ -83,9 +83,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Create directories
-mkdir -p results/vision/checkpoints
-mkdir -p results/vision/checkpoints_fashion
-mkdir -p results/sweeps/noise_sweep/checkpoints
+mkdir -p checkpoints/vision/mnist
+mkdir -p checkpoints/vision/fashion
+mkdir -p checkpoints/vision/noise_sweep
 mkdir -p results/language
 mkdir -p logs
 
@@ -182,7 +182,7 @@ if ! $SKIP_VISION; then
             python src/train.py \
                 --config "configs/mnist_dense_${config}.yaml" \
                 --seed "$seed" \
-                --checkpoint-dir "results/vision/checkpoints" \
+                --checkpoint-dir "checkpoints/vision/mnist" \
                 $EPOCHS_OVERRIDE \
                 || echo "Warning: MNIST ${config} seed ${seed} failed, continuing..."
         done
@@ -199,7 +199,7 @@ if ! $SKIP_VISION; then
             python src/train.py \
                 --config "configs/fashion_dense_${config}.yaml" \
                 --seed "$seed" \
-                --checkpoint-dir "results/vision/checkpoints_fashion" \
+                --checkpoint-dir "checkpoints/vision/fashion" \
                 $EPOCHS_OVERRIDE \
                 || echo "Warning: Fashion-MNIST ${config} seed ${seed} failed, continuing..."
         done
@@ -215,7 +215,7 @@ if ! $SKIP_VISION; then
     python src/train.py \
         --config "configs/mnist_dense_full_20ep.yaml" \
         --seed 42 \
-        --checkpoint-dir "results/vision/checkpoints" \
+        --checkpoint-dir "checkpoints/vision/mnist" \
         $EPOCHS_OVERRIDE \
         || echo "Warning: 20-epoch paper comparison failed, continuing..."
 
@@ -250,7 +250,7 @@ if ! $SKIP_SWEEP; then
 
     SWEEP_START_TIME=$(date +%s)
     SWEEP_SEED=42
-    SWEEP_CHECKPOINT_DIR="results/sweeps/noise_sweep/checkpoints"
+    SWEEP_CHECKPOINT_DIR="checkpoints/vision/noise_sweep"
 
     for NOISE in "${NOISE_LEVELS[@]}"; do
         log_progress "Sweep/Noise" "noise_std=$NOISE" "seed=$SWEEP_SEED"
@@ -416,14 +416,14 @@ fi
 echo ""
 
 # Count checkpoints
-MNIST_COUNT=$(ls -1 results/vision/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
-FASHION_COUNT=$(ls -1 results/vision/checkpoints_fashion/*.pt 2>/dev/null | wc -l | tr -d ' ')
-SWEEP_COUNT=$(ls -1 results/sweeps/noise_sweep/checkpoints/*.pt 2>/dev/null | wc -l | tr -d ' ')
+MNIST_COUNT=$(ls -1 checkpoints/vision/mnist/*.pt 2>/dev/null | wc -l | tr -d ' ')
+FASHION_COUNT=$(ls -1 checkpoints/vision/fashion/*.pt 2>/dev/null | wc -l | tr -d ' ')
+SWEEP_COUNT=$(ls -1 checkpoints/vision/noise_sweep/*.pt 2>/dev/null | wc -l | tr -d ' ')
 
 echo "Results saved to:"
-echo "  - results/vision/checkpoints/ (MNIST: $MNIST_COUNT/21, includes 20-epoch)"
-echo "  - results/vision/checkpoints_fashion/ (Fashion-MNIST: $FASHION_COUNT/20)"
-echo "  - results/sweeps/noise_sweep/checkpoints/ (Noise Sweep: $SWEEP_COUNT/6)"
+echo "  - checkpoints/vision/mnist/ (MNIST: $MNIST_COUNT/21, includes 20-epoch)"
+echo "  - checkpoints/vision/fashion/ (Fashion-MNIST: $FASHION_COUNT/20)"
+echo "  - checkpoints/vision/noise_sweep/ (Noise Sweep: $SWEEP_COUNT/6)"
 echo "  - results/language/negation_fw_medium.json (Section 5.1)"
 echo "  - results/language/correlation_ts-medium.json (Section 5.2 - Figure 9)"
 echo "  - results/language/correlation_fw-small.json (Section 5.2 - Figure 9)"
@@ -434,7 +434,7 @@ echo ""
 echo "Vision Results Summary (sample):"
 echo "---------------------------------"
 for config in none full; do
-    checkpoint="results/vision/checkpoints/mnist_dense_${config}_seed42.pt"
+    checkpoint="checkpoints/vision/mnist/mnist_dense_${config}_seed42.pt"
     if [ -f "$checkpoint" ]; then
         python -c "
 import torch
@@ -448,7 +448,7 @@ done
 echo ""
 echo "20-Epoch Paper Comparison:"
 echo "--------------------------"
-checkpoint="results/vision/checkpoints/mnist_dense_full_20ep_seed42.pt"
+checkpoint="checkpoints/vision/mnist/mnist_dense_full_20ep_seed42.pt"
 if [ -f "$checkpoint" ]; then
     python -c "
 import torch
@@ -465,7 +465,7 @@ echo ""
 echo "Noise Sweep Summary:"
 echo "--------------------"
 for noise in 0.0 0.5; do
-    checkpoint="results/sweeps/noise_sweep/checkpoints/mnist_noise_${noise}_seed42.pt"
+    checkpoint="checkpoints/vision/noise_sweep/mnist_noise_${noise}_seed42.pt"
     if [ -f "$checkpoint" ]; then
         python -c "
 import torch

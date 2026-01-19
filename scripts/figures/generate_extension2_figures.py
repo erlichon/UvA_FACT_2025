@@ -52,6 +52,11 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
+from src.paths import (
+    MNIST_CHECKPOINTS,
+    EXTENSION2_CHECKPOINTS,
+    EXTENSION2_FIGURES,
+)
 from src.vision.spectral import load_checkpoint_eigenvalues
 from src.vision.subspace import (
     compute_subspace_overlap,
@@ -79,28 +84,24 @@ class Dirs:
     emnist_digits_ckpt: Path
     emnist_letters_ckpt: Path
     figure_out: Path
-    report_figures: Path
 
 
 def get_dirs() -> Dirs:
     """Get directory paths, with fallbacks for different checkpoint names.
     
     For Extension 2, ALL models should be trained with CoM normalization.
-    MNIST CoM checkpoints are in results/extension2/checkpoints/ (trained via run_extension2.sh).
+    MNIST CoM checkpoints are in checkpoints/extension2/ (trained via run_extension2.sh).
     """
-    ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
-    phase1_ckpt_dir = PROJECT_ROOT / "results/phase1/checkpoints"
-    
-    # MNIST: Prefer extension2 CoM checkpoint, fall back to phase1 (non-CoM, but warn)
+    # MNIST: Prefer extension2 CoM checkpoint, fall back to vision/mnist (non-CoM, but warn)
     mnist_candidates = [
-        ext2_ckpt_dir / "mnist_dense_full_com_seed42.pt",  # Extension 2 CoM (preferred)
-        phase1_ckpt_dir / "mnist_dense_full_seed42.pt",     # Phase 1 non-CoM (fallback)
+        EXTENSION2_CHECKPOINTS / "mnist_dense_full_com_seed42.pt",  # Extension 2 CoM (preferred)
+        MNIST_CHECKPOINTS / "mnist_dense_full_seed42.pt",  # Vision (fallback)
     ]
     emnist_digits_candidates = [
-        ext2_ckpt_dir / "emnist_digits_regularized_seed42.pt",
+        EXTENSION2_CHECKPOINTS / "emnist_digits_regularized_seed42.pt",
     ]
     emnist_letters_candidates = [
-        ext2_ckpt_dir / "emnist_letters_regularized_seed42.pt",
+        EXTENSION2_CHECKPOINTS / "emnist_letters_regularized_seed42.pt",
     ]
     
     mnist_ckpt = next((p for p in mnist_candidates if p.exists()), mnist_candidates[0])
@@ -108,8 +109,8 @@ def get_dirs() -> Dirs:
     emnist_letters_ckpt = next((p for p in emnist_letters_candidates if p.exists()), emnist_letters_candidates[0])
     
     # Warn if using non-CoM MNIST checkpoint
-    if "phase1" in str(mnist_ckpt) or "dense_full_seed" in str(mnist_ckpt):
-        print("⚠️  WARNING: Using Phase 1 MNIST checkpoint (no CoM).")
+    if "vision" in str(mnist_ckpt) or "dense_full_seed" in str(mnist_ckpt):
+        print("WARNING: Using vision MNIST checkpoint (no CoM).")
         print("   For fair Extension 2 comparison, train MNIST with CoM:")
         print("   ./scripts/train/run_extension2.sh train mnist")
     
@@ -117,8 +118,7 @@ def get_dirs() -> Dirs:
         mnist_ckpt=mnist_ckpt,
         emnist_digits_ckpt=emnist_digits_ckpt,
         emnist_letters_ckpt=emnist_letters_ckpt,
-        figure_out=PROJECT_ROOT / "results/extension2/figures",
-        report_figures=PROJECT_ROOT / "Report/figures",
+        figure_out=EXTENSION2_FIGURES,
     )
 
 
@@ -126,12 +126,11 @@ def _ensure_dir(p: Path) -> None:
     p.mkdir(parents=True, exist_ok=True)
 
 
-def _save_and_copy(fig: plt.Figure, out_path: Path, report_path: Path, dpi: int = 300) -> None:
+def _save_figure(fig: plt.Figure, out_path: Path, dpi: int = 300) -> None:
+    """Save figure to the specified path."""
     _ensure_dir(out_path.parent)
-    _ensure_dir(report_path.parent)
     fig.savefig(out_path, bbox_inches="tight", dpi=dpi)
-    fig.savefig(report_path, bbox_inches="tight", dpi=dpi)
-    print(f"  Saved: {out_path.name}")
+    print(f"  Saved: {out_path}")
 
 
 def load_checkpoints(d: Dirs) -> Tuple[
@@ -186,9 +185,8 @@ def generate_eigenvector_comparisons(
         )
         
         digit, letter = label.split("-")
-        out_path = d.figure_out / f"eigenvec_comparison_{digit}_{letter}.pdf"
-        report_path = d.report_figures / f"extension2_eigenvec_{digit}_{letter}.pdf"
-        _save_and_copy(fig, out_path, report_path)
+        out_path = d.figure_out / f"extension2_eigenvec_{digit}_{letter}.pdf"
+        _save_figure(fig, out_path)
         plt.close(fig)
 
 
@@ -210,9 +208,8 @@ def generate_eigenvalue_distributions(
             letter_label=letter,
         )
         
-        out_path = d.figure_out / f"eigenval_dist_{digit}_{letter}.pdf"
-        report_path = d.report_figures / f"extension2_eigenval_{digit}_{letter}.pdf"
-        _save_and_copy(fig, out_path, report_path)
+        out_path = d.figure_out / f"extension2_eigenval_{digit}_{letter}.pdf"
+        _save_figure(fig, out_path)
         plt.close(fig)
 
 
@@ -287,9 +284,8 @@ def generate_similarity_vs_k(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "similarity_vs_k.pdf"
-    report_path = d.report_figures / "extension2_similarity_vs_k.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_similarity_vs_k.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -347,9 +343,8 @@ def generate_similarity_heatmap(
     plt.colorbar(im, ax=ax, label='Similarity')
     plt.tight_layout()
     
-    out_path = d.figure_out / "similarity_heatmap.pdf"
-    report_path = d.report_figures / "extension2_similarity_heatmap.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_similarity_heatmap.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
     
     # Print statistics
@@ -402,9 +397,8 @@ def generate_3way_comparison(
         class_names=["MNIST Digit '0'", "EMNIST Digit '0'", "EMNIST Letter 'O'"],
     )
     
-    out_path = d.figure_out / "3way_comparison.pdf"
-    report_path = d.report_figures / "extension2_3way_comparison.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_3way_comparison.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -441,8 +435,8 @@ def generate_eigenvector_comparison_table(
     
     # Load checkpoints for all 5 seeds
     seeds = [42, 43, 44, 45, 46]
-    ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
-    phase1_ckpt_dir = PROJECT_ROOT / "results/phase1/checkpoints"
+    ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
+    vision_ckpt_dir = MNIST_CHECKPOINTS
     
     # Helper function to get balanced eigenvectors and eigenvalues
     def get_balanced_eigenvectors_and_vals(vals, vecs, class_idx, k):
@@ -496,7 +490,7 @@ def generate_eigenvector_comparison_table(
         mnist_candidates = [
             ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
             ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
-            phase1_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+            vision_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
         ]
         digits_candidates = [
             ext2_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt",
@@ -776,9 +770,8 @@ def generate_selection_method_comparison(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "selection_method_comparison.pdf"
-    report_path = d.report_figures / "extension2_selection_comparison.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_selection_comparison.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -799,9 +792,8 @@ def generate_principal_angles(
         k=20,
     )
     
-    out_path = d.figure_out / "principal_angles.pdf"
-    report_path = d.report_figures / "extension2_principal_angles.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_principal_angles.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -899,7 +891,7 @@ def generate_similarity_vs_k_weighted(
         if method == 'quadratic_form':
             # Load checkpoints for all 5 seeds
             seeds = [42, 43, 44, 45, 46]
-            ext2_ckpt_dir = PROJECT_ROOT / "results/extension2/checkpoints"
+            ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
             
             similar_overlaps_by_seed = {label: [] for _, _, label in DIGIT_LETTER_PAIRS}
             control_overlaps_by_seed = []
@@ -1048,9 +1040,8 @@ def generate_similarity_vs_k_weighted(
         
         plt.tight_layout()
         
-        out_path = d.figure_out / f"similarity_vs_k_{method}.pdf"
-        report_path = d.report_figures / f"extension2_similarity_vs_k_{method}.pdf"
-        _save_and_copy(fig, out_path, report_path)
+        out_path = d.figure_out / f"extension2_similarity_vs_k_{method}.pdf"
+        _save_figure(fig, out_path)
         plt.close(fig)
 
 
@@ -1131,9 +1122,8 @@ def generate_similarity_heatmap_weighted(
         plt.colorbar(im, ax=ax, label='Similarity')
         plt.tight_layout()
         
-        out_path = d.figure_out / f"heatmap_{method}.pdf"
-        report_path = d.report_figures / f"extension2_heatmap_{method}.pdf"
-        _save_and_copy(fig, out_path, report_path)
+        out_path = d.figure_out / f"extension2_heatmap_{method}.pdf"
+        _save_figure(fig, out_path)
         plt.close(fig)
         
         # Print statistics
@@ -1215,9 +1205,8 @@ def generate_quadratic_form_heatmap_digits(
     plt.tight_layout()
     
     # Save
-    out_path = d.figure_out / "quadratic_form_heatmap_digits.pdf"
-    report_path = d.report_figures / "extension2_quadratic_form_heatmap_digits.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_quadratic_form_heatmap_digits.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
     
     # Print statistics
@@ -1320,9 +1309,8 @@ def generate_metric_comparison(
     plt.suptitle('Comparison of Similarity Metrics', fontsize=14, y=1.02)
     plt.tight_layout()
     
-    out_path = d.figure_out / "metric_comparison_4way.pdf"
-    report_path = d.report_figures / "extension2_metric_comparison_4way.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_metric_comparison_4way.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
 
 
@@ -1399,9 +1387,8 @@ def generate_ranking_analysis(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "ranking_analysis.pdf"
-    report_path = d.report_figures / "extension2_ranking_analysis.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_ranking_analysis.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
     
     # Print summary
@@ -1530,9 +1517,8 @@ def generate_statistical_comparison(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "statistical_comparison_all_metrics.pdf"
-    report_path = d.report_figures / "extension2_statistical_comparison_all_metrics.pdf"
-    _save_and_copy(fig, out_path, report_path)
+    out_path = d.figure_out / "extension2_statistical_comparison_all_metrics.pdf"
+    _save_figure(fig, out_path)
     plt.close(fig)
     
     # Print results
@@ -1583,7 +1569,6 @@ def main():
     
     d = get_dirs()
     print(f"Output directory: {d.figure_out}")
-    print(f"Report directory: {d.report_figures}")
     
     # Load checkpoints
     mnist_vals, mnist_vecs, digits_vals, digits_vecs, letters_vals, letters_vecs = load_checkpoints(d)

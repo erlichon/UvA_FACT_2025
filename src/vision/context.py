@@ -21,6 +21,18 @@ from torch import Tensor
 import matplotlib.pyplot as plt
 
 from src.vision.spectral import load_checkpoint_eigenvalues, load_checkpoint
+from src.paths import (
+    MNIST_CHECKPOINTS,
+    FASHION_CHECKPOINTS,
+    NOISE_SWEEP_CHECKPOINTS,
+    SIZE_SWEEP_CHECKPOINTS,
+    CHALLENGE_CHECKPOINTS,
+    EXTENSION_CP_CHECKPOINTS,
+    EXTENSION2_CHECKPOINTS,
+    VISION_FIGURES,
+    EXTENSION_CP_FIGURES,
+    PROJECT_ROOT,
+)
 
 
 @dataclass
@@ -44,7 +56,7 @@ class VisionContext:
         >>> ctx.save_figure(fig, "my_figure")
     """
     
-    project_root: Path = field(default_factory=lambda: Path(__file__).parent.parent.parent)
+    project_root: Path = field(default_factory=lambda: PROJECT_ROOT)
     
     # Cache for loaded checkpoints
     _checkpoint_cache: Dict[str, dict] = field(default_factory=dict, repr=False)
@@ -58,37 +70,37 @@ class VisionContext:
     @property
     def mnist_checkpoints(self) -> Path:
         """MNIST checkpoint directory."""
-        return self.project_root / "results/vision/checkpoints"
+        return MNIST_CHECKPOINTS
     
     @property
     def fashion_checkpoints(self) -> Path:
         """Fashion-MNIST checkpoint directory."""
-        return self.project_root / "results/vision/checkpoints_fashion"
+        return FASHION_CHECKPOINTS
     
     @property
     def noise_sweep_checkpoints(self) -> Path:
         """Noise sweep checkpoint directory (Figure 4)."""
-        return self.project_root / "results/sweeps/noise_sweep/checkpoints"
+        return NOISE_SWEEP_CHECKPOINTS
     
     @property
     def size_sweep_checkpoints(self) -> Path:
         """Model size sweep checkpoint directory (Figure 5)."""
-        return self.project_root / "results/sweeps/model_size/checkpoints"
+        return SIZE_SWEEP_CHECKPOINTS
     
     @property
     def challenge_checkpoints(self) -> Path:
         """Challenge task checkpoint directory (Figure 6)."""
-        return self.project_root / "results/challenge/checkpoints"
+        return CHALLENGE_CHECKPOINTS
     
     @property
     def cp_checkpoints(self) -> Path:
         """CP decomposition checkpoint directory (Extension CP)."""
-        return self.project_root / "results/extension_cp/checkpoints"
+        return EXTENSION_CP_CHECKPOINTS
     
     @property
     def cp_figures(self) -> Path:
         """CP decomposition figures directory (Extension CP)."""
-        return self.project_root / "results/extension_cp/figures"
+        return EXTENSION_CP_FIGURES
     
     # Standard CP configurations
     CP_RANKS: List[int] = field(default_factory=lambda: [8, 16, 32, 64, 128, 256, 784])
@@ -97,17 +109,17 @@ class VisionContext:
     @property
     def figure_dir(self) -> Path:
         """Vision figures output directory."""
-        return self.project_root / "results/vision/figures"
+        return VISION_FIGURES
     
     @property
     def report_dir(self) -> Path:
-        """Report figures directory (for LaTeX)."""
-        return self.project_root / "Report/figures"
+        """Report figures directory (for LaTeX) - same as figure_dir now."""
+        return VISION_FIGURES
     
     @property
     def vision_figures(self) -> Path:
         """Vision figures directory."""
-        return self.project_root / "results/vision/figures"
+        return VISION_FIGURES
     
     # --- Checkpoint Loading ---
     
@@ -367,7 +379,7 @@ class VisionContext:
         close: bool = True,
     ) -> None:
         """
-        Save figure to both results and report directories.
+        Save figure to the vision figures directory (Report/figures/vision/).
         
         Args:
             fig: matplotlib Figure
@@ -376,23 +388,19 @@ class VisionContext:
             dpi: DPI for saved figure
             close: If True, close figure after saving
         """
-        # Determine output paths
+        # Determine output path
         if subfolder:
             out_path = self.figure_dir / subfolder / f"{name}.pdf"
         else:
             out_path = self.figure_dir / f"{name}.pdf"
         
-        report_path = self.report_dir / f"{name}.pdf"
-        
-        # Ensure directories exist
+        # Ensure directory exists
         self._ensure_dir(out_path.parent)
-        self._ensure_dir(report_path.parent)
         
-        # Save to both locations
+        # Save figure
         fig.savefig(out_path, bbox_inches="tight", dpi=dpi)
-        fig.savefig(report_path, bbox_inches="tight", dpi=dpi)
         
-        print(f"Saved: {out_path.name}")
+        print(f"Saved: {out_path}")
         
         if close:
             plt.close(fig)
@@ -428,7 +436,7 @@ class VisionContext:
         close: bool = True,
     ) -> None:
         """
-        Save CP figure to extension_cp figures directory and report directory.
+        Save CP figure to extension_cp figures directory (Report/figures/extension_cp/).
         
         Args:
             fig: matplotlib Figure
@@ -441,12 +449,7 @@ class VisionContext:
         self._ensure_dir(cp_path.parent)
         fig.savefig(cp_path, bbox_inches="tight", dpi=dpi)
         
-        # Save to report directory
-        report_path = self.report_dir / f"{name}.pdf"
-        self._ensure_dir(report_path.parent)
-        fig.savefig(report_path, bbox_inches="tight", dpi=dpi)
-        
-        print(f"Saved: {cp_path.name}")
+        print(f"Saved: {cp_path}")
         
         if close:
             plt.close(fig)
