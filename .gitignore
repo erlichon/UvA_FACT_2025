@@ -31,3 +31,8 @@ __pycache__/
 wandb/
 logs/
 results/Thumbs.db
+
+# Checkpoints (too large for git)
+checkpoints/
+*.pt
+results/sweeps/*/checkpoints/

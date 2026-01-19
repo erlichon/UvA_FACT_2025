@@ -1,2 +1,0 @@
-n_features,mean_correlation,std_correlation,median_correlation,fraction_above_075,mean_effective_rank,paper_claim_supported
-500,0.13939877343177795,0.024083387219207563,0.13367629051208496,0.0,629.8084307861328,False

@@ -100,59 +100,44 @@ source activate fact
 \`\`\`
 UvA_FACT_2025/
 ├── bilinear-decomposition-main/  # Original code (DO NOT MODIFY)
+├── checkpoints/                  # All model checkpoints (consolidated)
+│   ├── vision/
+│   │   ├── mnist/               # MNIST base checkpoints
+│   │   ├── fashion/             # Fashion-MNIST checkpoints
+│   │   ├── noise_sweep/         # Figure 4 noise sweep
+│   │   ├── size_sweep/          # Figure 5 size sweep
+│   │   └── challenge/           # Figure 6 challenge task
+│   ├── extension2/              # Extension 2 (EMNIST) checkpoints
+│   └── extension_cp/            # CP decomposition checkpoints
 ├── src/
-│   ├── data/                     # Data loading & preprocessing
-│   │   ├── transforms.py         # CenterOfMassTransform (apply BEFORE normalization)
-│   │   ├── mnist.py              # MNIST/FashionMNIST with CoM support
-│   │   ├── emnist.py             # EMNISTLetters/EMNISTDigits + semantic mapping
-│   │   └── usps.py               # USPS (16x16→28x28 upscaling BEFORE CoM)
-│   ├── training/                 # Training utilities
-│   │   └── core.py               # log_training_history, log_spectral_metrics, save_checkpoint
-│   ├── vision/                   # Section 4 vision analysis
-│   │   ├── context.py            # VisionContext - unified experiment setup
-│   │   ├── spectral.py           # effective_rank, top_k_coverage, data loading
-│   │   ├── subspace.py           # Subspace overlap metrics (cosine, Grassmann, projection)
-│   │   ├── truncation.py         # Figure 5 analysis
-│   │   └── adversarial.py        # Figure 7 analysis
-│   ├── language/                 # Section 5 language experiments
-│   │   ├── context.py            # LanguageContext - unified experiment setup
-│   │   └── ...                   # Other language modules
-│   ├── models/bilinear_layer.py  # BilinearDense (wrapper) + BilinearCP (extension)
-│   ├── plot_utils/               # Reusable plotting functions
-│   │   ├── style.py              # Publication style, colors
-│   │   ├── eigenspectrum.py      # Eigenvalue plots
-│   │   ├── eigenvectors.py       # Eigenvector visualizations (with λ labels)
-│   │   ├── ablation.py           # Ablation study plots
-│   │   ├── extension2.py         # Extension 2 robustness plots
-│   │   └── language.py           # Figure 9 & 10 plots
-│   ├── train.py                  # Vision training (unified for all datasets)
-│   └── utils.py                  # Shared utilities (set_seed, seed_worker)
-├── configs/                      # YAML experiment configs
-├── jobs/                         # SLURM scripts
+│   ├── paths.py                 # Centralized path constants
+│   ├── data/                    # Data loading & preprocessing
+│   ├── training/                # Training utilities
+│   ├── vision/                  # Section 4 vision analysis
+│   ├── language/                # Section 5 language experiments
+│   ├── models/                  # Model implementations
+│   ├── plot_utils/              # Reusable plotting functions
+│   ├── train.py                 # Vision training
+│   └── utils.py                 # Shared utilities
+├── configs/                     # YAML experiment configs
+├── jobs/                        # SLURM scripts
 ├── scripts/
-│   ├── train/                    # Training & experiment runners
-│   │   ├── run_vision.sh         # Unified vision experiments
-│   │   ├── run_language.sh       # Unified language experiments
-│   │   ├── run_extension2.sh     # Extension 2 (train/eval/aggregate)
-│   │   └── run_overnight_mps.sh  # Full overnight pipeline
-│   ├── extension2/               # Extension 2 analysis scripts
-│   │   ├── aggregate_results.py  # load_subspace_results, aggregate_subspace_metrics
-│   │   └── check_similarity.py   # Subspace similarity analysis
-│   └── figures/                  # Figure generation
-│       ├── generate_vision_figures.py   # All vision figures (1-7)
-│       ├── generate_language_figures.py # Figure 9 & 10
-│       └── paper_hub.py          # Interactive figure viewer
-├── tools/                        # Operational utilities
-│   ├── sync_to_snellius.sh       # Upload code to cluster
-│   ├── sync_from_snellius.sh     # Download results
-│   └── monitor_memory.sh         # Memory monitoring
+│   ├── train/                   # Training & experiment runners
+│   ├── extension2/              # Extension 2 analysis scripts
+│   └── figures/                 # Figure generation
+├── tools/                       # Operational utilities
 ├── results/
-│   ├── vision/checkpoints/       # MNIST checkpoints
-│   ├── vision/checkpoints_fashion/
-│   └── language/                 # Language results (JSON + figures)
-├── notebooks/01_reproduction.ipynb
-├── Report/figures/               # Figures for LaTeX
-└── tests/                        # Unit tests
+│   └── language/                # Language results (JSON data only)
+├── Report/
+│   ├── figures/                 # All figures (consolidated)
+│   │   ├── vision/              # Section 4 figures
+│   │   ├── language/            # Section 5 figures
+│   │   ├── extension2/          # Extension 2 figures
+│   │   └── extension_cp/        # CP extension figures
+│   ├── paper_hub_bundle/        # Interactive paper hub
+│   └── paper_hub_bundle.zip     # Shareable bundle
+├── notebooks/
+└── tests/
 \`\`\`
 
 ---
@@ -379,7 +364,7 @@ checkpoint = {
     'eigenvalues': Tensor,     # [10, 256] (n_classes, d_hidden)
     'eigenvectors': Tensor,    # [10, 256, 784] (n_classes, d_hidden, d_input)
 }
-# Path: results/vision/checkpoints/{config_name}_seed{seed}.pt
+# Path: checkpoints/vision/mnist/{config_name}_seed{seed}.pt
 \`\`\`
 
 ### Loading Checkpoints

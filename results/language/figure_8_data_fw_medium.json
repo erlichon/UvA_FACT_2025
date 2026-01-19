@@ -39325,5 +39325,22 @@
     ],
     "correlation": 0.928453803062439,
     "n_samples": 19483
+  },
+  "feature_types": {
+    "508": "structural",
+    "582": "structural",
+    "723": "structural",
+    "751": "other",
+    "1202": "other",
+    "2034": "contrast",
+    "3620": "other",
+    "3834": "other",
+    "4064": "structural",
+    "4556": "other",
+    "4727": "other",
+    "4898": "other",
+    "5175": "other",
+    "7198": "negation",
+    "7369": "other"
   }
 }
