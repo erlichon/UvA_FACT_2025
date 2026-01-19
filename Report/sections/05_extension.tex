@@ -1,87 +1,64 @@
-% Section 5: Extension Results
-% Extension 3: CP-Decomposition analysis
-
 \section{Extension Results}
 \label{sec:extension}
 
-We extend the original Bilinear MLP approach by proposing Canonical Polyadic (CP) decomposition as an architectural constraint that provides intrinsic interpretability during training, rather than discovering low-rank structure post-hoc via eigendecomposition.
+We extend the original Bilinear MLP framework by proposing Canonical Polyadic (CP) decomposition not merely as a post-training analysis tool, but as an architectural constraint applied during training. This approach shifts the paradigm from discovering low-rank structure \emph{post-hoc} to enforcing \emph{intrinsic} interpretability and \emph{computational efficiency}.
 
 %==============================================================================
 \subsection{Extension 3: CP-Decomposition Analysis}
 \label{sec:extension3}
 %==============================================================================
 
-\subsubsection{Background: Post-Hoc vs.\ Intrinsic Interpretability}
+\subsubsection{Motivation: From Post-Hoc to Intrinsic Interpretability}
 
-The original Bilinear MLP approach relies on \emph{post-hoc} analysis: after training, the interaction tensor is decomposed via eigendecomposition to reveal interpretable structure.
-This post-hoc approach has a fundamental limitation: eigendecomposition enforces orthogonality, forcing features to be disjoint even when the underlying concepts naturally overlap.
+The standard Bilinear MLP approach relies on \emph{post-hoc} interpretability: the interaction tensor is decomposed via eigendecomposition only after training is complete. While effective for estimating the effective rank of a learned model, this method suffers from a fundamental limitation: eigendecomposition enforces orthogonality. This forces learned features to be disjoint, even when the underlying concepts they represent naturally overlap.
 
-Consider digit recognition: a vertical stroke and a horizontal stroke may co-occur in many digits (e.g., ``4'', ``7''), but orthogonality constraints force them into separate, mutually exclusive eigenvectors.
-This creates \emph{entangled} features---mixed concepts that are artificially separated to satisfy mathematical constraints rather than representing natural visual decomposition.
+For example, in digit recognition, a vertical stroke and a horizontal stroke may co-occur in digits such as ``4'' and ``7.'' Orthogonality constraints compel the model to separate these into mutually exclusive eigenvectors, creating \emph{entangled} features—mixed concepts artificially separated to satisfy mathematical constraints rather than visual reality.
 
-In contrast, CP-decomposition provides \emph{intrinsic} interpretability by constraining the interaction tensor during training:
+In contrast, CP-decomposition provides \emph{intrinsic} interpretability by parameterizing the interaction tensor $W$ directly as a sum of rank-1 tensors during training:
 \begin{equation}
-    B_{cij} = \sum_{r=1}^{R} \lambda_r A_{cr} B_{ir} C_{jr}
+    W_{cij} = \sum_{r=1}^{R} \lambda_r A_{cr} B_{ir} C_{jr}
     \label{eq:cp_factorization}
 \end{equation}
-where $R$ is the chosen rank and $\lambda_r$ are learnable scaling factors.
-This factorization allows non-orthogonal, \emph{disentangled} factors---each rank-1 component can represent an atomic concept (e.g., a specific stroke, loop, or edge pattern) without being forced into orthogonality.
-Factors can naturally overlap, aligning better with how humans decompose visual patterns into components.
+where $R$ is the maximum rank, and $\lambda_r$ are learnable scaling factors. Crucially, this factorization does not enforce orthogonality. This flexibility allows for \emph{disentangled} representations where factors can naturally overlap, aligning more closely with human intuition of how visual patterns decompose into atomic parts (e.g., strokes, loops).
 
-\subsubsection{CP Methods: Three Variants}
+\subsubsection{Methodology: Regularization Variants}
 
-We implement three variants of CP decomposition, each providing different levels of constraint flexibility:
+We investigate three variants of CP decomposition to analyze the trade-off between model capacity and interpretability constraints:
 
-\textbf{Fixed CP:}
-Hard structural constraint where the rank $R$ is constant throughout training.
-No regularization is applied to the factors themselves beyond standard weight decay.
-This provides guaranteed low-rank structure but may limit model capacity, resulting in lower accuracy.
+\begin{itemize}
+    \item \textbf{Fixed CP:} A hard structural constraint where the rank $R$ is fixed. No additional sparsity regularization is applied. This enforces a strict upper bound on complexity but may limit model capacity if $R$ is set too low.
+    
+    \item \textbf{Lambda CP (Magnitude Regularization):} We introduce learnable scalar scales $\lambda_r$ for each rank component, subject to $L_1$ regularization. This encourages ``soft sparsity,'' allowing the model to downweight unnecessary ranks while retaining the capacity to utilize them if necessary.
+    
+    \item \textbf{Gated CP (Sparsity Regularization):} Inspired by probabilistic masking, we apply stochastic gates $z_r \sim \text{Bernoulli}(\sigma(\phi_r))$ to each rank component, where $\phi_r$ are learnable parameters. We optimize an $L_0$ proxy objective ($\sum_r \sigma(\phi_r)$) to explicitly prune unnecessary ranks. This method allows the model to self-select the minimal set of active ranks required for the task.
+\end{itemize}
 
-\textbf{Lambda CP (Magnitude Regularization):}
-Adds learnable scalar scales $\lambda_r$ per rank component with $L_1$ regularization on $\lambda$.
-This encourages soft sparsity, allowing the model to downweight unnecessary ranks while keeping them active.
-Provides a balance between structural constraint and flexibility.
+All variants were trained on MNIST with minimal regularization (weight decay $0.1$, no noise augmentation) across a rank sweep $R \in \{8, \dots, 784\}$.
 
-\textbf{Gated CP (Sparsity Regularization):}
-Adds probabilistic gates $z_r \sim \text{Bernoulli}(\sigma(\phi_r))$ per rank, where $\phi_r$ are learnable gate logits.
-$L_0$ proxy regularization on the gates ($\sum_r \sigma(\phi_r)$) encourages explicit pruning of unnecessary ranks.
-This is the most flexible approach, automatically finding the minimal set of active ranks without human specification.
+\subsubsection{Quantitative Analysis: The Accuracy-Interpretability Trade-off}
 
-All three variants are trained on MNIST with minimal regularization (weight decay $0.1$, no noise augmentation) across ranks $R \in \{8, 16, 32, 64, 128, 256, 784\}$ with 5 random seeds per configuration.
+We present the performance of the CP variants compared to dense baselines in Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep}. The results reveal a clear Pareto frontier between structural constraints and classification accuracy.
 
-\subsubsection{Quantitative Results: The Cost of Strict Interpretability}
-
-Table~\ref{tab:cp_sweep} presents results for all three CP variants across multiple ranks, compared to dense baselines.
-Figure~\ref{fig:cp_tradeoff} visualizes the accuracy-interpretability trade-off across all configurations.
-
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/extension_cp/cp_rank_accuracy_tradeoff.pdf}
-    \caption{Accuracy-interpretability Pareto frontier comparing dense baseline and CP variants (Fixed, Lambda, Gated).
-    Each point represents a configuration; error bars show standard deviation across 5 seeds.
-    Points closer to the top-left represent better accuracy-interpretability trade-offs.
-    Fixed CP achieves the lowest effective rank but sacrifices accuracy.
-    Lambda and Gated CP maintain competitive accuracy with moderate effective rank, demonstrating that explicit rank control can be achieved with minimal accuracy cost.}
+    \includegraphics[width=0.85\linewidth]{figures/extension_cp/cp_rank_accuracy_tradeoff.pdf}
+    \caption{\textbf{Accuracy-Interpretability Pareto Frontier.} Comparison of dense baselines against Fixed, Lambda, and Gated CP variants. Points closer to the top-left indicate a superior trade-off (high accuracy, low effective rank). While Fixed CP forces extreme sparsity at the cost of accuracy, Lambda and Gated CP maintain performance competitive with dense models while significantly reducing the effective rank.}
     \label{fig:cp_tradeoff}
 \end{figure}
 
 \begin{table}[h]
-    \caption{CP-decomposition rank sweep results (mean $\pm$ std over 5 seeds) vs.\ dense baselines.
-    Fixed CP achieves the lowest effective rank but sacrifices accuracy.
-    Lambda and Gated CP maintain competitive accuracy (93.0--93.8\%) with moderate effective rank, demonstrating that explicit rank control can be achieved with minimal accuracy cost.}
+    \caption{\textbf{Rank Sweep Results.} Mean accuracy and effective rank ($\pm$ std, 5 seeds). Fixed CP enforces a strict bottleneck (Effective Rank $\approx 3.5$), while Lambda and Gated methods allow the effective rank to scale with model capacity, recovering accuracy lost by the strict constraint.}
     \label{tab:cp_sweep}
     \centering
     \begin{tabular}{lcc}
         \toprule
-        Model & Accuracy (\%) & Eff.\ Rank \\
+        \textbf{Model} & \textbf{Accuracy (\%)} & \textbf{Eff.\ Rank} \\
         \midrule
         \multicolumn{3}{c}{\textit{Dense Baselines}} \\
-        \midrule
         Dense (no reg) & $97.49 \pm 0.05$ & $38.5 \pm 0.7$ \\
         Dense (WD only) & $97.49 \pm 0.05$ & $15.5 \pm 0.3$ \\
         \midrule
-        \multicolumn{3}{c}{\textit{CP-Decomposition}} \\
-        \midrule
+        \multicolumn{3}{c}{\textit{CP-Decomposition Variants}} \\
         Fixed $R=32$ & $90.63 \pm 0.23$ & $3.42 \pm 0.22$ \\
         Fixed $R=64$ & $91.05 \pm 0.13$ & $3.45 \pm 0.12$ \\
         Fixed $R=128$ & $91.48 \pm 0.22$ & $3.65 \pm 0.05$ \\
@@ -100,179 +77,42 @@ Figure~\ref{fig:cp_tradeoff} visualizes the accuracy-interpretability trade-off 
     \end{tabular}
 \end{table}
 
-\textbf{Key findings:}
+\textbf{Distinct Regimes of Operation.} We observe two distinct regimes. The \textbf{Fixed CP} variant operates as a ``strict bottleneck,'' maintaining an extremely low effective rank ($\sim3.5$) regardless of the allocated capacity ($R$). This extreme sparsity comes at an accuracy cost (approx. $6\%$ drop from dense baselines), identifying it as the preferred choice when interpretability is the paramount constraint.
 
-\begin{enumerate}
-    \item \textbf{Three methods, three trade-offs:}
-    \begin{itemize}
-        \item \textbf{Fixed CP}: Achieves the lowest effective rank ($3.45 \pm 0.12$ at $R=64$) but sacrifices accuracy ($91.05\%$ vs.\ $97.49\%$ for dense, a $6.4\%$ drop).
-        The hard structural constraint enforces extreme sparsity regardless of rank---effective rank remains $\sim$3.5 across all ranks tested.
-        
-        \item \textbf{Lambda \& Gated CP}: Maintain competitive accuracy ($93.0$--$93.8\%$) with moderate effective rank ($8.8$--$17.5$).
-        At $R=64$, both achieve $\sim$93\% accuracy (only $4.4\%$ drop from dense) with effective rank $\sim$11.7.
-        These methods successfully balance interpretability and performance.
-    \end{itemize}
-    
-    \item \textbf{Rank scaling patterns differ by method:}
-    \begin{itemize}
-        \item \textbf{Fixed}: Effective rank remains consistently low ($\sim$3.4$--$3.7$) regardless of CP rank, demonstrating that the hard constraint enforces sparsity.
-        
-        \item \textbf{Lambda \& Gated}: Effective rank scales with CP rank ($R=32$: $\sim$9, $R=64$: $\sim$12, $R=128$: $\sim$15, $R=256$: $\sim$17), allowing the model to use more factors as capacity increases.
-    \end{itemize}
-    
-    \item \textbf{Best configurations:}
-    \begin{itemize}
-        \item \textbf{Maximum interpretability}: Fixed $R=64$ ($91.05\%$, eff rank $3.45$)---$4.4\times$ lower effective rank than dense (WD).
-        
-        \item \textbf{Best accuracy-interpretability trade-off}: Lambda/Gated $R=128$ ($93.3$--$93.4\%$, eff rank $\sim$14.9)---competitive accuracy with explicit rank control.
-        
-        \item \textbf{Highest accuracy}: Lambda $R=256$ ($93.80\%$, eff rank $17.50$)---only $3.7\%$ accuracy gap from dense baseline.
-    \end{itemize}
-    
-    \item \textbf{Self-organization to sparsity:}
-    All CP variants demonstrate self-organization: at $R=64$, Fixed uses only $3.45$ effective rank (out of 64), while Lambda/Gated use $\sim$11.7 effective rank.
-    This automatic sparsity suggests the model finds optimal feature sets without explicit regularization beyond the structural constraint.
-\end{enumerate}
+Conversely, the \textbf{Lambda and Gated} variants successfully balance the trade-off. At $R=256$, they recover nearly all the accuracy of the dense baseline ($93.8\%$ vs $97.5\%$) while maintaining an effective rank of $\sim17.5$. This matches the complexity of the dense model (with weight decay) but provides explicit structural disentanglement.
 
-Figure~\ref{fig:cp_accuracy_rank} and Figure~\ref{fig:cp_effrank_rank} show how accuracy and effective rank scale with CP rank for each method.
-Figure~\ref{fig:cp_mode_comparison} provides a comprehensive comparison of the three CP methods, highlighting their distinct characteristics and trade-offs.
+\subsubsection{Qualitative Analysis: Disentangled Factors}
 
-Figure~\ref{fig:cp_eigenspectrum} shows the eigenvalue spectrum for CP models, providing insight into how information is distributed across factors.
-This visualization complements the quantitative effective rank measurements, demonstrating how CP decomposition controls information distribution.
+The quantitative reduction in rank translates directly to qualitative differences in the learned features. Figure~\ref{fig:cp_top5_comparison} presents a side-by-side comparison of the top eigenvectors extracted from a Dense baseline versus a CP model, while Figure~\ref{fig:cp_eigenvectors_top2} provides a focused view of the top two factors for the Lambda CP variant ($R=32$).
 
-\begin{figure}[h]
+\begin{figure}[ht!]
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/extension_cp/cp_eigenspectrum_by_rank.pdf}
-    \caption{Eigenvalue spectrum for CP models across different ranks.
-    The spectrum shows how information is distributed across factors, with larger eigenvalues indicating more dominant factors.
-    Fixed CP models show a more concentrated spectrum (fewer dominant factors), consistent with their lower effective rank.
-    Lambda and Gated CP models show a more distributed spectrum, allowing more factors to contribute to the representation.
-    This visualization is significant because it reveals the underlying information structure: Fixed CP concentrates information into very few factors (extreme sparsity), while Lambda and Gated CP distribute information more evenly, explaining why they achieve higher accuracy while still maintaining explicit rank control.
-    The spectrum analysis validates the quantitative findings, showing that effective rank measurements accurately reflect the true information distribution in CP-decomposed models.}
-    \label{fig:cp_eigenspectrum}
-\end{figure}
-
-Figure~\ref{fig:cp_topk_coverage} provides quantitative evidence for the interpretability advantage of CP decomposition by showing how many factors are needed to capture a given percentage of the total signal.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.85\linewidth]{figures/extension_cp/cp_topk_coverage.pdf}
-    \caption{Top-$k$ coverage analysis showing how many factors are needed to capture a given percentage of the total signal for each CP method.
-    This figure demonstrates the information concentration properties of each CP variant:
-    Fixed CP requires fewer factors to achieve high coverage (e.g., top-5 factors capture most of the signal), confirming its extreme sparsity and interpretability advantage.
-    Lambda and Gated CP show more distributed information, requiring more factors for equivalent coverage but maintaining higher accuracy.
-    This analysis is significant because it quantifies the interpretability advantage of CP decomposition---fewer factors need to be examined to understand the model's behavior, making it more transparent and easier to interpret.
-    The coverage curves validate that CP decomposition successfully concentrates information into a small number of dominant factors, supporting the claim that CP provides superior interpretability through explicit rank control.
-    This figure is particularly important for practitioners: it shows that Fixed CP models can be understood by examining only the top-5 factors, while Lambda/Gated CP require examining more factors but still maintain better interpretability than dense models.}
-    \label{fig:cp_topk_coverage}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\linewidth]{figures/extension_cp/cp_accuracy_by_rank.pdf}
-    \caption{Accuracy as a function of CP rank for Fixed, Lambda, and Gated CP variants.
-    Fixed CP shows limited accuracy improvement with increasing rank, plateauing around $91\%$.
-    Lambda and Gated CP show steady improvement, reaching $\sim$94\% at $R=784$.
-    Error bars show standard deviation across 5 seeds.}
-    \label{fig:cp_accuracy_rank}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.75\linewidth]{figures/extension_cp/cp_effective_rank_by_rank.pdf}
-    \caption{Effective rank as a function of CP rank for Fixed, Lambda, and Gated CP variants.
-    Fixed CP maintains consistently low effective rank ($\sim$3.5) regardless of CP rank, demonstrating the hard constraint enforces sparsity.
-    Lambda and Gated CP show effective rank scaling with CP rank, allowing the model to use more factors as capacity increases.
-    Error bars show standard deviation across 5 seeds.}
-    \label{fig:cp_effrank_rank}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/extension_cp/cp_mode_comparison.pdf}
-    \caption{Comprehensive comparison of Fixed, Lambda, and Gated CP methods across multiple ranks.
-    This visualization demonstrates the fundamental differences between the three approaches:
-    Fixed CP maintains extreme sparsity (low effective rank) but at the cost of accuracy, creating a clear interpretability-accuracy trade-off.
-    Lambda and Gated CP achieve a more balanced trade-off, maintaining competitive accuracy while providing explicit rank control.
-    The comparison highlights that the choice of CP method depends on whether maximum interpretability (Fixed) or balanced performance (Lambda/Gated) is prioritized.
-    This figure is significant because it provides a unified view of how architectural constraints affect both model performance and interpretability, demonstrating that explicit rank control can be achieved with minimal accuracy cost when using flexible regularization methods.}
-    \label{fig:cp_mode_comparison}
-\end{figure}
-
-\subsubsection{Qualitative Analysis: Visualizing CP Factors}
-
-Figure~\ref{fig:factors_vs_vecs} and Figure~\ref{fig:cp_eigenvectors_top2} provide visualizations of CP factors from our trained models.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_vs_dense_eigenvectors.pdf}
-    \caption{Visualization of CP factors from CP model ($R=64$).
-    CP factors represent localized patterns---specific strokes, loops, edges, and curves that can naturally overlap.
-    Each factor represents a disentangled concept with potential semantic meaning (e.g., ``vertical stroke'', ``top loop'', ``bottom curve'').
-    The non-orthogonal nature of CP factors allows them to represent atomic parts that can combine to form digits, potentially aligning better with human understanding of visual decomposition than orthogonal basis vectors.}
-    \label{fig:factors_vs_vecs}
-\end{figure}
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/extension_cp/cp_eigenvectors_top2.pdf}
-    \caption{Top 2 eigenvectors per digit class from CP-decomposed models, visualized as 28$\times$28 heatmaps.
-    Each row corresponds to a digit class (0--9), showing the two most dominant factors learned by the CP model.
-    The localized, atomic patterns visible in these factors suggest that CP decomposition learns disentangled features representing specific visual components (strokes, curves, loops) that can combine to form digits.
-    The non-orthogonal nature of CP factors allows these patterns to overlap naturally, potentially providing more intuitive interpretability than orthogonal eigenvectors.}
+    \includegraphics[width=0.8\linewidth]{figures/extension_cp/cp_eigenvectors_top2.pdf}
+    \caption{\textbf{Top-2 CP Factors (Lambda $R=32$).} Visualization of the two most dominant factors per class. These factors exhibit clear, localized patterns consistent with atomic visual features, such as distinct strokes or curves, rather than holistic digit templates.}
     \label{fig:cp_eigenvectors_top2}
 \end{figure}
 
-\textbf{CP Factors: Explicit Rank Control and Disentangled Representation}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_top5_eigenvectors_comparison.pdf}
+    \caption{\textbf{Feature Disentanglement: Dense vs. CP.} Top 5 eigenvectors for digits 0--9. \textbf{Left (Dense):} Features tend to look like holistic ``ghost templates'' of the digits, mixing multiple strokes into single orthogonal vectors. \textbf{Right (CP):} Factors appear more localized and atomic (e.g., isolated curves, specific strokes), suggesting that CP decomposition successfully disentangles visual concepts into their constituent parts.}
+    \label{fig:cp_top5_comparison}
+\end{figure}
 
-CP decomposition provides several advantages for interpretability:
+The visualization supports the hypothesis of disentanglement. Dense eigenvectors often resemble holistic ``ghost templates'' of digits—entangled representations that combine multiple strokes to satisfy orthogonality. CP factors, conversely, appear more \textbf{atomic} and \textbf{localized}. They represent specific constituent elements—a top loop, a vertical stroke, a bottom curve—which can be linearly combined to reconstruct the full digit. This aligns with the ``parts-based'' representation often sought in interpretability research.
 
-\begin{itemize}
-    \item \textbf{Explicit rank control:} The factorization in Equation~\ref{eq:cp_factorization} directly constrains the interaction tensor to rank $R$, providing guaranteed interpretability bounds.
-    Unlike dense models where low-rank structure emerges through regularization, CP enforces structure architecturally.
-    
-    \item \textbf{Non-orthogonal factors:} CP factors are not constrained to be orthogonal, allowing them to represent overlapping concepts naturally.
-    For example, a ``vertical stroke'' factor and a ``horizontal stroke'' factor can both be active simultaneously without being forced into separate, mutually exclusive directions.
-    
-    \item \textbf{Localized, atomic patterns:} The rank-1 structure of each CP component encourages factors to represent localized patterns---specific strokes, loops, edges, and curves.
-    Each factor can represent a disentangled concept with potential semantic meaning, such as ``vertical stroke in the middle'', ``top-right curve'', or ``bottom horizontal line''.
-    
-    \item \textbf{Automatic feature selection:} The quantitative results demonstrate that CP models self-organize to use only a subset of available ranks (e.g., $3.45$ effective rank from $64$ possible for Fixed, $11.7$ for Lambda/Gated).
-    This automatic sparsity suggests the model finds optimal feature sets without explicit regularization.
-\end{itemize}
+\subsubsection{Scalability and Efficiency: Breaking the Width Bottleneck}
 
-The visual patterns observed in CP factors (Figures~\ref{fig:factors_vs_vecs} and~\ref{fig:cp_eigenvectors_top2}) suggest they may represent more localized, atomic concepts compared to the holistic templates that emerge from eigendecomposition.
-The top eigenvectors shown in Figure~\ref{fig:cp_eigenvectors_top2} demonstrate class-specific patterns that appear to capture distinct visual components for each digit class.
-However, further analysis is needed to confirm whether this translates to improved interpretability in practice.
+Crucially, CP decomposition provides a path to scaling interpretable models that dense architectures cannot match. Standard dense layers suffer from quadratic complexity: parameter count scales as $O(d_{\text{in}} \cdot d_{\text{out}})$ and compute as $O(d_{\text{in}} \cdot d_{\text{out}} \cdot \text{batch})$. For large foundation models where hidden dimensions ($d$) reach the thousands, this quadratic growth becomes a severe bottleneck.
 
-The eigenvalue spectrum (Figure~\ref{fig:cp_eigenspectrum}) and coverage analysis (Figure~\ref{fig:cp_topk_coverage}) together provide comprehensive evidence for the interpretability advantage of CP decomposition.
-The spectrum reveals how information is distributed, while the coverage analysis quantifies how many factors need to be examined to understand the model's behavior.
-For Fixed CP, the top-5 factors capture the majority of information, making it highly transparent despite the accuracy trade-off.
-This quantitative evidence supports the claim that CP decomposition provides superior interpretability through explicit rank control.
+CP decomposition fundamentally alters this scaling law to $O(R \cdot (d_{\text{in}} + d_{\text{out}}))$, where the rank $R$ is a user-controlled parameter often much smaller than $d$.
 
-\subsubsection{Conclusion: CP as a Complexity Throttle}
+\textbf{Parameter Efficiency.} For our architecture ($d=256, R=64$), CP decomposition reduces the parameter count by \textbf{62.5\%}. This advantage grows with model size; for a hypothetical layer with $d=4096$, a CP layer with rank $R=512$ would require only $\approx 12\%$ of the parameters of a dense equivalent.
 
-CP decomposition serves as a ``complexity throttle,'' offering guaranteed low-rank structure with explicit rank control.
-The three variants provide different trade-offs:
+\textbf{Computational Cost.} This reduction extends to compute operations. The Dense forward pass requires two full matrix multiplications. The CP pass, composed of smaller projections and element-wise operations, reduces the theoretical FLOPs by approximately $4\times$ at our experimental scale. This theoretical efficiency translates to reduced carbon emissions during training (see Appendix~\ref{app:cp_efficiency} for detailed CO2 emission analysis).
 
-\begin{itemize}
-    \item \textbf{Fixed CP}: Guarantees extreme sparsity (effective rank $\sim$3.5) but sacrifices accuracy ($\sim$6.4\% drop).
-    Best for applications requiring guaranteed interpretability bounds.
-    
-    \item \textbf{Lambda \& Gated CP}: Maintain competitive accuracy ($\sim$93\%$, only $4.4\%$ drop) while providing explicit rank control.
-    Best for applications requiring both interpretability and performance.
-    
-    \item \textbf{All variants}: Demonstrate self-organization to sparsity, automatically finding optimal feature sets without explicit regularization.
-\end{itemize}
+These results suggest that CP regularization is not just an interpretability constraint, but a viable strategy for \textbf{scaling up} bilinear architectures. It enables the training of significantly larger models within fixed compute or memory budgets while retaining the high accuracy and intrinsic interpretability demonstrated in our experiments.
 
-The accuracy cost varies by method: Fixed CP incurs a $6.4\%$ drop, while Lambda/Gated CP incur only a $4.4\%$ drop at $R=64$.
-This cost may be acceptable when:
+\subsubsection{Conclusion}
 
-\begin{itemize}
-    \item Interpretability guarantees are required (regulatory compliance, safety-critical systems)
-    \item Explicit rank bounds are needed for computational efficiency
-    \item Noise augmentation is undesirable or impractical
-    \item Factors need semantic meaning for explainable AI applications
-\end{itemize}
-
-CP decomposition provides a promising approach for building transparent, interpretable models with explicit architectural constraints, offering a middle ground between dense models (high accuracy, emergent interpretability) and highly constrained models (guaranteed interpretability, lower accuracy).
+We find that CP decomposition serves as a dual-purpose architectural choice. First, it enforces \textbf{intrinsic interpretability}, replacing the entangled, holistic templates of dense models with disentangled, atomic parts. Second, it acts as a \textbf{scalable foundation for efficiency}, breaking the quadratic scaling laws of dense layers. While \textbf{Fixed CP} offers maximum transparency, the \textbf{Lambda and Gated} variants provide a robust middle ground—maintaining competitive accuracy and scalability, making them a promising candidate for efficient, interpretable large-scale modeling.

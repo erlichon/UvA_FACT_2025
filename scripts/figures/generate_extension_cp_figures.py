@@ -77,7 +77,9 @@ AVAILABLE_SECTIONS = [
     "rank_comparison",
     "mode_comparison", 
     "eigenvector_quality",
+    "top5_comparison",
     "spectral_analysis",
+    "efficiency",
     "summary_table",
 ]
 
@@ -468,6 +470,235 @@ def generate_eigenvector_quality(ctx: VisionContext, cp_df: pd.DataFrame):
 
 
 # ============================================================================
+# SECTION 3.5: Top 5 Eigenvectors Comparison
+# ============================================================================
+
+def generate_top5_eigenvectors_comparison(ctx: VisionContext):
+    """Generate side-by-side comparison of top 5 eigenvectors for CP vs Dense."""
+    print("\n--- Generating Top 5 Eigenvectors Comparison ---")
+    
+    set_publication_style()
+    
+    # Load CP checkpoint: R=64, lambda mode, seed 42
+    target_rank = 64
+    target_mode = 'lambda'
+    seed = 42
+    
+    if not ctx.cp_checkpoint_exists(target_rank, target_mode, seed):
+        print(f"  No CP checkpoint found for rank={target_rank}, mode={target_mode}, seed={seed}")
+        # Try to find any available CP checkpoint
+        cp_df = load_cp_results(ctx)
+        if cp_df.empty:
+            print("  No CP checkpoints available")
+            return
+        target_rank = cp_df['rank'].iloc[0]
+        target_mode = cp_df['init_mode'].iloc[0]
+        print(f"  Using available checkpoint: rank={target_rank}, mode={target_mode}")
+    
+    # Load CP checkpoint
+    cp_eigenvalues, cp_eigenvectors = ctx.load_cp_eigenvalues(target_rank, target_mode, seed)
+    
+    # Load dense baseline: "full" config, seed 42
+    if not ctx.checkpoint_exists("mnist", "full", seed):
+        print(f"  No dense checkpoint found for 'full' config, seed={seed}")
+        # Try "wd" config as fallback
+        if ctx.checkpoint_exists("mnist", "wd", seed):
+            print("  Using 'wd' config as fallback")
+            dense_eigenvalues, dense_eigenvectors = ctx.load_eigenvalues("mnist", "wd", seed)
+        else:
+            print("  No dense baseline available")
+            return
+    else:
+        dense_eigenvalues, dense_eigenvectors = ctx.load_eigenvalues("mnist", "full", seed)
+    
+    # Create side-by-side figure: 10 rows (classes) × 10 columns (5 dense + 5 CP)
+    fig, axes = plt.subplots(10, 10, figsize=(20, 20))
+    
+    # Get global vmax for consistent scaling across both panels
+    vmax = max(
+        dense_eigenvectors[:, :5].abs().max().item(),
+        cp_eigenvectors[:, :5].abs().max().item()
+    )
+    
+    # Left panel: Dense baseline (columns 0-4)
+    for class_idx in range(10):
+        for ev_idx in range(5):
+            ax = axes[class_idx, ev_idx]
+            vec = dense_eigenvectors[class_idx, ev_idx].numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=-vmax, vmax=vmax)
+            ax.axis('off')
+            
+            # Add labels
+            if ev_idx == 0:
+                ax.set_ylabel(f'Class {class_idx}', fontsize=10, rotation=0, ha='right', va='center')
+            if class_idx == 0:
+                ax.set_title(f'EV {ev_idx+1}', fontsize=9, pad=2)
+    
+    # Right panel: CP model (columns 5-9)
+    for class_idx in range(10):
+        for ev_idx in range(5):
+            ax = axes[class_idx, ev_idx + 5]
+            vec = cp_eigenvectors[class_idx, ev_idx].numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=-vmax, vmax=vmax)
+            ax.axis('off')
+            
+            # Add labels
+            if class_idx == 0:
+                ax.set_title(f'EV {ev_idx+1}', fontsize=9, pad=2)
+    
+    # Add panel labels
+    fig.text(0.25, 0.98, 'Dense Baseline (Full Reg)', 
+             fontsize=14, fontweight='bold', ha='center')
+    fig.text(0.75, 0.98, f'CP Model (R={target_rank}, {target_mode})', 
+             fontsize=14, fontweight='bold', ha='center')
+    
+    plt.suptitle('Top 5 Eigenvectors Comparison: Dense vs CP', 
+                fontsize=16, fontweight='bold', y=0.995)
+    plt.tight_layout(rect=[0, 0, 1, 0.97])
+    ctx.save_cp_figure(fig, "cp_top5_eigenvectors_comparison")
+    
+    print(f"  Generated top 5 eigenvectors comparison (CP R={target_rank}, {target_mode} vs Dense)")
+
+
+# ============================================================================
+# SECTION 3.6: Efficiency Analysis
+# ============================================================================
+
+def generate_efficiency_analysis(ctx: VisionContext, cp_df: pd.DataFrame):
+    """Generate efficiency analysis figure: CO2 vs Accuracy trade-off."""
+    print("\n--- Generating Efficiency Analysis Figures ---")
+    
+    if cp_df.empty:
+        print("  No CP checkpoints found, skipping efficiency analysis")
+        return
+    
+    set_publication_style()
+    
+    # Load CP summary data (accuracy from existing CSV)
+    cp_summary_path = ctx.cp_figures / "cp_summary.csv"
+    if not cp_summary_path.exists():
+        print(f"  CP summary CSV not found at {cp_summary_path}")
+        return
+    
+    cp_summary = pd.read_csv(cp_summary_path)
+    
+    # TODO: Replace placeholder CO2 values with actual codecarbon data
+    # Placeholder CO2 values based on theoretical expectations:
+    # - Dense models: higher CO2 (more parameters, longer training)
+    # - CP models: lower CO2 (fewer parameters, faster training)
+    # Values are reasonable estimates for MNIST training (0.03-0.08 kg CO2)
+    
+    # Dense baseline placeholder CO2 values (mean ± std)
+    dense_co2 = {
+        'none': {'mean': 0.075, 'std': 0.005},      # No regularization
+        'noise': {'mean': 0.070, 'std': 0.004},     # Noise augmentation
+        'wd': {'mean': 0.068, 'std': 0.004},        # Weight decay
+        'full': {'mean': 0.065, 'std': 0.003},     # Full regularization
+    }
+    
+    # CP model placeholder CO2 values (scaled by rank)
+    # Lower rank = fewer parameters = lower CO2
+    cp_co2_base = {
+        'fixed': 0.035,    # Fixed mode: lowest CO2 (fewest active parameters)
+        'lambda': 0.040,   # Lambda mode: moderate CO2
+        'gated': 0.042,    # Gated mode: slightly higher CO2
+    }
+    cp_co2_std_base = 0.003  # Base std for CP models
+    
+    # Dense baseline accuracy (from paper/experiments)
+    dense_acc = {
+        'none': {'mean': 0.9749, 'std': 0.0005},
+        'noise': {'mean': 0.9450, 'std': 0.0020},  # Approximate
+        'wd': {'mean': 0.9749, 'std': 0.0005},
+        'full': {'mean': 0.9450, 'std': 0.0020},  # Approximate
+    }
+    
+    # Create figure: CO2 vs Accuracy
+    fig, ax = plt.subplots(1, 1, figsize=(10, 7))
+    
+    # Plot dense baselines
+    dense_colors = {'none': '#8c564b', 'noise': '#9467bd', 'wd': '#d62728', 'full': '#2ca02c'}
+    dense_markers = {'none': 's', 'noise': '^', 'wd': 'v', 'full': 'D'}
+    
+    for config, color in dense_colors.items():
+        acc = dense_acc[config]['mean']
+        acc_std = dense_acc[config]['std']
+        co2 = dense_co2[config]['mean']
+        co2_std = dense_co2[config]['std']
+        
+        ax.scatter(acc * 100, co2, 
+                  color=color, marker=dense_markers[config],
+                  s=150, edgecolors='black', linewidths=1.5,
+                  zorder=3, label=f"Dense ({config})")
+        
+        # Error bars
+        ax.errorbar(acc * 100, co2,
+                   xerr=acc_std * 100, yerr=co2_std,
+                   fmt='none', color=color, alpha=0.5,
+                   capsize=3, zorder=2)
+    
+    # Plot CP models
+    cp_colors = {'fixed': CP_COLORS['fixed'], 'lambda': CP_COLORS['lambda'], 'gated': CP_COLORS['gated']}
+    
+    for _, row in cp_summary.iterrows():
+        rank = int(row['rank'])
+        mode = row['init_mode']
+        acc_mean = row['acc_mean']
+        acc_std = row['acc_std']
+        
+        # Calculate placeholder CO2 (scales with rank)
+        # Higher rank = more parameters = slightly higher CO2
+        rank_factor = 1.0 + (rank / 256.0) * 0.2  # Up to 20% increase for higher ranks
+        co2_mean = cp_co2_base[mode] * rank_factor
+        co2_std = cp_co2_std_base * (1.0 + rank / 256.0 * 0.1)
+        
+        ax.scatter(acc_mean * 100, co2_mean,
+                  color=cp_colors[mode], marker='o',
+                  s=100 + rank * 0.5, edgecolors='black', linewidths=1,
+                  zorder=3, alpha=0.7)
+        
+        # Error bars
+        ax.errorbar(acc_mean * 100, co2_mean,
+                   xerr=acc_std * 100, yerr=co2_std,
+                   fmt='none', color=cp_colors[mode], alpha=0.4,
+                   capsize=2, zorder=2)
+        
+        # Add rank label for selected points
+        if rank in [32, 64, 128, 256]:
+            ax.annotate(f'R={rank}', 
+                       (acc_mean * 100, co2_mean),
+                       textcoords="offset points",
+                       xytext=(5, 5), fontsize=8, alpha=0.7)
+    
+    # Add CP mode legend entries (one per mode)
+    for mode in ['fixed', 'lambda', 'gated']:
+        if mode in cp_summary['init_mode'].values:
+            ax.scatter([], [], color=cp_colors[mode], marker='o',
+                      s=100, edgecolors='black', linewidths=1,
+                      label=f'CP ({mode})', alpha=0.7)
+    
+    ax.set_xlabel('Validation Accuracy (%)', fontsize=12)
+    ax.set_ylabel('CO2 Emissions (kg)', fontsize=12)
+    ax.set_title('Efficiency Trade-off: CO2 Emissions vs. Accuracy', 
+                fontsize=14, fontweight='bold')
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='upper left', fontsize=9, framealpha=0.9)
+    
+    # Add note about placeholder data
+    ax.text(0.02, 0.98, 
+           'Note: CO2 values are placeholders pending codecarbon data collection',
+           transform=ax.transAxes, fontsize=8, style='italic',
+           verticalalignment='top', bbox=dict(boxstyle='round', 
+           facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    ctx.save_cp_figure(fig, "cp_efficiency_co2_accuracy")
+    
+    print("  Generated efficiency analysis figure (CO2 vs Accuracy)")
+    print("  WARNING: CO2 values are placeholders - replace with actual codecarbon data")
+
+
+# ============================================================================
 # SECTION 4: Spectral Analysis
 # ============================================================================
 
@@ -659,6 +890,12 @@ def main():
     
     if "eigenvector_quality" in sections:
         generate_eigenvector_quality(ctx, cp_df)
+    
+    if "top5_comparison" in sections:
+        generate_top5_eigenvectors_comparison(ctx)
+    
+    if "efficiency" in sections:
+        generate_efficiency_analysis(ctx, cp_df)
     
     if "spectral_analysis" in sections:
         generate_spectral_analysis(ctx, cp_df)
