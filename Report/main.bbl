@@ -5,8 +5,7 @@
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
 
-\bibitem[Goodfellow et~al.(2016)Goodfellow, Bengio, Courville, and
-  Bengio]{goodfellow2016deep}
+\bibitem[Goodfellow et~al.(2016)Goodfellow, Bengio, Courville, and Bengio]{goodfellow2016deep}
 Ian Goodfellow, Yoshua Bengio, Aaron Courville, and Yoshua Bengio.
 \newblock \emph{Deep learning}, volume~1.
 \newblock MIT Press, 2016.
@@ -24,7 +23,6 @@ Tim Pearce, Tuomas Oikarinen, and Tsui-Wei Weng.
 \bibitem[Roy \& Vetterli(2007)Roy and Vetterli]{roy2007effective}
 Olivier Roy and Martin Vetterli.
 \newblock The effective rank: A measure of effective dimensionality.
-\newblock In \emph{European Signal Processing Conference (EUSIPCO)}, pp.\
-  606--610, 2007.
+\newblock In \emph{European Signal Processing Conference (EUSIPCO)}, pp.\  606--610, 2007.
 
 \end{thebibliography}
