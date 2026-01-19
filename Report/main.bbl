@@ -5,15 +5,9 @@
   \providecommand{\doi}[1]{doi: #1}\else
   \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
 
-\bibitem[Casper et~al.(2023)Casper, Li, Li, Bu, and Weng]{casper2023challenge}
-Stephen Casper, Yuxiao Li, Jiawei Li, Tong Bu, and Tsui-Wei Weng.
-\newblock Red teaming deep neural networks with feature synthesis tools.
-\newblock In \emph{NeurIPS}, 2023.
-
-\bibitem[Goodfellow et~al.(2016)Goodfellow, Bengio, and
-  Courville]{goodfellow2016deep}
-Ian Goodfellow, Yoshua Bengio, and Aaron Courville.
-\newblock \emph{Deep learning}.
+\bibitem[Goodfellow et~al.(2016)Goodfellow, Bengio, Courville, and Bengio]{goodfellow2016deep}
+Ian Goodfellow, Yoshua Bengio, Aaron Courville, and Yoshua Bengio.
+\newblock \emph{Deep learning}, volume~1.
 \newblock MIT Press, 2016.
 
 \bibitem[Kolda \& Bader(2009)Kolda and Bader]{kolda2009tensor}
@@ -29,7 +23,6 @@ Tim Pearce, Tuomas Oikarinen, and Tsui-Wei Weng.
 \bibitem[Roy \& Vetterli(2007)Roy and Vetterli]{roy2007effective}
 Olivier Roy and Martin Vetterli.
 \newblock The effective rank: A measure of effective dimensionality.
-\newblock In \emph{European Signal Processing Conference (EUSIPCO)}, pp.\
-  606--610, 2007.
+\newblock In \emph{European Signal Processing Conference (EUSIPCO)}, pp.\  606--610, 2007.
 
 \end{thebibliography}
