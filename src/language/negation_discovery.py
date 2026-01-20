@@ -332,6 +332,13 @@ def main():
         "wall_time_seconds": tracker.result.wall_time_seconds,
         "co2_kg": tracker.result.emissions_kg,
     }
+    
+    # Root-level emissions for validation script compatibility
+    results["emissions"] = {
+        "co2_kg": tracker.result.emissions_kg,
+        "wall_time_hours": tracker.result.wall_time_hours,
+        "gpu_hours": tracker.result.gpu_hours,
+    }
 
     # Finalize wandb with results
     if wandb_enabled:

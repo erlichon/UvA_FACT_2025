@@ -209,9 +209,9 @@ def main():
     # Define expected language result files and their required keys
     language_files = {
         # Figure 9 correlation results (one per model)
-        'correlation_fw-medium_layer7_exp8.json': ['co2_kg'],
-        'correlation_fw-small_layer8_exp4.json': ['co2_kg'],
-        'correlation_ts-medium_layer4_exp4.json': ['co2_kg'],
+        'correlation_fw-medium.json': ['co2_kg'],
+        'correlation_fw-small.json': ['co2_kg'],
+        'correlation_ts-medium.json': ['co2_kg'],
         # Figure 8 circuit search
         'circuit_search_complete.json': ['co2_kg'],
         # Figure 10 SAE training time
