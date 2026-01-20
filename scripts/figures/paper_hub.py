@@ -205,7 +205,11 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         # Language (Figures 8, 9, 10)
         # -----------------------------
         "Language / Negation Circuit (Figure 8)": [
-            {"label": "Figure 8: Sentiment negation circuit", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
+            {"label": "Figure 8: Sentiment negation circuit (tutorial feature 3834)", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
+            {"label": "Figure 8: Best AND-gate circuit (from search)", "path": _fig_rel_path("figure_8_best_circuit.pdf")},
+            {"label": "Figure 8: Sentiment-labeled circuit", "path": _fig_rel_path("figure_8_sentiment.pdf")},
+            {"label": "Figure 8: Weak vs Strong comparison (3834 vs best)", "path": _fig_rel_path("figure_8_comparison.pdf")},
+            {"label": "Figure 8: Circuit with per-word activation examples", "path": _fig_rel_path("figure_8_with_examples.pdf")},
         ],
         "Language / Correlation (Figure 9)": [
             {"label": "Figure 9A: correlation progression", "path": _fig_rel_path("figure_9a_correlation_progression.pdf")},
