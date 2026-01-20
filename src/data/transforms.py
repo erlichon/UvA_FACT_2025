@@ -3,12 +3,83 @@ Image transforms for bilinear MLP experiments.
 
 This module provides reusable transforms, particularly Center-of-Mass (CoM)
 normalization for standardizing input geometry across datasets.
+
+Includes caching support to avoid recomputing CoM transforms on every run.
 """
 
 import torch
 from torch import Tensor
-from typing import Tuple
+from typing import Tuple, Optional
+from pathlib import Path
 import torch.nn.functional as F
+import hashlib
+
+# Default cache directory (relative to project root)
+_CACHE_DIR: Optional[Path] = None
+
+
+def get_cache_dir() -> Path:
+    """Get or create the cache directory for preprocessed data."""
+    global _CACHE_DIR
+    if _CACHE_DIR is None:
+        # Find project root (look for src/ directory)
+        current = Path(__file__).resolve()
+        for parent in current.parents:
+            if (parent / "src").exists() and (parent / "configs").exists():
+                _CACHE_DIR = parent / "data" / "cache" / "com"
+                break
+        if _CACHE_DIR is None:
+            _CACHE_DIR = Path.home() / ".cache" / "fact_bilinear" / "com"
+    
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    return _CACHE_DIR
+
+
+def get_cache_path(dataset_name: str, split: str) -> Path:
+    """
+    Get the cache file path for a dataset.
+    
+    Args:
+        dataset_name: Name of dataset (e.g., 'mnist', 'fashion', 'emnist_letters')
+        split: 'train' or 'test'
+        
+    Returns:
+        Path to the cache file
+    """
+    cache_dir = get_cache_dir()
+    return cache_dir / f"{dataset_name}_{split}_com.pt"
+
+
+def save_to_cache(tensor: Tensor, dataset_name: str, split: str) -> None:
+    """Save preprocessed tensor to cache."""
+    cache_path = get_cache_path(dataset_name, split)
+    # Save to CPU to avoid device mismatches when loading
+    torch.save(tensor.cpu(), cache_path)
+    print(f"  Cached CoM-transformed data to {cache_path}")
+
+
+def load_from_cache(dataset_name: str, split: str, device: str) -> Optional[Tensor]:
+    """
+    Load preprocessed tensor from cache if it exists.
+    
+    Returns:
+        Cached tensor moved to specified device, or None if cache miss
+    """
+    cache_path = get_cache_path(dataset_name, split)
+    if cache_path.exists():
+        print(f"  Loading cached CoM data from {cache_path}")
+        tensor = torch.load(cache_path, map_location=device, weights_only=True)
+        return tensor
+    return None
+
+
+def clear_com_cache() -> None:
+    """Clear all cached CoM-transformed data."""
+    cache_dir = get_cache_dir()
+    if cache_dir.exists():
+        for f in cache_dir.glob("*.pt"):
+            f.unlink()
+        print(f"Cleared CoM cache at {cache_dir}")
 
 
 def compute_center_of_mass(image: Tensor) -> Tuple[float, float]:
@@ -162,26 +233,82 @@ class CenterOfMassTransform:
         return f"CenterOfMassTransform(target_center={self.target_center})"
 
 
-def apply_com_to_batch(batch: Tensor) -> Tensor:
+def apply_com_to_batch(batch: Tensor, show_progress: bool = True) -> Tensor:
     """
     Apply center-of-mass centering to a batch of images.
     
     Args:
         batch: Tensor of shape [B, C, H, W] or [B, H, W] with values in [0, 1]
+        show_progress: If True, show progress for large batches
         
     Returns:
         Centered batch tensor with same shape
     """
     transform = CenterOfMassTransform()
+    n_samples = batch.shape[0]
     
     # Handle batched input
     if batch.dim() == 4:
         # [B, C, H, W]
-        return torch.stack([transform(img) for img in batch])
+        results = []
+        for i, img in enumerate(batch):
+            results.append(transform(img))
+            if show_progress and (i + 1) % 10000 == 0:
+                print(f"    Processed {i+1}/{n_samples} images...")
+        return torch.stack(results)
     elif batch.dim() == 3:
         # [B, H, W] - add and remove channel dim
         batch_with_channel = batch.unsqueeze(1)  # [B, 1, H, W]
-        result = torch.stack([transform(img) for img in batch_with_channel])
+        results = []
+        for i, img in enumerate(batch_with_channel):
+            results.append(transform(img))
+            if show_progress and (i + 1) % 10000 == 0:
+                print(f"    Processed {i+1}/{n_samples} images...")
+        result = torch.stack(results)
         return result.squeeze(1)  # [B, H, W]
     else:
         raise ValueError(f"Expected 3D or 4D tensor, got {batch.dim()}D")
+
+
+def apply_com_to_batch_cached(
+    batch: Tensor,
+    dataset_name: str,
+    split: str,
+    device: str = "cpu",
+    use_cache: bool = True,
+) -> Tensor:
+    """
+    Apply center-of-mass centering with caching support.
+    
+    This is the preferred function for dataset classes to use, as it handles
+    caching automatically to avoid recomputing CoM transforms on every run.
+    
+    Args:
+        batch: Tensor of shape [B, C, H, W] or [B, H, W] with values in [0, 1]
+        dataset_name: Name of dataset (e.g., 'mnist', 'fashion', 'emnist_letters')
+        split: 'train' or 'test'
+        device: Device to load cached data onto
+        use_cache: If True, use caching (default). Set to False to force recompute.
+        
+    Returns:
+        Centered batch tensor with same shape
+    """
+    # Try loading from cache
+    if use_cache:
+        cached = load_from_cache(dataset_name, split, device)
+        if cached is not None:
+            # Verify shape matches
+            if cached.shape == batch.shape:
+                return cached
+            else:
+                print(f"  Cache shape mismatch ({cached.shape} vs {batch.shape}), recomputing...")
+    
+    # Compute CoM transform
+    print(f"  Computing CoM transform for {batch.shape[0]} images...")
+    result = apply_com_to_batch(batch, show_progress=True)
+    
+    # Save to cache
+    if use_cache:
+        save_to_cache(result, dataset_name, split)
+    
+    return result

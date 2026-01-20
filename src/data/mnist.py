@@ -18,7 +18,7 @@ sys.path.insert(0, str(_ORIG_PATH))
 
 from image.datasets import MNIST as OriginalMNIST, FMNIST as OriginalFMNIST
 
-from .transforms import apply_com_to_batch
+from .transforms import apply_com_to_batch_cached
 
 
 class MNIST(Dataset):
@@ -28,11 +28,15 @@ class MNIST(Dataset):
     Wraps the original paper's GPU-resident MNIST loader and adds optional
     CoM centering for geometry normalization.
     
+    CoM-transformed data is cached to avoid recomputation on subsequent runs.
+    Cache location: data/cache/com/mnist_{train|test}_com.pt
+    
     Args:
         train: If True, use training set. Otherwise, use test set.
         device: Device to load data onto ('cuda', 'mps', 'cpu')
         apply_com: If True, apply Center-of-Mass centering to all images
         download: If True, download dataset if not found
+        use_cache: If True, use cached CoM data if available (default: True)
         
     Example:
         >>> train_data = MNIST(train=True, device="cuda", apply_com=True)
@@ -45,14 +49,22 @@ class MNIST(Dataset):
         device: str = "cuda",
         apply_com: bool = False,
         download: bool = True,
+        use_cache: bool = True,
     ):
         # Use original paper's loader
         self._dataset = OriginalMNIST(train=train, download=download, device=device)
         
-        # Apply CoM if requested
+        # Apply CoM if requested (with caching)
         if apply_com:
-            print(f"Applying Center-of-Mass normalization to MNIST ({'train' if train else 'test'})...")
-            self._dataset.x = apply_com_to_batch(self._dataset.x)
+            split = 'train' if train else 'test'
+            print(f"Applying Center-of-Mass normalization to MNIST ({split})...")
+            self._dataset.x = apply_com_to_batch_cached(
+                self._dataset.x, 
+                dataset_name='mnist',
+                split=split,
+                device=device,
+                use_cache=use_cache,
+            )
         
         # Store references for compatibility
         self.x = self._dataset.x
@@ -80,11 +92,15 @@ class FashionMNIST(Dataset):
     Wraps the original paper's GPU-resident Fashion-MNIST loader and adds
     optional CoM centering for geometry normalization.
     
+    CoM-transformed data is cached to avoid recomputation on subsequent runs.
+    Cache location: data/cache/com/fashion_{train|test}_com.pt
+    
     Args:
         train: If True, use training set. Otherwise, use test set.
         device: Device to load data onto ('cuda', 'mps', 'cpu')
         apply_com: If True, apply Center-of-Mass centering to all images
         download: If True, download dataset if not found
+        use_cache: If True, use cached CoM data if available (default: True)
         
     Example:
         >>> train_data = FashionMNIST(train=True, device="mps", apply_com=False)
@@ -102,14 +118,22 @@ class FashionMNIST(Dataset):
         device: str = "cuda",
         apply_com: bool = False,
         download: bool = True,
+        use_cache: bool = True,
     ):
         # Use original paper's loader
         self._dataset = OriginalFMNIST(train=train, download=download, device=device)
         
-        # Apply CoM if requested
+        # Apply CoM if requested (with caching)
         if apply_com:
-            print(f"Applying Center-of-Mass normalization to Fashion-MNIST ({'train' if train else 'test'})...")
-            self._dataset.x = apply_com_to_batch(self._dataset.x)
+            split = 'train' if train else 'test'
+            print(f"Applying Center-of-Mass normalization to Fashion-MNIST ({split})...")
+            self._dataset.x = apply_com_to_batch_cached(
+                self._dataset.x,
+                dataset_name='fashion',
+                split=split,
+                device=device,
+                use_cache=use_cache,
+            )
         
         # Store references for compatibility
         self.x = self._dataset.x
