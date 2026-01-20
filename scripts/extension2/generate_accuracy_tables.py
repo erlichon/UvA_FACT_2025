@@ -346,6 +346,18 @@ def format_percentage(value: float, std: float = None, precision: int = 1) -> st
 
 def generate_latex_table_mnist_emnist_digits(results: Dict, output_path: Path):
     """Generate LaTeX table for MNIST ↔ EMNIST-Digits."""
+    # Sanity-check that required statistics exist
+    required_keys = ["mnist_on_emnist_digits", "emnist_digits_on_mnist", "bidirectional_avg"]
+    missing = [k for k in required_keys if k not in results or "mean" not in results[k]]
+    if missing:
+        missing_str = ", ".join(missing)
+        raise RuntimeError(
+            f"Missing cross-dataset accuracy statistics for: {missing_str}. "
+            "This usually means no valid checkpoints were found for these runs. "
+            "Make sure Extension 2 models are trained (run `run_extension2.sh train all` "
+            "or `run_extension2.sh all`) before generating accuracy tables."
+        )
+
     content = """% Extension 2: MNIST ↔ EMNIST-Digits Cross-Dataset Accuracy
 % Mean ± std over 5 seeds
 
@@ -460,8 +472,8 @@ def main():
     parser.add_argument(
         "--checkpoint-dir",
         type=Path,
-        default=PROJECT_ROOT / "results" / "extension2" / "checkpoints",
-        help="Directory containing checkpoints"
+        default=PROJECT_ROOT / "checkpoints" / "extension2",
+        help="Directory containing Extension 2 checkpoints"
     )
     parser.add_argument(
         "--output-dir",

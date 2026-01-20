@@ -16,7 +16,11 @@
 
 set -e
 
-# Default values
+# Resolve script directory and project root so the script works from any CWD
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Default values (paths are interpreted relative to project root)
 SEEDS="42,43,44,45,46"
 CHECKPOINT_DIR="checkpoints/extension2"
 
@@ -120,6 +124,7 @@ train_model() {
 run_train() {
     local dataset="${1:-all}"
     
+    cd "$PROJECT_ROOT"
     mkdir -p "$CHECKPOINT_DIR"
     
     case "$dataset" in
@@ -161,8 +166,15 @@ run_figures() {
     
     echo "Generating Extension 2 figures..."
     
+    cd "$PROJECT_ROOT"
+
     if [ "$sections" = "" ] || [ "$sections" = "all" ]; then
         python scripts/figures/generate_extension2_figures.py
+        echo ""
+        echo "Running Extension 2 analysis scripts..."
+        python scripts/extension2/calculate_eigenvector_similarity.py
+        python scripts/extension2/calculate_mnist0_vs_all_emnist.py
+        python scripts/extension2/generate_accuracy_tables.py --checkpoint-dir "$CHECKPOINT_DIR" --seeds "$SEEDS"
     else
         python scripts/figures/generate_extension2_figures.py --sections $sections
     fi

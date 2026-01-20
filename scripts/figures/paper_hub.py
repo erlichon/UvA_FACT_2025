@@ -168,6 +168,7 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension2_eigenvec_2_Z.pdf")},
             {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension2_eigenvec_5_S.pdf")},
             {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension2_3way_comparison.pdf")},
+            {"label": "3-way: MNIST 0 vs EMNIST O vs EMNIST X", "path": _fig_rel_path("extension2_3way_comparison_0_O_X.pdf")},
         ],
         "Extension 2 / Similarity vs k (Subspace Metrics)": [
             {"label": "Mean Cosine (original)", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
@@ -181,6 +182,7 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
             {"label": "Eigenvalue-Weighted Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_eigenvalue_weighted.pdf")},
             {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
+            {"label": "Absolute Cosine Similarity Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_abs_cosine_similarity.pdf")},
         ],
         "Extension 2 / Heatmaps (10x10 matrices)": [
             {"label": "Quadratic Form: MNIST Digits vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},

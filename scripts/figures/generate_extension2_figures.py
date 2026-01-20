@@ -402,6 +402,52 @@ def generate_3way_comparison(
     plt.close(fig)
 
 
+def generate_3way_comparison_0_O_X(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    letters_vecs: torch.Tensor,
+    letters_vals: torch.Tensor,
+) -> None:
+    """Generate 3-way comparison: MNIST digit 0, EMNIST letter O, EMNIST letter X.
+
+    This is the figure used in the report for cosine-similarity failure analysis.
+    """
+    print("\n=== 3-Way Comparison (0 vs O vs X) ===")
+
+    # Class indices
+    mnist_class = 0      # digit 0
+    letter_o_idx = 14    # letter O (A=0, ..., O=14)
+    letter_x_idx = 23    # letter X (A=0, ..., X=23)
+
+    # Stack eigenvectors and eigenvalues for the three classes
+    combined_vecs = torch.stack([
+        mnist_vecs[mnist_class].cpu(),       # MNIST digit 0
+        letters_vecs[letter_o_idx].cpu(),    # EMNIST letter O
+        letters_vecs[letter_x_idx].cpu(),    # EMNIST letter X
+    ])
+
+    combined_vals = torch.stack([
+        mnist_vals[mnist_class].cpu(),
+        letters_vals[letter_o_idx].cpu(),
+        letters_vals[letter_x_idx].cpu(),
+    ])
+
+    fig = plot_eigenvectors_grid(
+        combined_vecs,
+        combined_vals,
+        n_top=5,
+        title="Eigenvector Comparison: Digit '0' vs Letters 'O' and 'X'",
+        show_both_signs=True,
+        classes=[0, 1, 2],
+        class_names=["MNIST Digit '0'", "EMNIST Letter 'O'", "EMNIST Letter 'X'"],
+    )
+
+    out_path = d.figure_out / "extension2_3way_comparison_0_O_X.pdf"
+    _save_figure(fig, out_path)
+    plt.close(fig)
+
+
 def generate_eigenvector_comparison_table(
     d: Dirs,
     mnist_vecs: torch.Tensor,
@@ -670,6 +716,194 @@ def generate_eigenvector_comparison_table(
     else:
         print(f"    MNIST-0 vs EMNIST-0: mean = {mean_mnist_emnist_digit:.3f}")
         print(f"    MNIST-0 vs EMNIST-O: mean = {mean_mnist_emnist_letter:.3f}")
+
+
+def generate_eigenvector_comparison_table_0_O_X(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    letters_vecs: torch.Tensor,
+    letters_vals: torch.Tensor,
+    k: int = 10,
+) -> None:
+    """Generate LaTeX table for MNIST-0 vs EMNIST-O and MNIST-0 vs EMNIST-X.
+
+    This corresponds to the table used in the report to show cosine similarity failing
+    to distinguish similar (0–O) from dissimilar (0–X) pairs.
+    """
+    print("\n=== Eigenvector Comparison Table (MNIST-0 vs O/X, Balanced, Mean over 5 seeds) ===")
+
+    from src.paths import EXTENSION2_CHECKPOINTS, MNIST_CHECKPOINTS
+
+    seeds = [42, 43, 44, 45, 46]
+    ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
+    vision_ckpt_dir = MNIST_CHECKPOINTS
+
+    mnist_class = 0
+    letter_o_idx = 14
+    letter_x_idx = 23
+
+    def get_balanced_eigenvectors_and_vals(vals, vecs, class_idx, k_local):
+        class_vals = vals[class_idx].cpu()
+        class_vecs = vecs[class_idx].cpu()
+
+        pos_idx = torch.nonzero(class_vals > 0, as_tuple=False).squeeze(-1)
+        neg_idx = torch.nonzero(class_vals < 0, as_tuple=False).squeeze(-1)
+
+        pos_sorted = pos_idx[class_vals[pos_idx].abs().argsort(descending=True)] if pos_idx.numel() > 0 else pos_idx
+        neg_sorted = neg_idx[class_vals[neg_idx].abs().argsort(descending=True)] if neg_idx.numel() > 0 else neg_idx
+
+        k_pos = k_local // 2
+        k_neg = k_local - k_pos
+
+        selected_idx = []
+        if k_pos > 0 and pos_sorted.numel() > 0:
+            selected_idx.extend(pos_sorted[:k_pos].tolist())
+        if k_neg > 0 and neg_sorted.numel() > 0:
+            selected_idx.extend(neg_sorted[:k_neg].tolist())
+
+        if len(selected_idx) < k_local:
+            selected_mask = torch.zeros_like(class_vals, dtype=torch.bool)
+            if len(selected_idx) > 0:
+                selected_mask[selected_idx] = True
+            remaining = torch.nonzero(~selected_mask, as_tuple=False).squeeze(-1)
+            if remaining.numel() > 0:
+                remaining_sorted = remaining[class_vals[remaining].abs().argsort(descending=True)]
+                needed = k_local - len(selected_idx)
+                selected_idx.extend(remaining_sorted[:needed].tolist())
+
+        return class_vecs[selected_idx], class_vals[selected_idx]
+
+    def abs_cosine_similarity(vecs_A, vecs_B):
+        vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+        vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+        cos_matrix = vecs_A_norm @ vecs_B_norm.T
+        return cos_matrix.abs()
+
+    sim_mnist_o_by_seed = []
+    sim_mnist_x_by_seed = []
+    loaded_seeds = []
+
+    for seed in seeds:
+        mnist_candidates = [
+            ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+            ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+            vision_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+        ]
+        letters_candidates = [
+            ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+        ]
+
+        mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
+        letters_ckpt = next((p for p in letters_candidates if p.exists()), None)
+
+        if mnist_ckpt is None or letters_ckpt is None:
+            print(f"  Seed {seed}: Missing checkpoints, skipping...")
+            continue
+
+        try:
+            mnist_vals_seed, mnist_vecs_seed = load_checkpoint_eigenvalues(str(mnist_ckpt))
+            letters_vals_seed, letters_vecs_seed = load_checkpoint_eigenvalues(str(letters_ckpt))
+
+            mnist_0_vecs, mnist_0_vals = get_balanced_eigenvectors_and_vals(mnist_vals_seed, mnist_vecs_seed, mnist_class, k)
+            letters_o_vecs, _ = get_balanced_eigenvectors_and_vals(letters_vals_seed, letters_vecs_seed, letter_o_idx, k)
+            letters_x_vecs, _ = get_balanced_eigenvectors_and_vals(letters_vals_seed, letters_vecs_seed, letter_x_idx, k)
+
+            sim_mnist_o = abs_cosine_similarity(mnist_0_vecs, letters_o_vecs)
+            sim_mnist_x = abs_cosine_similarity(mnist_0_vecs, letters_x_vecs)
+
+            sim_mnist_o_by_seed.append(sim_mnist_o)
+            sim_mnist_x_by_seed.append(sim_mnist_x)
+            loaded_seeds.append(seed)
+        except Exception as e:
+            print(f"  Seed {seed}: Error loading checkpoint: {e}")
+            continue
+
+    if len(loaded_seeds) == 0:
+        print("  ⚠️  No multi-seed checkpoints found, aborting 0/O/X table generation.")
+        return
+
+    print(f"  Loaded {len(loaded_seeds)} seeds: {loaded_seeds}")
+
+    sim_mnist_o_stack = torch.stack(sim_mnist_o_by_seed)  # [n_seeds, k, k]
+    sim_mnist_x_stack = torch.stack(sim_mnist_x_by_seed)  # [n_seeds, k, k]
+
+    sim_mnist_o_mean = sim_mnist_o_stack.mean(dim=0)
+    sim_mnist_x_mean = sim_mnist_x_stack.mean(dim=0)
+
+    # Eigenvalue signs from reference MNIST eigenvalues
+    mnist_ckpt_ref = ext2_ckpt_dir / f"mnist_dense_full_com_seed{loaded_seeds[0]}.pt"
+    mnist_vals_ref, mnist_vecs_ref = load_checkpoint_eigenvalues(str(mnist_ckpt_ref))
+    _, mnist_0_vals_ref = get_balanced_eigenvectors_and_vals(mnist_vals_ref, mnist_vecs_ref, mnist_class, k)
+
+    latex_lines = []
+    latex_lines.append("\\begin{table}[htbp]")
+    latex_lines.append("\\centering")
+    latex_lines.append(
+        f"\\caption{{Absolute Cosine Similarity between Top 10 Eigenvectors (Balanced: 5 Positive + 5 Negative), Mean over {len(loaded_seeds)} seeds}}"
+    )
+    latex_lines.append("\\label{tab:eigenvector_comparison_0_O_X}")
+    latex_lines.append("\\begin{tabular}{cc|cc}")
+    latex_lines.append("\\toprule")
+    latex_lines.append("Eigenvector & Eigenvalue & \\multicolumn{2}{c}{Maximum Absolute Cosine Similarity} \\\\")
+    latex_lines.append("\\cmidrule(lr){3-4}")
+    latex_lines.append("Rank & Sign & MNIST-0 vs & MNIST-0 vs \\\\")
+    latex_lines.append(" & & EMNIST-O & EMNIST-X \\\\")
+    latex_lines.append("\\midrule")
+
+    # Per-rank std across seeds
+    max_sims_o_by_rank = []
+    max_sims_x_by_rank = []
+    for rank in range(k):
+        max_o_per_seed = [sim[rank].max().item() for sim in sim_mnist_o_by_seed]
+        max_x_per_seed = [sim[rank].max().item() for sim in sim_mnist_x_by_seed]
+        max_sims_o_by_rank.append(max_o_per_seed)
+        max_sims_x_by_rank.append(max_x_per_seed)
+
+    for rank in range(k):
+        max_o_mean = sim_mnist_o_mean[rank].max().item()
+        max_x_mean = sim_mnist_x_mean[rank].max().item()
+
+        val_sign = "+" if mnist_0_vals_ref[rank].item() > 0 else "-"
+
+        max_o_std = np.std(max_sims_o_by_rank[rank], ddof=1) if len(max_sims_o_by_rank[rank]) > 1 else 0.0
+        max_x_std = np.std(max_sims_x_by_rank[rank], ddof=1) if len(max_sims_x_by_rank[rank]) > 1 else 0.0
+
+        latex_lines.append(
+            f"{rank+1} & {val_sign} & "
+            f"${max_o_mean:.3f} \\pm {max_o_std:.3f}$ & "
+            f"${max_x_mean:.3f} \\pm {max_x_std:.3f}$ \\\\"
+        )
+
+    # Mean row
+    mean_o = sim_mnist_o_mean.max(dim=1)[0].mean().item()
+    mean_x = sim_mnist_x_mean.max(dim=1)[0].mean().item()
+
+    max_sims_o_per_seed = [sim.max(dim=1)[0].mean().item() for sim in sim_mnist_o_by_seed]
+    max_sims_x_per_seed = [sim.max(dim=1)[0].mean().item() for sim in sim_mnist_x_by_seed]
+
+    std_o = np.std(max_sims_o_per_seed, ddof=1) if len(max_sims_o_per_seed) > 1 else 0.0
+    std_x = np.std(max_sims_x_per_seed, ddof=1) if len(max_sims_x_per_seed) > 1 else 0.0
+
+    latex_lines.append("\\midrule")
+    latex_lines.append(
+        f"\\textbf{{Mean}} & & "
+        f"$\\textbf{{{mean_o:.3f} \\pm {std_o:.3f}}}$ & "
+        f"$\\textbf{{{mean_x:.3f} \\pm {std_x:.3f}}}$ \\\\"
+    )
+
+    latex_lines.append("\\bottomrule")
+    latex_lines.append("\\end{tabular}")
+    latex_lines.append("\\end{table}")
+
+    latex_table = "\n".join(latex_lines)
+
+    report_table_path = PROJECT_ROOT / "Report" / "eigenvector_comparison_table_0_O_X.tex"
+    _ensure_dir(report_table_path.parent)
+    with open(report_table_path, "w") as f:
+        f.write(latex_table)
+
+    print(f"  Saved: {report_table_path.name}")
 
 
 def generate_selection_method_comparison(
@@ -1138,6 +1372,112 @@ def generate_similarity_heatmap_weighted(
         print(f"    Dissimilar pairs: {np.mean(dissimilar_vals):.4f} ± {np.std(dissimilar_vals):.4f}")
 
 
+def generate_cosine_similarity_heatmap_abs(
+    d: Dirs,
+    mnist_vecs: torch.Tensor,
+    mnist_vals: torch.Tensor,
+    letters_vecs: torch.Tensor,
+    letters_vals: torch.Tensor,
+    k: int = 20,
+) -> None:
+    """Generate absolute cosine similarity heatmap (MNIST digits vs EMNIST letters).
+
+    This is the cosine-based counterpart to the quadratic-form heatmap, used in the report
+    to show that cosine similarity fails to separate similar from dissimilar pairs.
+    """
+    print("\n=== Absolute Cosine Similarity Heatmap (MNIST Digits vs EMNIST Letters) ===")
+
+    def get_sorted_eigenvectors(vals, vecs, class_idx, k_local):
+        class_vals = vals[class_idx].cpu()
+        class_vecs = vecs[class_idx].cpu()
+        _, sorted_idx = class_vals.abs().sort(descending=True)
+        top_k_idx = sorted_idx[:k_local]
+        return class_vecs[top_k_idx], class_vals[top_k_idx]
+
+    def abs_cosine_similarity(vecs_A, vecs_B):
+        vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+        vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+        cos_matrix = vecs_A_norm @ vecs_B_norm.T
+        return cos_matrix.abs()
+
+    def compute_mean_abs_cosine_similarity(vecs_A, vecs_B):
+        sim_matrix = abs_cosine_similarity(vecs_A, vecs_B)
+        max_sims_per_rank = sim_matrix.max(dim=1)[0]
+        return max_sims_per_rank.mean().item()
+
+    matrix = np.zeros((10, 26))
+    for digit in range(10):
+        d_vecs, _ = get_sorted_eigenvectors(mnist_vals, mnist_vecs, digit, k)
+        for letter in range(26):
+            l_vecs, _ = get_sorted_eigenvectors(letters_vals, letters_vecs, letter, k)
+            matrix[digit, letter] = compute_mean_abs_cosine_similarity(d_vecs, l_vecs)
+
+    print(f"  Matrix computed: {matrix.shape}")
+    print(f"  Range: [{matrix.min():.3f}, {matrix.max():.3f}], mean={matrix.mean():.3f}")
+
+    fig, ax = plt.subplots(figsize=(14, 6))
+
+    letter_labels = [chr(65 + i) for i in range(26)]
+    vmin, vmax = 0.2, 0.6
+    im = ax.imshow(matrix, cmap="RdBu_r", aspect="auto", vmin=vmin, vmax=vmax)
+
+    mid_val = (vmin + vmax) / 2
+    for digit in range(10):
+        for letter in range(26):
+            color = "white" if matrix[digit, letter] > mid_val + 0.1 * (vmax - vmin) else "black"
+            ax.text(
+                letter,
+                digit,
+                f"{matrix[digit, letter]:.2f}",
+                ha="center",
+                va="center",
+                fontsize=6,
+                color=color,
+            )
+
+    ax.set_xticks(range(26))
+    ax.set_xticklabels(letter_labels, fontsize=10)
+    ax.set_yticks(range(10))
+    ax.set_yticklabels(range(10), fontsize=10)
+    ax.set_xlabel("EMNIST Letter", fontsize=12, fontweight="bold")
+    ax.set_ylabel("MNIST Digit", fontsize=12, fontweight="bold")
+    ax.set_title(f"Absolute Cosine Similarity (k={k})", fontsize=14, fontweight="bold")
+
+    # Expected similar pairs: (0,O), (1,I), (2,Z), (5,S)
+    expected_pairs = [
+        (0, 14, "0-O"),  # O is index 14
+        (1, 8, "1-I"),   # I is index 8
+        (2, 25, "2-Z"),  # Z is index 25
+        (5, 18, "5-S"),  # S is index 18
+    ]
+    for digit_idx, letter_idx, _ in expected_pairs:
+        rect = plt.Rectangle((letter_idx - 0.5, digit_idx - 0.5), 1, 1,
+                             fill=False, edgecolor="blue", linewidth=3)
+        ax.add_patch(rect)
+
+    cbar = plt.colorbar(im, ax=ax, label="Absolute Cosine Similarity", fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=10)
+
+    plt.tight_layout()
+
+    out_path = d.figure_out / "extension2_heatmap_abs_cosine_similarity.pdf"
+    _save_figure(fig, out_path)
+    plt.close(fig)
+
+    # Print summary statistics
+    similar_vals = [matrix[d, l] for d, l, _ in expected_pairs]
+    dissimilar_vals = []
+    for d in range(10):
+        for l in range(26):
+            if (d, l) not in [(dp, lp) for dp, lp, _ in expected_pairs]:
+                dissimilar_vals.append(matrix[d, l])
+
+    print("  Statistics:")
+    print(f"    Expected similar pairs: {np.mean(similar_vals):.4f} ± {np.std(similar_vals):.4f}")
+    print(f"    Dissimilar pairs: {np.mean(dissimilar_vals):.4f} ± {np.std(dissimilar_vals):.4f}")
+    print(f"    Gap: {np.mean(similar_vals) - np.mean(dissimilar_vals):.4f}")
+
+
 def generate_quadratic_form_heatmap_digits(
     d: Dirs,
     mnist_vecs: torch.Tensor,
@@ -1548,6 +1888,10 @@ SECTION_MAP = {
     "metric_comparison": generate_metric_comparison,
     "ranking": generate_ranking_analysis,
     "statistical": generate_statistical_comparison,
+    # New cosine-based diagnostics used in the report
+    "3way_0_O_X": generate_3way_comparison_0_O_X,
+    "eigenvector_table_0_O_X": generate_eigenvector_comparison_table_0_O_X,
+    "cosine_heatmap_abs": generate_cosine_similarity_heatmap_abs,
 }
 
 
