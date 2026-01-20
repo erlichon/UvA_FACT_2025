@@ -145,8 +145,8 @@ if ! $SKIP_EXTENSION2; then
     echo "========================================================================"
     
     if $TEST_MODE; then
-        echo ">>> Running extension 2 in test mode (MNIST only, 1 seed)"
-        ./scripts/train/run_extension2.sh train mnist --seeds 42
+        echo ">>> Running extension 2 in test mode (2 epochs, MNIST only)"
+        ./scripts/train/run_extension2.sh test
     else
         echo ">>> Running all extension 2 experiments"
         ./scripts/train/run_extension2.sh train all
