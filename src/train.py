@@ -342,7 +342,13 @@ def main():
     checkpoint_path = checkpoint_dir / f"{config_name}_seed{args.seed}.pt"
     checkpoint = save_checkpoint(
         checkpoint_path, config, model, history,
-        eigenvalues, eigenvectors, args.seed, epochs
+        eigenvalues, eigenvectors, args.seed, epochs,
+        emissions={
+            'wall_time_hours': tracker.result.wall_time_hours,
+            'wall_time_seconds': tracker.result.wall_time_seconds,
+            'gpu_hours': tracker.result.gpu_hours,
+            'co2_kg': tracker.result.emissions_kg,
+        }
     )
     print(f"Checkpoint saved to {checkpoint_path}")
 

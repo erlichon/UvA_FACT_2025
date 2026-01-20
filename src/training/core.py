@@ -191,6 +191,7 @@ def save_checkpoint(
     eigenvectors: torch.Tensor,
     seed: int,
     epochs: int,
+    emissions: dict = None,
 ) -> Dict[str, Any]:
     """
     Save model checkpoint with eigenspectrum data.
@@ -206,6 +207,7 @@ def save_checkpoint(
         eigenvectors: Eigenvectors tensor [n_classes, d_hidden, d_input] or [n_classes, d_input, d_input] for CP
         seed: Random seed used
         epochs: Number of training epochs
+        emissions: Optional dict with CodeCarbon emissions data (co2_kg, wall_time_hours, gpu_hours)
         
     Returns:
         Checkpoint dictionary (also saved to disk)
@@ -258,6 +260,7 @@ def save_checkpoint(
         'seed': seed,
         'eigenvalues': eigenvalues.detach().cpu(),
         'eigenvectors': eigenvectors.detach().cpu(),
+        'emissions': emissions,
     }
 
     path.parent.mkdir(parents=True, exist_ok=True)
