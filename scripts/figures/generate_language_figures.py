@@ -10,11 +10,13 @@ Generates:
 - Figure 9B: Rank-2 correlation histogram (3 models)
 - Figure 9C: True vs predicted scatter plots (fw-medium)
 - Figure 8: Sentiment negation circuit (fw-medium, feature 3834)
+- Figure 8 Comparison: Weak (3834) vs Strong (best from search) circuits
 """
 
 import sys
 from pathlib import Path
 import json
+import argparse
 
 # Add project root to path (scripts/figures/ -> scripts/ -> project root)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -178,6 +180,190 @@ def generate_figure_8(results_dir: Path, figure_dir: Path):
     return True
 
 
+def generate_figure_8_comparison(results_dir: Path, figure_dir: Path):
+    """
+    Generate Figure 8 Comparison: Weak (tutorial feature 3834) vs Strong (best from search).
+    
+    This figure demonstrates:
+    - Left side: Feature 3834 (tutorial "not-good") - shows weak AND-gate structure
+    - Right side: Best feature from comprehensive search - shows strong AND-gate structure
+    - Bottom: Per-word activation examples for both circuits
+    """
+    print("\n" + "="*60)
+    print("FIGURE 8 COMPARISON: Weak vs Strong Circuits")
+    print("="*60)
+    
+    # Check for search results
+    search_results_file = results_dir / "circuit_search_complete.json"
+    if not search_results_file.exists():
+        print(f"Search results not found: {search_results_file}")
+        print("Run search first: ./scripts/train/run_language.sh figure8 search")
+        return False
+    
+    with open(search_results_file) as f:
+        search_results = json.load(f)
+    
+    # Get best feature from search
+    top_by_and = search_results.get("top_by_and_score", [])
+    if not top_by_and:
+        print("No top features found in search results")
+        return False
+    
+    best_feature = top_by_and[0]["feature"]
+    best_score = top_by_and[0]["and_score"]
+    
+    print(f"Best feature from search: {best_feature} (AND-score: {best_score:.2f})")
+    print(f"Tutorial feature: 3834")
+    
+    # Check for analysis files
+    best_analysis_file = results_dir / f"circuit_analysis_{best_feature}.json"
+    tutorial_data_file = results_dir / "figure_8_data_fw_medium.json"
+    
+    if not best_analysis_file.exists():
+        print(f"Analysis file not found: {best_analysis_file}")
+        print("Run analysis first: ./scripts/train/run_language.sh figure8 analyze")
+        return False
+    
+    # Load data
+    with open(best_analysis_file) as f:
+        best_analysis = json.load(f)
+    
+    tutorial_data = None
+    if tutorial_data_file.exists():
+        tutorial_data = load_figure_8_data(tutorial_data_file)
+    
+    # Create comparison figure
+    fig = plt.figure(figsize=(16, 12))
+    
+    # Top row: Interaction matrices
+    ax1 = fig.add_subplot(2, 3, 1)
+    ax2 = fig.add_subplot(2, 3, 2)
+    ax3 = fig.add_subplot(2, 3, 3)
+    
+    # Bottom row: Feature projections and summary
+    ax4 = fig.add_subplot(2, 3, 4)
+    ax5 = fig.add_subplot(2, 3, 5)
+    ax6 = fig.add_subplot(2, 3, 6)
+    
+    # Panel 1: Tutorial feature (3834) interaction matrix
+    if tutorial_data and "panel_a" in tutorial_data:
+        Q = np.array(tutorial_data["panel_a"]["Q_submatrix"])
+        im1 = ax1.imshow(Q, cmap="RdBu_r", vmin=-0.1, vmax=0.1, aspect='auto')
+        ax1.set_title(f"Feature 3834 (Tutorial)\nAND-score: weak", fontsize=10)
+        ax1.set_xlabel("Input Feature")
+        ax1.set_ylabel("Input Feature")
+        plt.colorbar(im1, ax=ax1, fraction=0.046, pad=0.04)
+    else:
+        ax1.text(0.5, 0.5, "Tutorial data\nnot available", ha='center', va='center', fontsize=12)
+        ax1.set_title("Feature 3834 (Tutorial)")
+    
+    # Panel 2: Best feature interaction matrix
+    if "Q_submatrix" in best_analysis:
+        Q = np.array(best_analysis["Q_submatrix"])
+        vmax = np.abs(Q).max()
+        im2 = ax2.imshow(Q, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect='auto')
+        ax2.set_title(f"Feature {best_feature} (Best)\nAND-score: {best_score:.2f}", fontsize=10)
+        ax2.set_xlabel("Input Feature")
+        ax2.set_ylabel("Input Feature")
+        plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
+    
+    # Panel 3: Eigenvalue comparison
+    best_eigs = best_analysis.get("eigenvalues", [])[:10]
+    ax3.bar(range(len(best_eigs)), best_eigs, color='steelblue', alpha=0.7, label=f'Feature {best_feature}')
+    ax3.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    ax3.set_xlabel("Eigenvalue Index")
+    ax3.set_ylabel("Eigenvalue")
+    ax3.set_title("Eigenvalue Spectrum (Best Circuit)")
+    ax3.legend()
+    
+    # Panel 4: Tutorial feature projections
+    if tutorial_data and "panel_b" in tutorial_data:
+        projs = tutorial_data["panel_b"]["projections"]
+        x = [p[0] for p in projs.values()]
+        y = [p[1] for p in projs.values()]
+        ax4.scatter(x, y, alpha=0.7, s=50)
+        ax4.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax4.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax4.set_xlabel("v1 projection")
+        ax4.set_ylabel("v2 projection")
+        ax4.set_title("Feature 3834: Eigenvector Projections")
+    else:
+        ax4.text(0.5, 0.5, "Projection data\nnot available", ha='center', va='center', fontsize=12)
+        ax4.set_title("Feature 3834: Projections")
+    
+    # Panel 5: Best feature projections
+    if "feature_projections" in best_analysis:
+        projs = best_analysis["feature_projections"]
+        cluster_pos = best_analysis.get("cluster_pos", [])
+        cluster_neg = best_analysis.get("cluster_neg", [])
+        
+        for feat_str, (v1, v2) in projs.items():
+            feat = int(feat_str)
+            color = 'blue' if feat in cluster_pos else 'orange' if feat in cluster_neg else 'gray'
+            ax5.scatter(v1, v2, c=color, s=60, alpha=0.7)
+            ax5.annotate(feat_str, (v1, v2), fontsize=7, alpha=0.7)
+        
+        ax5.axhline(y=0, color='gray', linestyle='--', alpha=0.5)
+        ax5.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
+        ax5.set_xlabel("v1 projection")
+        ax5.set_ylabel("v2 projection")
+        ax5.set_title(f"Feature {best_feature}: Eigenvector Projections")
+        
+        # Add legend
+        from matplotlib.patches import Patch
+        ax5.legend(handles=[
+            Patch(color='blue', label=f'Cluster 1 ({len(cluster_pos)})'),
+            Patch(color='orange', label=f'Cluster 2 ({len(cluster_neg)})'),
+        ], loc='best', fontsize=8)
+    
+    # Panel 6: Summary statistics
+    ax6.axis('off')
+    
+    # Build summary text
+    summary_lines = [
+        "COMPARISON SUMMARY",
+        "="*30,
+        "",
+        f"Tutorial Feature: 3834",
+        f"  Semantic: 'not-good'",
+        f"  AND-gate: Weak interactions",
+        "",
+        f"Best Feature: {best_feature}",
+        f"  AND-score: {best_score:.2f}",
+        f"  Cluster 1: {len(best_analysis.get('cluster_pos', []))} features",
+        f"  Cluster 2: {len(best_analysis.get('cluster_neg', []))} features",
+        "",
+        "Key Finding:",
+        "  Comprehensive search reveals",
+        "  strong AND-gate circuits exist",
+        "  in fw-medium, but require",
+        "  systematic discovery.",
+    ]
+    
+    summary_text = "\n".join(summary_lines)
+    ax6.text(0.1, 0.9, summary_text, transform=ax6.transAxes, 
+             fontsize=9, verticalalignment='top', fontfamily='monospace',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    # Save figure
+    save_figure(fig, "figure_8_comparison_weak_vs_strong.pdf", figure_dir)
+    
+    # Also save to Report/figures/language
+    report_fig_dir = PROJECT_ROOT / "Report/figures/language"
+    report_fig_dir.mkdir(parents=True, exist_ok=True)
+    fig2 = plt.figure(figsize=(16, 12))
+    # Recreate for second save (figure was closed)
+    save_figure(fig, "figure_8_comparison_weak_vs_strong.pdf", report_fig_dir)
+    
+    print(f"\nComparison figure generated!")
+    print(f"  Tutorial (3834): weak interactions")
+    print(f"  Best ({best_feature}): AND-score {best_score:.2f}")
+    
+    return True
+
+
 def generate_figure_10(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 10 (SAE Training Time Effect) from v0-v4 comparison results.
@@ -255,48 +441,78 @@ def generate_figure_10(results_dir: Path, figure_dir: Path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Generate language experiment figures")
+    parser.add_argument("--figure8-only", action="store_true",
+                        help="Only generate Figure 8 variants (including comparison)")
+    parser.add_argument("--figure9-only", action="store_true",
+                        help="Only generate Figure 9 variants")
+    parser.add_argument("--figure10-only", action="store_true",
+                        help="Only generate Figure 10 variants")
+    args = parser.parse_args()
+    
     # Paths (using centralized paths)
     RESULTS_DIR = LANGUAGE_RESULTS
     FIGURE_DIR = LANGUAGE_FIGURES
+    REPORT_FIG_DIR = PROJECT_ROOT / "Report/figures/language"
 
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_FIG_DIR.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
     print("Language Figure Generation")
     print("="*60)
     
+    # Determine which figures to generate
+    generate_all = not (args.figure8_only or args.figure9_only or args.figure10_only)
+    
     # === Figure 9: Correlation Analysis (from sweep) ===
-    generate_figure_9(RESULTS_DIR, FIGURE_DIR)
+    if generate_all or args.figure9_only:
+        generate_figure_9(RESULTS_DIR, FIGURE_DIR)
     
     # === Figure 8: Sentiment Negation Circuit ===
-    generate_figure_8(RESULTS_DIR, FIGURE_DIR)
+    if generate_all or args.figure8_only:
+        # Legacy Figure 8 (single feature)
+        generate_figure_8(RESULTS_DIR, FIGURE_DIR)
+        
+        # Comparison Figure (if search results exist)
+        search_results_file = RESULTS_DIR / "circuit_search_complete.json"
+        if search_results_file.exists():
+            generate_figure_8_comparison(RESULTS_DIR, FIGURE_DIR)
+            # Also save to report directory
+            generate_figure_8_comparison(RESULTS_DIR, REPORT_FIG_DIR)
+        else:
+            print("\nNote: Skipping Figure 8 comparison (no search results)")
+            print("  Run: ./scripts/train/run_language.sh figure8 search")
     
     # === Figure 10: SAE Training Time Effect ===
-    generate_figure_10(RESULTS_DIR, FIGURE_DIR)
+    if generate_all or args.figure10_only:
+        generate_figure_10(RESULTS_DIR, FIGURE_DIR)
 
     # --- Load negation results (legacy) ---
-    negation_file = RESULTS_DIR / "negation_fw_medium.json"
-    if negation_file.exists():
-        print(f"\nLoading negation results from {negation_file}")
-        with open(negation_file) as f:
-            negation_data = json.load(f)
+    if generate_all:
+        negation_file = RESULTS_DIR / "negation_fw_medium.json"
+        if negation_file.exists():
+            print(f"\nLoading negation results from {negation_file}")
+            with open(negation_file) as f:
+                negation_data = json.load(f)
 
-        print("\n=== Negation Analysis Summary ===")
-        if 'not_positive_features' in negation_data and negation_data['not_positive_features']:
-            print(f"Top not+positive feature: {negation_data['not_positive_features'][0]}")
-        if 'not_negative_features' in negation_data and negation_data['not_negative_features']:
-            print(f"Top not+negative feature: {negation_data['not_negative_features'][0]}")
-        if 'top_pair_analysis' in negation_data:
-            pair = negation_data['top_pair_analysis']
-            print(f"Cosine similarity: {pair['cosine_similarity']:.4f}")
-            print(f"Opposing directions: {pair['opposing_directions']}")
-    else:
-        print(f"\nNegation results not found: {negation_file}")
+            print("\n=== Negation Analysis Summary ===")
+            if 'not_positive_features' in negation_data and negation_data['not_positive_features']:
+                print(f"Top not+positive feature: {negation_data['not_positive_features'][0]}")
+            if 'not_negative_features' in negation_data and negation_data['not_negative_features']:
+                print(f"Top not+negative feature: {negation_data['not_negative_features'][0]}")
+            if 'top_pair_analysis' in negation_data:
+                pair = negation_data['top_pair_analysis']
+                print(f"Cosine similarity: {pair['cosine_similarity']:.4f}")
+                print(f"Opposing directions: {pair['opposing_directions']}")
+        else:
+            print(f"\nNegation results not found: {negation_file}")
 
     print(f"\n{'='*60}")
     print("Figure Generation Complete!")
     print(f"{'='*60}")
     print(f"Figures saved to: {FIGURE_DIR}")
+    print(f"Report figures saved to: {REPORT_FIG_DIR}")
 
 
 if __name__ == "__main__":

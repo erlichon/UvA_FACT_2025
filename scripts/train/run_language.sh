@@ -216,7 +216,134 @@ run_figure9() {
 }
 
 # --- FIGURE 8: Negation Circuit Visualization ---
-run_figure8() {
+# Now supports subcommands: search, analyze, figures, all
+
+run_figure8_search() {
+    print_header
+    activate_conda
+    
+    mkdir -p results/language
+    
+    local max_features=""
+    if $QUICK_MODE; then
+        max_features="--max-features 100"
+    fi
+    
+    echo ">>> Running Figure 8 Circuit Search (Full 8192 features)"
+    echo "    Device: $DEVICE"
+    echo "    Estimated time: ~8-10 hours on MPS"
+    echo ""
+    
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/comprehensive_circuit_search.py \
+        --device "$DEVICE" \
+        --batch-size 50 \
+        --save-interval 100 \
+        $max_features
+    
+    echo ""
+    echo "Circuit search complete!"
+    echo "Output: results/language/circuit_search_complete.json"
+}
+
+run_figure8_analyze() {
+    print_header
+    activate_conda
+    
+    mkdir -p results/language
+    
+    echo ">>> Analyzing top circuits from search results"
+    echo ""
+    
+    # Check if search results exist
+    if [ ! -f "results/language/circuit_search_complete.json" ]; then
+        echo "ERROR: Search results not found. Run 'figure8 search' first."
+        exit 1
+    fi
+    
+    # Extract top features and analyze them
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python -c "
+import json
+from pathlib import Path
+
+PROJECT_ROOT = Path('.')
+results_file = PROJECT_ROOT / 'results/language/circuit_search_complete.json'
+
+with open(results_file) as f:
+    results = json.load(f)
+
+# Get top 5 by AND-score
+top_features = [r['feature'] for r in results['top_by_and_score'][:5]]
+print(f'Top 5 features by AND-score: {top_features}')
+
+# Save for figure generation
+with open(PROJECT_ROOT / 'results/language/top_circuit_features.json', 'w') as f:
+    json.dump({
+        'top_5_and_score': top_features,
+        'best_feature': top_features[0],
+        'tutorial_feature': 3834,  # For comparison
+    }, f, indent=2)
+print('Saved: results/language/top_circuit_features.json')
+"
+    
+    # Analyze best feature
+    local best_feature=$(python -c "
+import json
+with open('results/language/circuit_search_complete.json') as f:
+    results = json.load(f)
+print(results['top_by_and_score'][0]['feature'])
+")
+    
+    echo ""
+    echo "Analyzing best feature: $best_feature"
+    
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/comprehensive_circuit_search.py \
+        --device "$DEVICE" \
+        --analyze "$best_feature"
+    
+    echo ""
+    echo "Analysis complete!"
+}
+
+run_figure8_figures() {
+    print_header
+    activate_conda
+    
+    mkdir -p results/language/figures
+    mkdir -p Report/figures/language
+    
+    echo ">>> Generating Figure 8 variants"
+    echo ""
+    
+    # Check if search results exist
+    if [ ! -f "results/language/circuit_search_complete.json" ]; then
+        echo "WARNING: Full search results not found."
+        echo "Will generate figures with available data (feature 3834 only)."
+    fi
+    
+    # Generate all figure 8 variants
+    PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/generate_language_figures.py --figure8-only
+    
+    echo ""
+    echo "Figure 8 generation complete!"
+    echo "Output: Report/figures/language/"
+}
+
+run_figure8_all() {
+    echo ">>> Running full Figure 8 pipeline: search -> analyze -> figures"
+    echo "    Estimated total time: ~8-10 hours"
+    echo ""
+    
+    run_figure8_search
+    echo ""
+    run_figure8_analyze
+    echo ""
+    run_figure8_figures
+    echo ""
+    echo "Full Figure 8 pipeline complete!"
+}
+
+# Legacy figure8 (simple data generation for single feature)
+run_figure8_legacy() {
     print_header
     activate_conda
     
@@ -231,7 +358,7 @@ run_figure8() {
         n_samples=500
     fi
     
-    echo ">>> Running Figure 8 (Negation Circuit Visualization)"
+    echo ">>> Running Figure 8 (Legacy - Single Feature)"
     echo "    Feature: $FEATURE (not-good)"
     echo "    Device: $fig8_device"
     echo "    Samples: $n_samples"
@@ -248,6 +375,42 @@ run_figure8() {
     echo ""
     echo "Figure 8 data generated!"
     echo "Output: results/language/figure_8_data_fw_medium.json"
+}
+
+run_figure8() {
+    # Check for subcommand
+    local subcmd="${REMAINING_ARGS[0]:-}"
+    
+    case $subcmd in
+        search)
+            run_figure8_search
+            ;;
+        analyze)
+            run_figure8_analyze
+            ;;
+        figures)
+            run_figure8_figures
+            ;;
+        all)
+            run_figure8_all
+            ;;
+        legacy|"")
+            run_figure8_legacy
+            ;;
+        *)
+            echo "Unknown figure8 subcommand: $subcmd"
+            echo ""
+            echo "Usage: ./scripts/train/run_language.sh figure8 <subcommand>"
+            echo ""
+            echo "Subcommands:"
+            echo "  search    Run full circuit search (~8-10 hours)"
+            echo "  analyze   Analyze top circuits from search results"
+            echo "  figures   Generate all Figure 8 variants"
+            echo "  all       Full pipeline: search -> analyze -> figures"
+            echo "  legacy    (default) Single feature visualization"
+            exit 1
+            ;;
+    esac
 }
 
 # --- FIGURE 10: SAE TRAINING TIME ---
@@ -480,19 +643,27 @@ show_help() {
     echo "  all           Full language pipeline (except Figure 8)"
     echo "  help          Show this help message"
     echo ""
+    echo "Figure 8 Subcommands:"
+    echo "  figure8 search    Run comprehensive circuit search (~8-10 hours)"
+    echo "  figure8 analyze   Analyze top circuits from search results"
+    echo "  figure8 figures   Generate all Figure 8 variants"
+    echo "  figure8 all       Full pipeline: search -> analyze -> figures"
+    echo "  figure8 legacy    Single feature visualization (default)"
+    echo ""
     echo "Options:"
     echo "  --quick       Reduced samples/features for testing"
     echo "  --device      cpu|mps|cuda (default: auto-detect)"
     echo "  --no-wandb    Disable wandb logging"
     echo "  --model       Specific model: ts-medium, fw-small, fw-medium, all"
     echo "  --sequential  Run models sequentially (memory-safe for figure9)"
-    echo "  --feature     Feature index for figure8 (default: 3834)"
+    echo "  --feature     Feature index for figure8 legacy (default: 3834)"
     echo ""
     echo "Examples:"
     echo "  ./scripts/train/run_language.sh test                      # Quick tests"
     echo "  ./scripts/train/run_language.sh figure9 --quick           # Quick correlation sweep"
     echo "  ./scripts/train/run_language.sh figure9 --model fw-medium # Single model"
-    echo "  ./scripts/train/run_language.sh figure8 --device cpu      # Figure 8 (safe mode)"
+    echo "  ./scripts/train/run_language.sh figure8 all               # Full Figure 8 pipeline"
+    echo "  ./scripts/train/run_language.sh figure8 search --quick    # Quick search (100 features)"
     echo "  ./scripts/train/run_language.sh all                       # Full pipeline"
     echo ""
     echo "Models for Figure 9:"

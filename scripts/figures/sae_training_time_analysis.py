@@ -46,6 +46,8 @@ from sae.sae import SAE, SAEConfig
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_model
 
+from src.utils import track_emissions
+
 
 def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> float:
     """Compute Pearson correlation between two tensors."""
@@ -160,17 +162,8 @@ def analyze_sae_version(
     }
 
 
-def main():
-    parser = argparse.ArgumentParser(description="SAE Training Time Analysis")
-    parser.add_argument('--device', type=str, default='cpu', help='Device (cpu, cuda, mps)')
-    parser.add_argument('--n-features', type=int, default=-1, help='Number of features to analyze (-1 for all)')
-    parser.add_argument('--n-batches', type=int, default=10, help='Number of batches for activation collection')
-    parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
-    parser.add_argument('--min-active', type=int, default=50, help='Minimum active samples per feature')
-    parser.add_argument('--output', type=str, default='results/language/sae_training_time_comparison.json',
-                        help='Output JSON file')
-    args = parser.parse_args()
-    
+def run_analysis(args):
+    """Run the actual analysis (wrapped by main for emissions tracking)."""
     print("=" * 70)
     print("SAE Training Time Analysis (Figure 10)")
     print("=" * 70)
@@ -288,14 +281,6 @@ def main():
         # Clean up
         del sae, z_true_all
     
-    # Save results
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w') as f:
-        json.dump(all_results, f, indent=2)
-    print(f"\n{'='*70}")
-    print(f"Results saved to: {output_path}")
-    
     # Print comparison table
     print(f"\n{'='*70}")
     print("SUMMARY: SAE Training Time Effect")
@@ -312,6 +297,43 @@ def main():
     print("-" * 50)
     print(f"{'Paper':>10} {'~0.65':>10} {'>0.75':>10} {'--':>10} {'69%':>10}")
     print(f"\nEnd: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    return all_results, args.output
+
+
+def main():
+    parser = argparse.ArgumentParser(description="SAE Training Time Analysis")
+    parser.add_argument('--device', type=str, default='cpu', help='Device (cpu, cuda, mps)')
+    parser.add_argument('--n-features', type=int, default=-1, help='Number of features to analyze (-1 for all)')
+    parser.add_argument('--n-batches', type=int, default=10, help='Number of batches for activation collection')
+    parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
+    parser.add_argument('--min-active', type=int, default=50, help='Minimum active samples per feature')
+    parser.add_argument('--output', type=str, default='results/language/sae_training_time_comparison.json',
+                        help='Output JSON file')
+    args = parser.parse_args()
+    
+    # Run analysis with emissions tracking
+    with track_emissions("fact-bilinear") as tracker:
+        all_results, output_file = run_analysis(args)
+    
+    # Add emissions to results
+    all_results['emissions'] = {
+        'co2_kg': tracker.result.emissions_kg,
+        'wall_time_hours': tracker.result.wall_time_hours,
+        'gpu_hours': tracker.result.gpu_hours,
+    }
+    
+    # Save results with emissions
+    output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w') as f:
+        json.dump(all_results, f, indent=2)
+    print(f"\n{'='*70}")
+    print(f"Results saved to: {output_path}")
+    print(f"\nEmissions:")
+    print(f"  CO2 (kg): {tracker.result.emissions_kg:.6f}")
+    print(f"  Wall time: {tracker.result.wall_time_hours:.2f} hours")
+    print(f"  GPU hours: {tracker.result.gpu_hours:.3f}")
 
 
 if __name__ == "__main__":
