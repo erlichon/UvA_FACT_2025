@@ -114,6 +114,8 @@ Available as \texttt{tdooms/ts-medium} on HuggingFace.
 \textbf{Our primary model (fw-medium):} A 16-layer, 1024-hidden-dimension bilinear transformer (335M parameters) trained on FineWeb-EDU.
 Available as \texttt{tdooms/fw-medium} with complete SAE coverage (\texttt{mlp-in} and \texttt{mlp-out}).
 We use layer 7 with expansion ratio 8$\times$.
+Note that \texttt{fw-medium} (16 layers) is significantly deeper than the paper's \texttt{ts-medium} (6 layers).
+While this pivot was necessary for SAE coverage, we acknowledge that deeper architectures generally exhibit more complex feature interactions, potentially making the low-rank approximation task more difficult than in the original setting.
 
 \textbf{Additional model (fw-small):} A 12-layer variant (162M parameters) for cross-model comparison.
 Layer 8 with expansion ratio 4$\times$.
@@ -169,3 +171,5 @@ For each model, we compute interaction matrices for 100 randomly sampled output 
 Vision experiments were conducted on the Snellius HPC cluster (NVIDIA A100 GPUs) and locally on Apple M4 (MPS).
 Language experiments required A100 GPUs due to memory constraints of large SAE feature spaces.
 We track computational costs using \texttt{codecarbon}~\citep{codecarbon} for CO2 emission estimates.
+
+To enable reproducibility on consumer-grade hardware (e.g., single GPU), we implemented a memory-efficient streaming algorithm for the eigendecomposition of the interaction tensor $\mathcal{I}$, avoiding the instantiation of the full $d_{\text{in}} \times d_{\text{in}} \times d_{\text{out}}$ tensor.

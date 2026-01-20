@@ -13,7 +13,7 @@ While effective, this approach incurs substantial computational overhead and yie
 Bilinear MLPs replace standard nonlinearities with element-wise multiplication, creating interaction tensors that can be eigendecomposed to reveal interpretable features directly from the learned weights---no auxiliary models required.
 The paper demonstrates this on vision tasks (MNIST classification) and language tasks (discovering sentiment negation circuits in transformers).
 
-This work contributes to \textbf{FACT-AI Topic 1.4: Transparency}.
+This work contributes to \textbf{FACT-AI Topic 1.4: Transparency}~\citep{fact_manual}.
 Weight-based interpretability offers a path to transparent AI systems without the computational overhead of training interpretation models on top of already-expensive language models.
 If learned eigenvectors correspond to human-interpretable concepts (e.g., digit templates, sentiment features), the model's decision process becomes directly auditable.
 
@@ -24,11 +24,12 @@ We reproduce both main experimental sections of \citet{pearce2024bilinear} and r
     Eigenvectors under regularization show interpretable digit-like patterns.
     
     \item \textbf{Language Reproduction (Section 5):} We partially reproduce the negation circuit discovery.
-    We confirm that negation features form opposing directions in SAE feature space (cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---mean rank-2 correlations (0.37--0.55) fall well below the paper's claimed 69\% above 0.75.
+    We confirm that negation features form opposing directions in SAE feature space (cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---the fraction of features achieving $>$0.75 correlation is significantly lower than the claimed 69\%, and the mean rank-2 correlation saturates at 0.37--0.55.
     
     \item \textbf{Root Cause Analysis:} We trace the language discrepancy to SAE training time.
     Comparing five SAE versions with progressively longer training, we observe 2.5$\times$ improvement in rank-2 correlation (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that ``correlation drastically improves with longer SAE training.''
-    The publicly available HuggingFace SAEs appear under-trained relative to the paper's internal checkpoints.
+    We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in \citet{pearce2024bilinear}, creating a reproducibility gap.
+    We resolve this by characterizing the relationship between SAE training steps and eigenvector correlation.
     
     \item \textbf{Ablation Study:} We disentangle noise augmentation and weight decay, finding that weight decay alone achieves the lowest effective rank, while noise augmentation improves accuracy but \emph{increases} effective rank.
     
