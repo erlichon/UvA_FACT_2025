@@ -329,14 +329,27 @@ run_figure8_figures() {
 }
 
 run_figure8_all() {
-    echo ">>> Running full Figure 8 pipeline: search -> analyze -> figures"
+    echo ">>> Running full Figure 8 pipeline: legacy -> search -> analyze -> figures"
     echo "    Estimated total time: ~8-10 hours"
     echo ""
     
+    # Step 1: Generate legacy single-feature data (needed for figure_8_data_fw_medium.json)
+    echo "Step 1/4: Generating legacy single-feature data..."
+    run_figure8_legacy
+    echo ""
+    
+    # Step 2: Comprehensive circuit search
+    echo "Step 2/4: Running comprehensive circuit search..."
     run_figure8_search
     echo ""
+    
+    # Step 3: Analyze top circuits
+    echo "Step 3/4: Analyzing top circuits..."
     run_figure8_analyze
     echo ""
+    
+    # Step 4: Generate all figure variants
+    echo "Step 4/4: Generating all figure variants..."
     run_figure8_figures
     echo ""
     echo "Full Figure 8 pipeline complete!"
@@ -454,7 +467,7 @@ run_negation() {
     
     local n_samples=50000
     if $QUICK_MODE; then
-        n_samples=2000
+        n_samples=500  # Quick mode: ~16 batches instead of 1563
     fi
     
     local config="configs/language_negation_fw.yaml"
@@ -482,6 +495,7 @@ run_negation() {
         --output "results/language/negation_analysis.json" \
         --device "$DEVICE" \
         --use-pretrained \
+        --n-samples "$n_samples" \
         $WANDB_FLAG
     
     echo ""
@@ -549,7 +563,7 @@ print(f'CUDA available: {torch.cuda.is_available()}')
     mkdir -p results/language/test
     
     # Test 1: Negation Discovery (minimal)
-    echo "2. Testing negation discovery (2000 samples)..."
+    echo "2. Testing negation discovery (500 samples)..."
     cat > /tmp/test_negation_config.yaml << 'EOF'
 name: test_negation_mps
 model:
@@ -561,7 +575,7 @@ sae:
   expansion: 4
   k: 30
 analysis:
-  n_samples: 2000
+  n_samples: 500
   top_k: 10
 EOF
     
@@ -571,6 +585,7 @@ EOF
         --use-pretrained \
         --device "$DEVICE" \
         --no-wandb \
+        --n-samples 500 \
         && echo "Negation discovery test PASSED" \
         || { echo "Negation discovery test FAILED"; exit 1; }
     

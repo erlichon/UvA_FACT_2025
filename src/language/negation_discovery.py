@@ -226,6 +226,7 @@ def main():
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--use-pretrained", action="store_true", help="Use pretrained SAEs from HuggingFace")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
+    parser.add_argument("--n-samples", type=int, default=None, help="Override n_samples from config")
     args = parser.parse_args()
 
     # Auto-detect device (includes MPS support)
@@ -269,7 +270,9 @@ def main():
         # Create dataloader
         print("Loading TinyStories dataset...")
         dataset = load_dataset("roneneldan/TinyStories", split="train")
-        n_samples = config.get("analysis", {}).get("n_samples", 50000)
+        # CLI argument overrides config
+        n_samples = args.n_samples if args.n_samples else config.get("analysis", {}).get("n_samples", 50000)
+        print(f"Using n_samples: {n_samples}")
         dataset = dataset.select(range(min(n_samples, len(dataset))))
 
         def tokenize(examples):

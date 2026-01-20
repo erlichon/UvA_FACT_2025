@@ -517,8 +517,8 @@ def generate_figure_8_comparison(results_dir: Path, figure_dir: Path):
     
     plt.tight_layout()
     
-    # Save figure (use consistent filename for paper_hub)
-    save_figure(fig, "figure_8_comparison.pdf", figure_dir)
+    # Save figure with name matching report reference
+    save_figure(fig, "figure_8_comparison_751_vs_3834.pdf", figure_dir)
     
     print(f"\nComparison figure generated!")
     print(f"  Tutorial (3834): weak interactions")
