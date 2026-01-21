@@ -41,3 +41,5 @@ results/Thumbs.db
 checkpoints/
 *.pt
 results/sweeps/*/checkpoints/
+Report/main.bbl
+Report/main.blg
