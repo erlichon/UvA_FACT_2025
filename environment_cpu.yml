@@ -34,3 +34,4 @@ dependencies:
     - bidict
     - pandas
     - plotly
+    - gdown>=5.0.0  # Google Drive download for checkpoints/results

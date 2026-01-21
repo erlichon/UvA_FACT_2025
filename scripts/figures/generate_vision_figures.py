@@ -60,6 +60,7 @@ from src.plot_utils.ablation import (
     plot_metric_comparison,
 )
 from src.plot_utils.style import set_publication_style
+from src.artifact_loader import ensure_artifacts
 
 # Reduce noisy, non-actionable warnings in local environments.
 warnings.filterwarnings(
@@ -1927,6 +1928,10 @@ def main() -> int:
         device = "cpu"
 
     set_publication_style()
+    
+    # Ensure artifacts are available (downloads from Google Drive if missing)
+    ensure_artifacts()
+    
     d = get_dirs()
 
     sections = set(args.sections)

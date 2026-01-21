@@ -28,6 +28,7 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 
 from src.paths import LANGUAGE_FIGURES, LANGUAGE_RESULTS
+from src.artifact_loader import ensure_artifacts
 
 # Figure 9 and 8 plotting utilities
 from src.plot_utils.language import (
@@ -717,6 +718,9 @@ def main():
     parser.add_argument("--figure10-only", action="store_true",
                         help="Only generate Figure 10 variants")
     args = parser.parse_args()
+    
+    # Ensure artifacts are available (downloads from Google Drive if missing)
+    ensure_artifacts()
     
     # Paths (using centralized paths)
     RESULTS_DIR = LANGUAGE_RESULTS

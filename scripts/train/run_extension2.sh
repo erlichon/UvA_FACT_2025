@@ -26,6 +26,9 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# Ensure PYTHONPATH includes project root for src module imports
+export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
+
 # Default values (paths are interpreted relative to project root)
 SEEDS="42,43,44,45,46"
 CHECKPOINT_DIR="checkpoints/extension2"

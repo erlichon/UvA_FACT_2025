@@ -74,6 +74,22 @@ PAPER_HUB_ZIP = PAPER_HUB_ROOT / "paper_hub_bundle.zip"
 ORIGINAL_CODE_PATH = PROJECT_ROOT / "bilinear-decomposition-main"
 
 # =============================================================================
+# Google Drive Data (checkpoints and results)
+# =============================================================================
+
+# Shared folder containing checkpoints.zip and results.zip
+GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1et6EfHxvyEZKCZ1yXfA1EOHbcShCNWzt"
+GDRIVE_FOLDER_ID = "1et6EfHxvyEZKCZ1yXfA1EOHbcShCNWzt"
+
+# Individual file IDs (for direct download)
+GDRIVE_CHECKPOINTS_ZIP_ID = "1pz9HcFeK8t6idBSlBxL-lvbcEnSZg_Cp"
+GDRIVE_RESULTS_ZIP_ID = "1HeDd7p4H7UhGto4cOtNKeVDNXtsXKhoO"
+
+# Local zip file paths
+CHECKPOINTS_ZIP = PROJECT_ROOT / "checkpoints.zip"
+RESULTS_ZIP = PROJECT_ROOT / "results.zip"
+
+# =============================================================================
 # Helper functions
 # =============================================================================
 

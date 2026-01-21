@@ -64,6 +64,7 @@ from src.vision.subspace import (
     compute_weighted_similarity,
 )
 from src.plot_utils.style import set_publication_style
+from src.artifact_loader import ensure_artifacts
 from src.plot_utils.extension2 import (
     DIGIT_LETTER_PAIRS,
     plot_digit_letter_eigenvector_comparison,
@@ -1910,6 +1911,9 @@ def main():
     args = parser.parse_args()
     
     set_publication_style()
+    
+    # Ensure artifacts are available (downloads from Google Drive if missing)
+    ensure_artifacts()
     
     d = get_dirs()
     print(f"Output directory: {d.figure_out}")

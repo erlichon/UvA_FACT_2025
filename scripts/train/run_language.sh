@@ -23,6 +23,7 @@
 #   --quick       Reduced samples/features for testing
 #   --device      cpu|mps|cuda (default: auto-detect)
 #   --no-wandb    Disable wandb logging
+#   --no-conda    Skip conda activation (for Snellius/HPC)
 #   --model       Specific model for figure9/negation/interaction
 #   --sequential  Run figure9 sequentially (memory-safe)
 
@@ -32,6 +33,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 cd "$PROJECT_ROOT"
 
+# Ensure PYTHONPATH includes project root for src module imports
+export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
+
 # Default values
 QUICK_MODE=false
 DEVICE=""
@@ -39,6 +43,7 @@ WANDB_FLAG="--no-wandb"
 MODEL=""
 SEQUENTIAL=false
 FEATURE=3834
+NO_CONDA=false
 
 # Parse global options and extract command
 COMMAND=""
@@ -56,6 +61,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-wandb)
             WANDB_FLAG="--no-wandb"
+            shift
+            ;;
+        --no-conda)
+            NO_CONDA=true
             shift
             ;;
         --model)
@@ -99,8 +108,11 @@ if [ -z "$DEVICE" ]; then
     fi
 fi
 
-# Check for conda environment
+# Check for conda environment (skip if --no-conda flag is set)
 activate_conda() {
+    if $NO_CONDA; then
+        return 0  # Skip conda activation on Snellius/HPC
+    fi
     if command -v conda &> /dev/null; then
         eval "$(conda shell.bash hook)"
         conda activate fact_cpu 2>/dev/null || conda activate fact 2>/dev/null || echo "Warning: Could not activate conda env"
@@ -362,8 +374,8 @@ run_figure8_legacy() {
     
     mkdir -p results/language
     
-    # Figure 8 now uses memory-efficient iterative eigensolver
-    # No longer OOM-prone on MPS with 48GB RAM
+    # Figure 8 uses memory-efficient iterative eigensolver
+    # Best run on MPS (unified memory) to avoid GPU OOM issues
     local fig8_device="$DEVICE"
     
     local n_samples=1500
