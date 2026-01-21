@@ -50,39 +50,25 @@ Following responsible AI practices, we track computational costs and CO2 emissio
 Table~\ref{tab:environmental} reports our complete experimental footprint.
 
 \begin{table}[h]
-    \caption{Environmental impact of experiments. GPU time on NVIDIA A100 (400W TDP); CO2 estimated using Netherlands grid intensity (0.328 kg CO2/kWh).}
+    \caption{Environmental impact of experiments. CO2 estimated using \texttt{codecarbon} with local grid intensity.}
     \label{tab:environmental}
     \centering
-    \begin{tabular}{lccc}
+    \begin{tabular}{lcccc}
         \toprule
-        Experiment & Runs & Wall Time (h) & CO2 (kg) \\
+        Experiment & Runs & Wall Time (h) & GPU-h & CO2 (kg) \\
         \midrule
-        \multicolumn{4}{c}{\textit{Vision (Section 4)}} \\
+        Vision (Section 4) & 40 & 0.56 & 0.57 & 0.019 \\
+        Language (Section 5) & 6 & 0.83 & 0.82 & 0.055 \\
+        Extension 2 (Cross-Dataset) & 15 & 0.58 & 0.58 & 0.020 \\
+        Extension 3 (CP-Decomposition) & 105 & 0.05 & 0.05 & 0.004 \\
         \midrule
-        MNIST base (4 configs $\times$ 5 seeds) & 20 & 2.0 & 0.26 \\
-        Fashion-MNIST (4 configs $\times$ 5 seeds) & 20 & 2.0 & 0.26 \\
-        Model size sweep (6 sizes $\times$ 5 seeds) & 30 & 3.0 & 0.39 \\
-        Noise sweep (6 levels $\times$ 5 seeds) & 30 & 0.5 & 0.07 \\
-        Challenge task & 1 & 0.1 & 0.01 \\
-        \midrule
-        \multicolumn{4}{c}{\textit{Language (Section 5)}} \\
-        \midrule
-        Correlation analysis (3 models) & 3 & 6.0 & 0.79 \\
-        SAE training comparison (5 versions) & 5 & 1.5 & 0.20 \\
-        Negation circuit analysis & 1 & 0.5 & 0.07 \\
-        \midrule
-        \multicolumn{4}{c}{\textit{Extension}} \\
-        \midrule
-        EMNIST transfer (2 configs $\times$ 5 seeds) & 10 & 2.0 & 0.26 \\
-        Subspace analysis & -- & 0.2 & 0.03 \\
-        \midrule
-        \textbf{Total} & \textbf{120} & \textbf{17.8} & \textbf{2.34} \\
+        \textbf{Total} & \textbf{166} & \textbf{2.02} & \textbf{2.02} & \textbf{0.098} \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Our total carbon footprint of 2.34 kg CO2 is equivalent to approximately 15 km of driving or 0.1\% of the annual per-capita emissions of a Netherlands resident.
-This modest footprint reflects the efficiency of our reproduction---bilinear MLPs on MNIST train in minutes, not hours.
+Our total carbon footprint of 0.098 kg CO2 is equivalent to approximately 0.6 km of driving or 0.001\% of the annual per-capita emissions of a Netherlands resident.
+This minimal footprint reflects the efficiency of our reproduction---bilinear MLPs on MNIST train in minutes, not hours, and the CP-decomposition experiments train even faster due to the factored parameter structure.
 
 \textbf{Efficiency implications of low-rank structure.}
 Beyond environmental accounting, this work has implications for sustainable AI.

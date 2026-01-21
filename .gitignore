@@ -13,6 +13,10 @@ Report/*.blg
 Report/*.fdb_latexmk
 results/language/scatter_data/
 scripts/figures/archive/
+results/
+checkpoints/
+checkpoints.zip
+results.zip
 
 arXiv-2410.08417v2/*.aux
 arXiv-2410.08417v2/*.log
