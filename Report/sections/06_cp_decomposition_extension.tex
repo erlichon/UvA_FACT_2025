@@ -1,14 +1,15 @@
-\section{Extension Results}
-\label{sec:extension}
+% Section 6: CP-Decomposition Analysis (Extension 2)
+% Structural low-rank via CP factorization as architectural constraint
+
+\section{CP-Decomposition Analysis}
+\label{sec:cp_extension}
 
 We extend the original Bilinear MLP framework by proposing Canonical Polyadic (CP) decomposition not merely as a post-training analysis tool, but as an architectural constraint applied during training. This approach shifts the paradigm from discovering low-rank structure \emph{post-hoc} to enforcing \emph{intrinsic} interpretability and \emph{computational efficiency}.
 
 %==============================================================================
-\subsection{Extension 3: CP-Decomposition Analysis}
-\label{sec:extension3}
+\subsection{Motivation: From Post-Hoc to Intrinsic Interpretability}
+\label{sec:cp_motivation}
 %==============================================================================
-
-\subsubsection{Motivation: From Post-Hoc to Intrinsic Interpretability}
 
 The standard Bilinear MLP approach relies on \emph{post-hoc} interpretability: the interaction tensor is decomposed via eigendecomposition only after training is complete. While effective for estimating the effective rank of a learned model, this method suffers from a fundamental limitation: eigendecomposition enforces orthogonality. This forces learned features to be disjoint, even when the underlying concepts they represent naturally overlap.
 
@@ -21,21 +22,27 @@ In contrast, CP-decomposition provides \emph{intrinsic} interpretability by para
 \end{equation}
 where $R$ is the maximum rank, and $\lambda_r$ are learnable scaling factors, adopting the \emph{Canonical Weight Normalization} formulation proposed by Veeramacheneni et al.~\cite{veeramacheneni2022canonical}. Crucially, this factorization does not enforce orthogonality. This flexibility allows for \emph{disentangled} representations where factors can naturally overlap, aligning more closely with human intuition of how visual patterns decompose into atomic parts (e.g., strokes, loops).
 
-\subsubsection{Methodology: Regularization Variants}
+%==============================================================================
+\subsection{Methodology: Regularization Variants}
+\label{sec:cp_methodology}
+%==============================================================================
 
 We investigate three variants of CP decomposition to analyze the trade-off between model capacity and interpretability constraints:
 
 \begin{itemize}
     \item \textbf{Fixed CP:} A hard structural constraint where the rank $R$ is fixed. No additional sparsity regularization is applied. This enforces a strict upper bound on complexity but may limit model capacity if $R$ is set too low.
     
-    \item \textbf{Lambda CP (Magnitude Regularization):} Following Veeramacheneni et al.~\cite{veeramacheneni2022canonical}, we utilize the learnable scalar scales $\lambda_r$ as a proxy for rank importance. [cite_start]We subject these scalars to $L_1$ regularization to encourage ``soft sparsity,'' allowing the model to downweight unnecessary ranks dynamically while retaining the capacity to utilize them if necessary[cite: 468, 608].
+    \item \textbf{Lambda CP (Magnitude Regularization):} Following Veeramacheneni et al.~\cite{veeramacheneni2022canonical}, we utilize the learnable scalar scales $\lambda_r$ as a proxy for rank importance. We subject these scalars to $L_1$ regularization to encourage ``soft sparsity,'' allowing the model to downweight unnecessary ranks dynamically while retaining the capacity to utilize them if necessary.
     
-    [cite_start]\item \textbf{Gated CP (Sparsity Regularization):} Leveraging the probabilistic rank selection framework of Cao et al.~\cite{cao2024learning}, we apply stochastic gates $z_r \sim \text{Bernoulli}(\sigma(\phi_r))$ to each rank component, where $\phi_r$ are learnable parameters[cite: 15, 161]. We optimize their differentiable $L_0$ proxy objective ($\sum_r \sigma(\phi_r)$) to explicitly prune unnecessary ranks. This method allows the model to self-select the minimal set of active ranks required for the task.
+    \item \textbf{Gated CP (Sparsity Regularization):} Leveraging the probabilistic rank selection framework of Cao et al.~\cite{cao2024learning}, we apply stochastic gates $z_r \sim \text{Bernoulli}(\sigma(\phi_r))$ to each rank component, where $\phi_r$ are learnable parameters. We optimize their differentiable $L_0$ proxy objective ($\sum_r \sigma(\phi_r)$) to explicitly prune unnecessary ranks. This method allows the model to self-select the minimal set of active ranks required for the task.
 \end{itemize}
 
 All variants were trained on MNIST with minimal regularization (weight decay $0.1$, no noise augmentation) across a rank sweep $R \in \{8, \dots, 784\}$.
 
-\subsubsection{Quantitative Analysis: The Accuracy-Interpretability Trade-off}
+%==============================================================================
+\subsection{Quantitative Analysis: The Accuracy-Interpretability Trade-off}
+\label{sec:cp_quantitative}
+%==============================================================================
 
 We present the performance of the CP variants compared to dense baselines in Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep}. The results reveal a clear Pareto frontier between structural constraints and classification accuracy.
 
@@ -81,7 +88,10 @@ We present the performance of the CP variants compared to dense baselines in Fig
 
 Conversely, the \textbf{Lambda and Gated} variants successfully balance the trade-off. At $R=256$, they recover nearly all the accuracy of the dense baseline ($93.8\%$ vs $97.5\%$) while maintaining an effective rank of $\sim17.5$. This matches the complexity of the dense model (with weight decay) but provides explicit structural disentanglement.
 
-\subsubsection{Qualitative Analysis: Disentangled Factors}
+%==============================================================================
+\subsection{Qualitative Analysis: Disentangled Factors}
+\label{sec:cp_qualitative}
+%==============================================================================
 
 The quantitative reduction in rank translates directly to qualitative differences in the learned features. Figure~\ref{fig:cp_top5_comparison} presents a side-by-side comparison of the top eigenvectors extracted from a Dense baseline versus a CP model, while Figure~\ref{fig:cp_eigenvectors_top2} provides a focused view of the top two factors for the Lambda CP variant ($R=32$).
 
@@ -101,7 +111,10 @@ The quantitative reduction in rank translates directly to qualitative difference
 
 The visualization supports the hypothesis of disentanglement. Dense eigenvectors often resemble \textbf{superimposed, holistic templates} of digits—entangled representations that combine multiple strokes to satisfy orthogonality. CP factors, conversely, appear more \textbf{atomic} and \textbf{localized}. They represent specific constituent elements—a top loop, a vertical stroke, a bottom curve—which can be linearly combined to reconstruct the full digit. This aligns with the ``parts-based'' representation often sought in interpretability research.
 
-\subsubsection{Scalability and Efficiency: Breaking the Width Bottleneck}
+%==============================================================================
+\subsection{Scalability and Efficiency: Breaking the Width Bottleneck}
+\label{sec:cp_scalability}
+%==============================================================================
 
 Crucially, CP decomposition provides a path to scaling interpretable models that dense architectures cannot match. Standard dense layers suffer from quadratic complexity: parameter count scales as $O(d_{\text{in}} \cdot d_{\text{out}})$ and compute as $O(d_{\text{in}} \cdot d_{\text{out}} \cdot \text{batch})$. For large foundation models where hidden dimensions ($d$) reach the thousands, this quadratic growth becomes a severe bottleneck.
 
@@ -113,6 +126,9 @@ CP decomposition fundamentally alters this scaling law to $O(R \cdot (d_{\text{i
 
 These results suggest that CP regularization is not just an interpretability constraint, but a viable strategy for \textbf{scaling up} bilinear architectures. It enables the training of significantly larger models within fixed compute or memory budgets while retaining the high accuracy and intrinsic interpretability demonstrated in our experiments.
 
-\subsubsection{Conclusion}
+%==============================================================================
+\subsection{Conclusion}
+\label{sec:cp_conclusion}
+%==============================================================================
 
 We find that CP decomposition serves as a dual-purpose architectural choice. First, it enforces \textbf{intrinsic interpretability}, replacing the entangled, holistic templates of dense models with disentangled, atomic parts. Second, it acts as a \textbf{scalable foundation for efficiency}, breaking the quadratic scaling laws of dense layers. While \textbf{Fixed CP} offers maximum transparency, the \textbf{Lambda and Gated} variants provide a robust middle ground—maintaining competitive accuracy and scalability, making them a promising candidate for efficient, interpretable large-scale modeling.
