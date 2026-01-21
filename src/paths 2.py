@@ -1,0 +1,145 @@
+"""
+Centralized path constants for the FACT-AI Bilinear MLP project.
+
+This module provides a single source of truth for all checkpoint and figure paths,
+reducing duplication and making path changes easier to manage.
+
+Usage:
+    from src.paths import (
+        MNIST_CHECKPOINTS,
+        VISION_FIGURES,
+        LANGUAGE_FIGURES,
+    )
+"""
+
+from pathlib import Path
+
+# Project root (UvA_FACT_2025/)
+PROJECT_ROOT = Path(__file__).parent.parent
+
+# =============================================================================
+# Checkpoints
+# =============================================================================
+
+CHECKPOINTS_ROOT = PROJECT_ROOT / "checkpoints"
+
+# Vision checkpoints
+VISION_CHECKPOINTS = CHECKPOINTS_ROOT / "vision"
+MNIST_CHECKPOINTS = VISION_CHECKPOINTS / "mnist"
+FASHION_CHECKPOINTS = VISION_CHECKPOINTS / "fashion"
+NOISE_SWEEP_CHECKPOINTS = VISION_CHECKPOINTS / "noise_sweep"
+SIZE_SWEEP_CHECKPOINTS = VISION_CHECKPOINTS / "size_sweep"
+CHALLENGE_CHECKPOINTS = VISION_CHECKPOINTS / "challenge"
+
+# Extension checkpoints
+EXTENSION2_CHECKPOINTS = CHECKPOINTS_ROOT / "extension2"
+EXTENSION_CP_CHECKPOINTS = CHECKPOINTS_ROOT / "extension_cp"
+
+# =============================================================================
+# Figures
+# =============================================================================
+
+FIGURES_ROOT = PROJECT_ROOT / "Report" / "figures"
+
+# Figure subdirectories by paper section
+VISION_FIGURES = FIGURES_ROOT / "vision"
+LANGUAGE_FIGURES = FIGURES_ROOT / "language"
+EXTENSION2_FIGURES = FIGURES_ROOT / "extension2"
+EXTENSION_CP_FIGURES = FIGURES_ROOT / "extension_cp"
+
+# =============================================================================
+# Results (intermediate data, JSON outputs, etc.)
+# =============================================================================
+
+RESULTS_ROOT = PROJECT_ROOT / "results"
+
+# Language results (JSON data files, NOT figures)
+LANGUAGE_RESULTS = RESULTS_ROOT / "language"
+
+# Extension 2 results (JSON data files)
+EXTENSION2_RESULTS = RESULTS_ROOT / "extension2"
+
+# =============================================================================
+# Paper Hub
+# =============================================================================
+
+PAPER_HUB_ROOT = PROJECT_ROOT / "Report"
+PAPER_HUB_BUNDLE = PAPER_HUB_ROOT / "paper_hub_bundle"
+PAPER_HUB_ZIP = PAPER_HUB_ROOT / "paper_hub_bundle.zip"
+
+# =============================================================================
+# Original paper code (DO NOT MODIFY)
+# =============================================================================
+
+ORIGINAL_CODE_PATH = PROJECT_ROOT / "bilinear-decomposition-main"
+
+# =============================================================================
+# Helper functions
+# =============================================================================
+
+
+def ensure_dir(path: Path) -> Path:
+    """Create directory if it doesn't exist and return the path."""
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_checkpoint_path(
+    dataset: str,
+    config: str,
+    seed: int,
+    extension: str = None,
+) -> Path:
+    """
+    Get the path for a checkpoint file.
+    
+    Args:
+        dataset: "mnist", "fashion", "emnist_digits", "emnist_letters"
+        config: "none", "noise", "wd", "full", "regularized", etc.
+        seed: Random seed (42, 43, 44, 45, 46)
+        extension: Optional extension type ("cp", "extension2", None for vision)
+    
+    Returns:
+        Path to the checkpoint file
+    
+    Example:
+        >>> get_checkpoint_path("mnist", "full", 42)
+        Path('.../checkpoints/vision/mnist/mnist_dense_full_seed42.pt')
+    """
+    if extension == "cp":
+        base = EXTENSION_CP_CHECKPOINTS
+        filename = f"{dataset}_{config}_seed{seed}.pt"
+    elif extension == "extension2":
+        base = EXTENSION2_CHECKPOINTS
+        filename = f"{dataset}_{config}_seed{seed}.pt"
+    elif dataset == "fashion":
+        base = FASHION_CHECKPOINTS
+        filename = f"fashion_dense_{config}_seed{seed}.pt"
+    elif dataset in ("emnist_digits", "emnist_letters"):
+        base = EXTENSION2_CHECKPOINTS
+        filename = f"{dataset}_{config}_seed{seed}.pt"
+    else:
+        base = MNIST_CHECKPOINTS
+        filename = f"mnist_dense_{config}_seed{seed}.pt"
+    
+    return base / filename
+
+
+def get_figure_path(name: str, section: str) -> Path:
+    """
+    Get the path for a figure file.
+    
+    Args:
+        name: Figure filename (e.g., "figure_5a_similarity.pdf")
+        section: "vision", "language", "extension2", "extension_cp"
+    
+    Returns:
+        Path to the figure file
+    """
+    section_map = {
+        "vision": VISION_FIGURES,
+        "language": LANGUAGE_FIGURES,
+        "extension2": EXTENSION2_FIGURES,
+        "extension_cp": EXTENSION_CP_FIGURES,
+    }
+    return section_map[section] / name
