@@ -10,15 +10,31 @@
 #   ./scripts/train/run_extension2.sh train all [--seeds ...]
 #   ./scripts/train/run_extension2.sh figures [--sections all]
 #   ./scripts/train/run_extension2.sh all  # Full pipeline (train + figures)
+#   ./scripts/train/run_extension2.sh test # Quick test (2 epochs, 1 seed)
 #   ./scripts/train/run_extension2.sh help
+#
+# Options:
+#   --quick       2 epochs, 1 seed (for testing)
+#   --no-wandb    Disable wandb logging
+#   --epochs N    Override number of epochs
 #
 # NOTE: Center-of-Mass (CoM) normalization is ALWAYS enabled for cross-dataset comparison.
 
 set -e
 
-# Default values
+# Resolve script directory and project root so the script works from any CWD
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+# Ensure PYTHONPATH includes project root for src module imports
+export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
+
+# Default values (paths are interpreted relative to project root)
 SEEDS="42,43,44,45,46"
 CHECKPOINT_DIR="checkpoints/extension2"
+QUICK_MODE=false
+WANDB_FLAG=""
+EPOCHS_OVERRIDE=""
 
 # Parse global options
 while [[ "$1" == --* ]]; do
@@ -29,6 +45,20 @@ while [[ "$1" == --* ]]; do
             ;;
         --checkpoint-dir)
             CHECKPOINT_DIR="$2"
+            shift 2
+            ;;
+        --quick)
+            QUICK_MODE=true
+            EPOCHS_OVERRIDE="--epochs 2"
+            SEEDS="42"  # Only one seed in quick mode
+            shift
+            ;;
+        --no-wandb)
+            WANDB_FLAG="--no-wandb"
+            shift
+            ;;
+        --epochs)
+            EPOCHS_OVERRIDE="--epochs $2"
             shift 2
             ;;
         *)
@@ -58,6 +88,8 @@ COMMANDS:
                         Sections: eigenvectors, heatmaps, distributions, similarity,
                                   3way, selection, angles, all (default)
     
+    test                Quick test (2 epochs, 1 seed, MNIST only)
+    
     all                 Full pipeline (train all + figures)
     
     help                Show this help message
@@ -65,10 +97,19 @@ COMMANDS:
 OPTIONS:
     --seeds <list>      Comma-separated seeds (default: 42,43,44,45,46)
     --checkpoint-dir    Custom checkpoint directory
+    --quick             2 epochs, 1 seed (for testing)
+    --no-wandb          Disable wandb logging
+    --epochs N          Override number of epochs
 
 EXAMPLES:
+    # Quick test (2 epochs)
+    ./scripts/train/run_extension2.sh test
+    
     # Train all Extension 2 models (MNIST + EMNIST with CoM)
     ./scripts/train/run_extension2.sh train all
+    
+    # Train with quick mode (2 epochs, 1 seed)
+    ./scripts/train/run_extension2.sh train all --quick
     
     # Train MNIST with CoM only
     ./scripts/train/run_extension2.sh train mnist
@@ -85,6 +126,17 @@ EXAMPLES:
     # Full pipeline
     ./scripts/train/run_extension2.sh all
 EOF
+}
+
+print_header() {
+    echo "=========================================="
+    echo "Extension 2: Cross-Dataset Robustness"
+    echo "=========================================="
+    echo "Command: $COMMAND ${SUBCOMMAND:-}"
+    if $QUICK_MODE; then echo "Mode: QUICK (2 epochs, 1 seed)"; fi
+    if [ -n "$WANDB_FLAG" ]; then echo "wandb: disabled"; fi
+    echo "=========================================="
+    echo ""
 }
 
 train_model() {
@@ -114,13 +166,17 @@ train_model() {
         --config "$CONFIG" \
         --seed "$seed" \
         --checkpoint-dir "$CHECKPOINT_DIR" \
-        --apply-com true
+        --apply-com true \
+        $EPOCHS_OVERRIDE \
+        $WANDB_FLAG
 }
 
 run_train() {
     local dataset="${1:-all}"
     
+    cd "$PROJECT_ROOT"
     mkdir -p "$CHECKPOINT_DIR"
+    print_header
     
     case "$dataset" in
         mnist|mnist-com)
@@ -161,17 +217,45 @@ run_figures() {
     
     echo "Generating Extension 2 figures..."
     
+    cd "$PROJECT_ROOT"
+
     if [ "$sections" = "" ] || [ "$sections" = "all" ]; then
         python scripts/figures/generate_extension2_figures.py
+        echo ""
+        echo "Running Extension 2 analysis scripts..."
+        python scripts/extension2/calculate_eigenvector_similarity.py
+        python scripts/extension2/calculate_mnist0_vs_all_emnist.py
+        python scripts/extension2/generate_accuracy_tables.py --checkpoint-dir "$CHECKPOINT_DIR" --seeds "$SEEDS"
     else
         python scripts/figures/generate_extension2_figures.py --sections $sections
     fi
 }
 
+run_test() {
+    echo "=========================================="
+    echo "Extension 2: Quick Test Mode"
+    echo "=========================================="
+    echo "Testing with: 2 epochs, 1 seed, MNIST only"
+    echo ""
+    
+    cd "$PROJECT_ROOT"
+    mkdir -p "$CHECKPOINT_DIR"
+    
+    # Train one MNIST model with 2 epochs
+    python src/train.py \
+        --config configs/mnist_dense_full_com.yaml \
+        --seed 42 \
+        --epochs 2 \
+        --checkpoint-dir "$CHECKPOINT_DIR" \
+        --apply-com true \
+        --no-wandb
+    
+    echo ""
+    echo "Test complete! Checkpoint saved to: $CHECKPOINT_DIR"
+}
+
 run_all() {
-    echo "="
-    echo "Extension 2: Full Pipeline"
-    echo "="
+    print_header
     echo "Seeds: ${SEEDS}"
     echo "CoM: enabled (always)"
     echo ""
@@ -184,9 +268,9 @@ run_all() {
     run_figures
     
     echo ""
-    echo "="
+    echo "=========================================="
     echo "Extension 2 pipeline complete!"
-    echo "="
+    echo "=========================================="
 }
 
 # Main command dispatch
@@ -197,6 +281,9 @@ case "$COMMAND" in
     figures)
         shift  # Remove 'figures' from args
         run_figures "$@"
+        ;;
+    test)
+        run_test
         ;;
     all)
         run_all

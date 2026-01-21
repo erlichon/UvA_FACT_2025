@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from torchvision import datasets
 from typing import Tuple, Optional
 
-from .transforms import apply_com_to_batch
+from .transforms import apply_com_to_batch_cached
 
 
 # Letter-to-digit visual similarity mapping for semantic confusion analysis
@@ -41,11 +41,15 @@ class EMNISTLetters(Dataset):
     GPU-resident dataset following the same pattern as the original paper's
     MNIST loader for training efficiency.
     
+    CoM-transformed data is cached to avoid recomputation on subsequent runs.
+    Cache location: data/cache/com/emnist_letters_{train|test}_com.pt
+    
     Args:
         train: If True, use training set. Otherwise, use test set.
         device: Device to load data onto ('cuda', 'mps', 'cpu')
         apply_com: If True, apply Center-of-Mass centering to all images
         download: If True, download dataset if not found
+        use_cache: If True, use cached CoM data if available (default: True)
         
     Example:
         >>> train_data = EMNISTLetters(train=True, device="cuda", apply_com=True)
@@ -58,6 +62,7 @@ class EMNISTLetters(Dataset):
         device: str = "cuda",
         apply_com: bool = False,
         download: bool = True,
+        use_cache: bool = True,
     ):
         # Load EMNIST Letters split
         dataset = datasets.EMNIST(
@@ -76,8 +81,15 @@ class EMNISTLetters(Dataset):
         
         # Apply CoM if requested (BEFORE any normalization, on 0-1 data)
         if apply_com:
-            print(f"Applying Center-of-Mass normalization to EMNIST Letters ({'train' if train else 'test'})...")
-            self.x = apply_com_to_batch(self.x)
+            split = 'train' if train else 'test'
+            print(f"Applying Center-of-Mass normalization to EMNIST Letters ({split})...")
+            self.x = apply_com_to_batch_cached(
+                self.x,
+                dataset_name='emnist_letters',
+                split=split,
+                device=device,
+                use_cache=use_cache,
+            )
         
         self.num_classes = 26
     
@@ -103,11 +115,15 @@ class EMNISTDigits(Dataset):
     GPU-resident dataset for comparing with MNIST on the same domain (digits)
     but different data distribution.
     
+    CoM-transformed data is cached to avoid recomputation on subsequent runs.
+    Cache location: data/cache/com/emnist_digits_{train|test}_com.pt
+    
     Args:
         train: If True, use training set. Otherwise, use test set.
         device: Device to load data onto ('cuda', 'mps', 'cpu')
         apply_com: If True, apply Center-of-Mass centering to all images
         download: If True, download dataset if not found
+        use_cache: If True, use cached CoM data if available (default: True)
         
     Example:
         >>> train_data = EMNISTDigits(train=True, device="mps", apply_com=True)
@@ -120,6 +136,7 @@ class EMNISTDigits(Dataset):
         device: str = "cuda",
         apply_com: bool = False,
         download: bool = True,
+        use_cache: bool = True,
     ):
         # Load EMNIST Digits split
         dataset = datasets.EMNIST(
@@ -134,10 +151,17 @@ class EMNISTDigits(Dataset):
         self.x = dataset.data.float().transpose(1, 2).to(device).unsqueeze(1) / 255.0
         self.y = dataset.targets.to(device)
         
-        # Apply CoM if requested
+        # Apply CoM if requested (with caching)
         if apply_com:
-            print(f"Applying Center-of-Mass normalization to EMNIST Digits ({'train' if train else 'test'})...")
-            self.x = apply_com_to_batch(self.x)
+            split = 'train' if train else 'test'
+            print(f"Applying Center-of-Mass normalization to EMNIST Digits ({split})...")
+            self.x = apply_com_to_batch_cached(
+                self.x,
+                dataset_name='emnist_digits',
+                split=split,
+                device=device,
+                use_cache=use_cache,
+            )
         
         self.num_classes = 10
     

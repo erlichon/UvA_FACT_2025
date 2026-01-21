@@ -168,6 +168,7 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension2_eigenvec_2_Z.pdf")},
             {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension2_eigenvec_5_S.pdf")},
             {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension2_3way_comparison.pdf")},
+            {"label": "3-way: MNIST 0 vs EMNIST O vs EMNIST X", "path": _fig_rel_path("extension2_3way_comparison_0_O_X.pdf")},
         ],
         "Extension 2 / Similarity vs k (Subspace Metrics)": [
             {"label": "Mean Cosine (original)", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
@@ -181,6 +182,7 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
             {"label": "Eigenvalue-Weighted Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_eigenvalue_weighted.pdf")},
             {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
+            {"label": "Absolute Cosine Similarity Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_abs_cosine_similarity.pdf")},
         ],
         "Extension 2 / Heatmaps (10x10 matrices)": [
             {"label": "Quadratic Form: MNIST Digits vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
@@ -203,7 +205,11 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         # Language (Figures 8, 9, 10)
         # -----------------------------
         "Language / Negation Circuit (Figure 8)": [
-            {"label": "Figure 8: Sentiment negation circuit", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
+            {"label": "Figure 8: Sentiment negation circuit (tutorial feature 3834)", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
+            {"label": "Figure 8: Best AND-gate circuit (from search)", "path": _fig_rel_path("figure_8_best_circuit.pdf")},
+            {"label": "Figure 8: Sentiment-labeled circuit", "path": _fig_rel_path("figure_8_sentiment.pdf")},
+            {"label": "Figure 8: Weak vs Strong comparison (3834 vs best)", "path": _fig_rel_path("figure_8_comparison.pdf")},
+            {"label": "Figure 8: Circuit with per-word activation examples", "path": _fig_rel_path("figure_8_with_examples.pdf")},
         ],
         "Language / Correlation (Figure 9)": [
             {"label": "Figure 9A: correlation progression", "path": _fig_rel_path("figure_9a_correlation_progression.pdf")},

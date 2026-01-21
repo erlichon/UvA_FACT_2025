@@ -643,6 +643,12 @@ def main():
             for fr in feature_results
         ],
         "config": config,
+        # Root-level emissions for validation script compatibility
+        "emissions": {
+            "co2_kg": tracker.result.emissions_kg,
+            "wall_time_hours": tracker.result.wall_time_hours,
+            "gpu_hours": tracker.result.gpu_hours,
+        },
     }
     
     with open(output_path, "w") as f:

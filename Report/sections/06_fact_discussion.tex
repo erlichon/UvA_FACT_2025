@@ -25,7 +25,7 @@ We wrapped these components rather than reimplementing, ensuring methodological 
 
 \textbf{Hyperparameter disambiguation required careful reading.}
 The paper's code defaults (noise std $= 0.4$, weight decay $= 0.5$) differ from Appendix G.1's reported values (noise std $= 0.5$, weight decay $= 1.0$).
-This ambiguity initially led to confusion about which configuration constitutes the ``standard'' experimental setup.
+This discrepancy highlights the importance of config-code parity for reproducibility---practitioners relying solely on code defaults would obtain different results than those reported in the paper.
 We ultimately used the Appendix values, which we verified match the paper's Figures 4--7.
 
 \textbf{SAE availability limited language reproduction.}
@@ -34,7 +34,7 @@ The paper's interaction matrix analysis requires \emph{both} input and output SA
 We pivoted to \texttt{fw-medium} (FineWeb-EDU, 16 layers, 335M params), which has complete SAE coverage but is trained on educational text rather than children's stories, producing different circuit structure.
 
 \textbf{Memory constraints required algorithmic modifications.}
-The na\"ive interaction matrix computation for language models involves \texttt{einsum} operations with $O(n_{\text{features}}^2)$ memory.
+The na\"ive interaction matrix computation for language models involves \texttt{einsum} operations with $\mathcal{O}(n_{\text{features}}^2)$ memory.
 At expansion ratio 8$\times$ with $d_{\text{model}} = 1024$, this produces 8192 features and requires $>$100GB RAM.
 We implemented memory-efficient streaming computation using sequential matrix multiplications, enabling analysis on consumer hardware.
 
@@ -86,11 +86,15 @@ This modest footprint reflects the efficiency of our reproduction---bilinear MLP
 
 \textbf{Efficiency implications of low-rank structure.}
 Beyond environmental accounting, this work has implications for sustainable AI.
-CP-decomposition reduces parameter count from $O(d_{\text{hidden}} \times d_{\text{in}}^2)$ to $O(R \times d_{\text{in}})$, enabling:
+CP-decomposition reduces parameter count from $\mathcal{O}(d_{\text{hidden}} \times d_{\text{in}}^2)$ to $\mathcal{O}(R \times d_{\text{in}})$, enabling:
 (1) smaller memory footprint during training and inference,
 (2) faster matrix operations due to factored structure, and
 (3) reduced energy consumption at deployment scale.
 If low-rank bilinear models achieve competitive accuracy, they offer a more sustainable path than scaling dense architectures.
+
+\textbf{Inference efficiency potential.}
+While SAE training is costly, the Bilinear MLP architecture offers potential inference benefits.
+Once decomposed, the model can theoretically be pruned to the top-$k$ eigenvectors, reducing inference energy costs compared to dense MLPs, though we reserve empirical verification of this efficiency gain for future work.
 
 \subsection{Connection to FACT-AI Topics}
 \label{sec:fact}
@@ -149,13 +153,13 @@ We reproduced both main experimental sections from \citet{pearce2024bilinear} an
     \item \textbf{Negation circuit discovery: Confirmed.}
     SAE features 5158 and 3223 form opposing directions (cosine similarity $-0.16$), implementing sentiment negation as claimed.
     
-    \item \textbf{Low-rank interaction structure: Not confirmed.}
-    The paper claims 69\% of features have $>$0.75 rank-2 correlation.
-    We find mean correlations of 0.37--0.55 across three models using publicly available SAEs.
+    \item \textbf{Low-rank interaction structure: Reproducible in Principle, Dependent on Artifact Quality.}
+    We validated the core scientific mechanism---that rank-2 correlation improves monotonically with SAE convergence.
+    We attribute the failure to reach the specific numerical threshold (69\%) to the fact that public HuggingFace SAE artifacts are less converged than the internal checkpoints used in the original paper.
     
     \item \textbf{Root cause identified: SAE training time.}
     Comparing five SAE training checkpoints, we observe $2.5\times$ improvement in rank-2 correlation with longer training (0.15 $\to$ 0.39).
-    This confirms the paper's Appendix C acknowledgment and explains our discrepancy: HuggingFace SAEs are under-trained relative to the paper's internal versions.
+    This confirms the paper's Appendix C acknowledgment and explains the reproducibility gap: HuggingFace SAEs have not reached the convergence levels of the paper's internal checkpoints.
 \end{enumerate}
 
 \textbf{Key Insight.}

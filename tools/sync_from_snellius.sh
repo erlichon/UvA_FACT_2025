@@ -1,6 +1,9 @@
 #!/bin/bash
-# Sync repository to Snellius HPC cluster
-# Usage: ./scripts/sync_to_snellius.sh [--dry-run]
+# Sync experiment results FROM Snellius HPC cluster
+# Only syncs: checkpoints/, results/, Report/figures/
+# Does NOT sync: code, Report/*.tex, configs, etc.
+#
+# Usage: ./tools/sync_from_snellius.sh [--dry-run]
 
 set -e
 
@@ -20,38 +23,62 @@ if [[ "$1" == "--dry-run" ]]; then
     echo "=== DRY RUN MODE ==="
 fi
 
-echo "Syncing: $LOCAL_DIR"
-echo "     To: $SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR"
+echo "Syncing results FROM Snellius"
+echo "Remote: $SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR"
+echo "Local:  $LOCAL_DIR"
 echo ""
 
-# Ensure remote directory exists
-ssh "$SNELLIUS_USER@$SNELLIUS_HOST" "mkdir -p $REMOTE_DIR"
+# Ensure local directories exist
+mkdir -p "$LOCAL_DIR/checkpoints"
+mkdir -p "$LOCAL_DIR/results"
+mkdir -p "$LOCAL_DIR/Report/figures"
 
-# Rsync with exclusions
+# Sync checkpoints (model weights with emissions)
+echo ">>> Syncing checkpoints/"
 rsync -avz --progress $DRY_RUN \
-    --exclude='.git' \
-    --exclude='__pycache__' \
-    --exclude='*.pyc' \
-    --exclude='.DS_Store' \
-    --exclude='*.egg-info' \
-    --exclude='.pytest_cache' \
-    --exclude='data/' \
-    --exclude='.env' \
-    --exclude='emissions.csv' \
-    --exclude='emissions.csv.bak' \
-    --exclude='powermetrics_log.txt' \
-    --exclude='Report/*.pdf' \
-    --exclude='Report/*.aux' \
-    --exclude='Report/*.log' \
-    --exclude='Report/*.out' \
-    --exclude='.ipynb_checkpoints' \
-    --exclude='node_modules' \
-    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/" "$LOCAL_DIR/"
+    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/checkpoints/" \
+    "$LOCAL_DIR/checkpoints/"
 
 echo ""
-echo "Sync complete!"
+
+# Sync results (JSON files with emissions)
+echo ">>> Syncing results/"
+rsync -avz --progress $DRY_RUN \
+    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/results/" \
+    "$LOCAL_DIR/results/"
+
 echo ""
-echo "Next steps on Snellius:"
-echo "  ssh $SNELLIUS_USER@$SNELLIUS_HOST"
-echo "  cd $REMOTE_DIR"
-echo "  sbatch jobs/language_fwmedium.job"
+
+# Sync generated figures only (not .tex files)
+echo ">>> Syncing Report/figures/"
+rsync -avz --progress $DRY_RUN \
+    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/Report/figures/" \
+    "$LOCAL_DIR/Report/figures/"
+
+echo ""
+
+# Sync logs (optional, for debugging)
+echo ">>> Syncing logs/"
+rsync -avz --progress $DRY_RUN \
+    "$SNELLIUS_USER@$SNELLIUS_HOST:$REMOTE_DIR/logs/" \
+    "$LOCAL_DIR/logs/" 2>/dev/null || echo "    (No logs found)"
+
+echo ""
+echo "========================================"
+echo "Sync complete!"
+echo "========================================"
+echo ""
+echo "Synced:"
+echo "  - checkpoints/ (model weights + emissions)"
+echo "  - results/ (JSON files + emissions)"
+echo "  - Report/figures/ (generated PDFs)"
+echo "  - logs/ (job output)"
+echo ""
+echo "NOT synced (preserved locally):"
+echo "  - Report/*.tex (your report)"
+echo "  - src/ (code)"
+echo "  - configs/ (configurations)"
+echo ""
+echo "Next steps:"
+echo "  python scripts/figures/validate_emissions.py"
+echo "  python scripts/figures/aggregate_emissions.py"

@@ -15,6 +15,9 @@ from .transforms import (
     compute_center_of_mass,
     shift_to_center,
     apply_com_to_batch,
+    apply_com_to_batch_cached,
+    get_cache_dir,
+    clear_com_cache,
 )
 
 # MNIST/Fashion-MNIST
@@ -58,6 +61,9 @@ __all__ = [
     "compute_center_of_mass",
     "shift_to_center",
     "apply_com_to_batch",
+    "apply_com_to_batch_cached",
+    "get_cache_dir",
+    "clear_com_cache",
     # MNIST
     "MNIST",
     "FashionMNIST",

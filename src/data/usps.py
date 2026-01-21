@@ -13,7 +13,7 @@ from torchvision import datasets
 import torch.nn.functional as F
 from typing import Tuple
 
-from .transforms import apply_com_to_batch
+from .transforms import apply_com_to_batch_cached
 
 
 class USPS(Dataset):
@@ -26,12 +26,16 @@ class USPS(Dataset):
     IMPORTANT: Upscaling is performed BEFORE CoM centering. If we upscaled
     after centering, interpolation artifacts might slightly shift the CoM.
     
+    CoM-transformed data is cached to avoid recomputation on subsequent runs.
+    Cache location: data/cache/com/usps_{train|test}_com.pt
+    
     Args:
         train: If True, use training set. Otherwise, use test set.
         device: Device to load data onto ('cuda', 'mps', 'cpu')
         apply_com: If True, apply Center-of-Mass centering after upscaling
         download: If True, download dataset if not found
         target_size: Target image size (default: 28 for MNIST compatibility)
+        use_cache: If True, use cached CoM data if available (default: True)
         
     Example:
         >>> train_data = USPS(train=True, device="cuda", apply_com=True)
@@ -45,6 +49,7 @@ class USPS(Dataset):
         apply_com: bool = False,
         download: bool = True,
         target_size: int = 28,
+        use_cache: bool = True,
     ):
         # Load USPS dataset
         dataset = datasets.USPS(
@@ -75,10 +80,17 @@ class USPS(Dataset):
         self.x = x.to(device)
         self.y = torch.tensor(dataset.targets, dtype=torch.long).to(device)
         
-        # Step 2: Apply CoM if requested (AFTER upscaling, on 0-1 data)
+        # Step 2: Apply CoM if requested (AFTER upscaling, on 0-1 data, with caching)
         if apply_com:
-            print(f"Applying Center-of-Mass normalization to USPS ({'train' if train else 'test'})...")
-            self.x = apply_com_to_batch(self.x)
+            split = 'train' if train else 'test'
+            print(f"Applying Center-of-Mass normalization to USPS ({split})...")
+            self.x = apply_com_to_batch_cached(
+                self.x,
+                dataset_name='usps',
+                split=split,
+                device=device,
+                use_cache=use_cache,
+            )
         
         self.num_classes = 10
         self.target_size = target_size

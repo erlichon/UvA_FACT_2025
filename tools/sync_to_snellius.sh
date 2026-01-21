@@ -28,6 +28,7 @@ echo ""
 ssh "$SNELLIUS_USER@$SNELLIUS_HOST" "mkdir -p $REMOTE_DIR"
 
 # Rsync with exclusions
+# NOTE: No --delete flag, so remote files are preserved
 rsync -avz --progress $DRY_RUN \
     --exclude='.git' \
     --exclude='__pycache__' \
@@ -35,7 +36,10 @@ rsync -avz --progress $DRY_RUN \
     --exclude='.DS_Store' \
     --exclude='*.egg-info' \
     --exclude='.pytest_cache' \
-    --exclude='data/' \
+    --exclude='/data/' \
+    --exclude='/checkpoints/' \
+    --exclude='/results/' \
+    --exclude='/wandb/' \
     --exclude='.env' \
     --exclude='emissions.csv' \
     --exclude='emissions.csv.bak' \
@@ -54,4 +58,4 @@ echo ""
 echo "Next steps on Snellius:"
 echo "  ssh $SNELLIUS_USER@$SNELLIUS_HOST"
 echo "  cd $REMOTE_DIR"
-echo "  sbatch jobs/language_fwmedium.job"
+echo "  sbatch jobs/run_all.job"

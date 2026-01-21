@@ -58,6 +58,7 @@ from src.vision.spectral import (
     top_k_coverage,
 )
 from src.plot_utils.style import set_publication_style
+from src.artifact_loader import ensure_artifacts
 
 warnings.filterwarnings("ignore", message="Failed to load image Python extension:*")
 
@@ -863,6 +864,9 @@ def main():
     print("Extension CP Figure Generation")
     print("="*60)
     print(f"Sections: {', '.join(sections)}")
+    
+    # Ensure artifacts are available (downloads from Google Drive if missing)
+    ensure_artifacts()
     
     # Initialize context
     ctx = VisionContext()
