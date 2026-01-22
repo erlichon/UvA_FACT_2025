@@ -1,21 +1,18 @@
 % Section 3: Methodology
-% Define the BilinearLayer math: y = (W_l x) \odot (W_r x)
-% Describe datasets, models, and experimental setup
 
 \section{Methodology}
 \label{sec:methodology}
 
 \subsection{Bilinear Layer Architecture}
 
-The core component is the bilinear layer, which replaces standard nonlinearities with element-wise multiplication:
+The bilinear layer replaces standard nonlinearities with element-wise multiplication:
 \begin{equation}
     \mathbf{y} = (\mathbf{W}_l \mathbf{x}) \odot (\mathbf{W}_r \mathbf{x})
     \label{eq:bilinear}
 \end{equation}
-where $\mathbf{W}_l, \mathbf{W}_r \in \mathbb{R}^{d_{\text{hidden}} \times d_{\text{in}}}$ are learnable weight matrices and $\odot$ denotes the Hadamard (element-wise) product.
-
-Unlike standard MLPs with fixed nonlinearities (ReLU, GELU), bilinear layers compute \emph{input-dependent} gating: the left projection $\mathbf{W}_l \mathbf{x}$ gates the right projection $\mathbf{W}_r \mathbf{x}$.
-This creates a quadratic dependence on the input that can be expressed as a third-order interaction tensor:
+where $\mathbf{W}_l, \mathbf{W}_r \in \mathbb{R}^{d_{\text{hidden}} \times d_{\text{in}}}$ are learnable weight matrices and $\odot$ denotes the Hadamard product.
+Unlike standard MLPs with fixed nonlinearities, bilinear layers compute \emph{input-dependent} gating: the left projection gates the right projection.
+This creates a quadratic dependence on the input expressible as a third-order interaction tensor:
 \begin{equation}
     y_c = \sum_{i,j} B_{cij} x_i x_j
     \label{eq:tensor}
@@ -33,45 +30,23 @@ The symmetric matrix admits eigendecomposition:
 \begin{equation}
     B_c^{\text{sym}} = \sum_{r=1}^{d_{\text{in}}} \lambda_r^{(c)} \mathbf{v}_r^{(c)} (\mathbf{v}_r^{(c)})^\top
 \end{equation}
-where $\lambda_r^{(c)}$ are eigenvalues (sorted by magnitude) and $\mathbf{v}_r^{(c)} \in \mathbb{R}^{784}$ are eigenvectors.
-For image inputs, eigenvectors can be reshaped to $28 \times 28$ images and visualized.
+where eigenvectors $\mathbf{v}_r^{(c)} \in \mathbb{R}^{784}$ can be reshaped to $28 \times 28$ images for visualization.
+If the eigenspectrum is \emph{low-rank} (few dominant eigenvalues), the model's decision depends on only a few input directions that can be directly inspected.
 
-The key interpretability insight: if the eigenspectrum is \emph{low-rank} (few dominant eigenvalues), the model's decision for class $c$ depends on only a few input directions $\mathbf{v}_r^{(c)}$.
-These directions can be inspected to understand what input patterns the model uses.
-
-\subsection{Effective Rank}
-
-We quantify spectral concentration using the ratio-based effective rank~\citep{roy2007effective}:
+We quantify spectral concentration using effective rank~\citep{roy2007effective}:
 \begin{equation}
     \text{EffRank}(\boldsymbol{\lambda}) = \left( \frac{\|\boldsymbol{\lambda}\|_1}{\|\boldsymbol{\lambda}\|_2} \right)^2 = \frac{\left(\sum_i |\lambda_i|\right)^2}{\sum_i \lambda_i^2}
     \label{eq:effrank}
 \end{equation}
-This formula is scale-invariant and ranges from 1 (single dominant eigenvalue) to $d$ (uniform eigenvalues).
-Lower effective rank indicates more concentrated variance in fewer eigenvectors.
+This scale-invariant measure ranges from 1 (single dominant eigenvalue) to $d$ (uniform spectrum).
 
-\textbf{Implementation note:} An alternative entropy-based definition uses $\exp(H)$ where $H = -\sum_i p_i \log p_i$ with normalized eigenvalues $p_i = |\lambda_i|/\sum_j |\lambda_j|$.
-We use the ratio-based formula (Equation~\ref{eq:effrank}) as it matches the paper's implementation and is more numerically stable.
-
-\subsection{Language Model Analysis}
+\subsection{Language Model Analysis with SAEs}
 \label{sec:language_method}
 
-For language experiments, we analyze bilinear transformers where standard MLP activations are replaced with bilinear layers.
-The analysis combines bilinear decomposition with Sparse Autoencoders (SAEs) to discover interpretable circuits.
+For language experiments, we combine bilinear decomposition with Sparse Autoencoders (SAEs)~\citep{bricken2023monosemanticity} to discover interpretable circuits.
+SAEs decompose dense MLP activations into sparse features; we use pretrained SAEs from \citet{pearce2024bilinear} with expansion ratios 4--8$\times$ and TopK sparsity ($k=30$), positioned at both MLP input and output.
 
-\subsubsection{Sparse Autoencoder Integration}
-
-SAEs~\citep{bricken2023monosemanticity} decompose dense MLP activations into sparse, interpretable features:
-\begin{equation}
-    \mathbf{z} = \text{TopK}(W_{\text{enc}} \mathbf{h} + \mathbf{b}_{\text{enc}}), \quad \hat{\mathbf{h}} = W_{\text{dec}} \mathbf{z} + \mathbf{b}_{\text{dec}}
-\end{equation}
-where $\mathbf{h}$ is the MLP hidden state, $\mathbf{z}$ are sparse SAE features (only top-$k$ activations kept), and $W_{\text{dec}}$ columns are interpretable feature directions.
-
-We use pretrained SAEs from \citet{pearce2024bilinear} with expansion ratios 4--8$\times$ and TopK sparsity ($k=30$).
-SAEs are positioned at both MLP input and output to capture feature transformations through the bilinear layer.
-
-\subsubsection{Interaction Matrix Analysis}
-
-For each SAE output feature $o$, we compute the interaction matrix $Q^{(o)}$ between input SAE features:
+For each SAE output feature $o$, we compute the interaction matrix between input features:
 \begin{equation}
     Q_{ij}^{(o)} = \sum_{\text{tokens}} z_i^{\text{in}} \cdot z_j^{\text{in}} \cdot z_o^{\text{out}}
     \label{eq:interaction}
@@ -79,55 +54,20 @@ For each SAE output feature $o$, we compute the interaction matrix $Q^{(o)}$ bet
 where $z_i^{\text{in}}$ are input SAE activations and $z_o^{\text{out}}$ is the output feature activation.
 This weighted outer product captures which input feature \emph{pairs} most strongly activate output feature $o$.
 
-Eigendecomposition of $Q^{(o)}$ reveals the dominant interaction patterns.
-Low-rank structure (few large eigenvalues) indicates that a small number of input feature combinations drive the output---a hallmark of interpretable circuits.
-
-\subsubsection{Low-Rank Correlation Metric}
-
-Following the paper, we measure low-rank quality by correlating the true output activation $z_o^{\text{out}}$ with a rank-$k$ approximation:
+We measure low-rank quality by correlating the true activation with a rank-$k$ approximation:
 \begin{equation}
     \hat{z}_o^{(k)} = \sum_{r=1}^{k} \lambda_r (\mathbf{z}^{\text{in}} \cdot \mathbf{v}_r)^2
 \end{equation}
-where $(\lambda_r, \mathbf{v}_r)$ are the top eigenvalue-eigenvector pairs of $Q^{(o)}$.
-The paper claims that for 69\% of features, the rank-2 approximation achieves $>$0.75 Pearson correlation with the true activation.
-
-\subsection{Datasets}
-
-\subsubsection{Vision Datasets}
-
-\textbf{MNIST}~\citep{lecun1998gradient}: 28$\times$28 grayscale handwritten digits.
-Training: 60,000 images (54,000 train / 6,000 validation); Test: 10,000 images.
-Images are flattened to 784-dimensional vectors and normalized to $[0, 1]$.
-
-\textbf{Fashion-MNIST}~\citep{xiao2017fashion}: Same format as MNIST but with 10 clothing categories (T-shirt, trouser, pullover, etc.).
-More challenging due to higher intra-class variability.
-
-\textbf{EMNIST-Digits}~\citep{cohen2017emnist}: Handwritten digits from a different source distribution.
-Used for cross-dataset transfer analysis in our extension.
-
-\subsubsection{Language Models}
-
-\textbf{Paper's primary model (ts-medium):} A 6-layer, 512-hidden-dimension bilinear transformer trained on TinyStories~\citep{eldan2023tinystories}.
-Available as \texttt{tdooms/ts-medium} on HuggingFace.
-\textit{Limitation:} The HuggingFace SAE repository lacks \texttt{mlp-in} SAEs for this model, preventing full Figure 8 reproduction.
-
-\textbf{Our primary model (fw-medium):} A 16-layer, 1024-hidden-dimension bilinear transformer (335M parameters) trained on FineWeb-EDU.
-Available as \texttt{tdooms/fw-medium} with complete SAE coverage (\texttt{mlp-in} and \texttt{mlp-out}).
-We use layer 7 with expansion ratio 8$\times$.
-Note that \texttt{fw-medium} (16 layers) is significantly deeper than the paper's \texttt{ts-medium} (6 layers).
-While this pivot was necessary for SAE coverage, we acknowledge that deeper architectures generally exhibit more complex feature interactions, potentially making the low-rank approximation task more difficult than in the original setting.
-
-\textbf{Additional model (fw-small):} A 12-layer variant (162M parameters) for cross-model comparison.
-Layer 8 with expansion ratio 4$\times$.
+The paper claims 69\% of features achieve $>$0.75 correlation at rank-2.
 
 \subsection{Experimental Setup}
 
-\subsubsection{Vision Experiments}
-
-We train bilinear MLPs on MNIST and Fashion-MNIST under four regularization configurations:
+\paragraph{Vision Experiments.}
+We train bilinear MLPs on MNIST~\citep{lecun1998gradient} and Fashion-MNIST~\citep{xiao2017fashion} under four regularization configurations (Table~\ref{tab:reg_configs}), each with 5 random seeds (42--46).
+Architecture: $d_{\text{hidden}} = 256$, 100 epochs, batch size 2048, AdamW optimizer with lr $10^{-3}$ and cosine annealing.
 
 \begin{table}[h]
-    \caption{Regularization configurations for vision experiments. Values from paper Appendix G.1.}
+    \caption{Regularization configurations (from paper Appendix G.1).}
     \label{tab:reg_configs}
     \centering
     \begin{tabular}{lcc}
@@ -142,15 +82,13 @@ We train bilinear MLPs on MNIST and Fashion-MNIST under four regularization conf
     \end{tabular}
 \end{table}
 
-Each configuration is trained with 5 random seeds (42--46) for statistical robustness.
-Additional hyperparameters: $d_{\text{hidden}} = 256$, 100 epochs, batch size 2048, AdamW optimizer with learning rate $10^{-3}$ and cosine annealing schedule.
-
-\subsubsection{Language Experiments}
-
-We analyze three pretrained bilinear transformers using their associated SAEs:
+\paragraph{Language Experiments.}
+We analyze pretrained bilinear transformers (Table~\ref{tab:language_configs}).
+Due to SAE availability constraints (see Section~\ref{sec:discussion}), our primary model is \texttt{fw-medium} rather than the paper's \texttt{ts-medium}.
+Note that \texttt{fw-medium} (16 layers) is deeper than \texttt{ts-medium} (6 layers), potentially making low-rank approximation more challenging.
 
 \begin{table}[h]
-    \caption{Language model configurations for correlation analysis.}
+    \caption{Language model configurations.}
     \label{tab:language_configs}
     \centering
     \begin{tabular}{lccccc}
@@ -164,12 +102,5 @@ We analyze three pretrained bilinear transformers using their associated SAEs:
     \end{tabular}
 \end{table}
 
-For each model, we compute interaction matrices for 100 randomly sampled output features and measure rank-2 correlation.
-
-\subsection{Computational Setup}
-
-Vision experiments were conducted on the Snellius HPC cluster (NVIDIA A100 GPUs) and locally on Apple M4 (MPS).
-Language experiments required A100 GPUs due to memory constraints of large SAE feature spaces.
-We track computational costs using \texttt{codecarbon}~\citep{codecarbon} for CO2 emission estimates.
-
-To enable reproducibility on consumer-grade hardware (e.g., single GPU), we implemented a memory-efficient streaming algorithm for the eigendecomposition of the interaction tensor $\mathcal{I}$, avoiding the instantiation of the full $d_{\text{in}} \times d_{\text{in}} \times d_{\text{out}}$ tensor.
+Experiments ran on Snellius HPC (A100 GPUs) and Apple M4.
+We implemented a memory-efficient streaming algorithm for eigendecomposition, avoiding instantiation of the full $d_{\text{in}} \times d_{\text{in}} \times d_{\text{out}}$ tensor.

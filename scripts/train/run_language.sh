@@ -26,6 +26,8 @@
 #   --no-conda    Skip conda activation (for Snellius/HPC)
 #   --model       Specific model for figure9/negation/interaction
 #   --sequential  Run figure9 sequentially (memory-safe)
+#   --streaming   Use streaming Q computation for CUDA (Figure 8)
+#   --chunk-size  Chunk size for streaming (256=1GB, 128=0.5GB)
 
 set -e  # Exit on error
 
@@ -44,6 +46,8 @@ MODEL=""
 SEQUENTIAL=false
 FEATURE=3834
 NO_CONDA=false
+STREAMING=false
+CHUNK_SIZE=256
 
 # Parse global options and extract command
 COMMAND=""
@@ -77,6 +81,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --feature)
             FEATURE="$2"
+            shift 2
+            ;;
+        --streaming)
+            STREAMING=true
+            shift
+            ;;
+        --chunk-size)
+            CHUNK_SIZE="$2"
             shift 2
             ;;
         figure9|correlation|figure8|negation-viz|figure10|sae-training|negation|interaction|figures|test|all|help)
@@ -127,6 +139,7 @@ print_header() {
     echo "Command: $COMMAND"
     echo "Device: $DEVICE"
     if $QUICK_MODE; then echo "Mode: QUICK"; fi
+    if $STREAMING; then echo "Streaming: enabled (chunk_size=$CHUNK_SIZE)"; fi
     if [ -n "$MODEL" ]; then echo "Model: $MODEL"; fi
     echo "=========================================="
     echo ""
@@ -237,20 +250,30 @@ run_figure8_search() {
     mkdir -p results/language
     
     local max_features=""
+    local streaming_flag=""
     if $QUICK_MODE; then
         max_features="--max-features 100"
+    fi
+    if $STREAMING; then
+        streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
     fi
     
     echo ">>> Running Figure 8 Circuit Search (Full 8192 features)"
     echo "    Device: $DEVICE"
-    echo "    Estimated time: ~8-10 hours on MPS"
+    if $STREAMING; then
+        echo "    Streaming: enabled (chunk_size=$CHUNK_SIZE)"
+        echo "    Estimated time: ~1-2 hours on CUDA A100"
+    else
+        echo "    Estimated time: ~8-10 hours on MPS"
+    fi
     echo ""
     
     PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/comprehensive_circuit_search.py \
         --device "$DEVICE" \
         --batch-size 50 \
         --save-interval 100 \
-        $max_features
+        $max_features \
+        $streaming_flag
     
     echo ""
     echo "Circuit search complete!"
@@ -308,9 +331,15 @@ print(results['top_by_and_score'][0]['feature'])
     echo ""
     echo "Analyzing best feature: $best_feature"
     
+    local streaming_flag=""
+    if $STREAMING; then
+        streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
+    fi
+    
     PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/comprehensive_circuit_search.py \
         --device "$DEVICE" \
-        --analyze "$best_feature"
+        --analyze "$best_feature" \
+        $streaming_flag
     
     echo ""
     echo "Analysis complete!"
@@ -375,18 +404,25 @@ run_figure8_legacy() {
     mkdir -p results/language
     
     # Figure 8 uses memory-efficient iterative eigensolver
-    # Best run on MPS (unified memory) to avoid GPU OOM issues
+    # Best run on MPS (unified memory) or CUDA with streaming
     local fig8_device="$DEVICE"
     
     local n_samples=1500
+    local streaming_flag=""
     if $QUICK_MODE; then
         n_samples=500
+    fi
+    if $STREAMING; then
+        streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
     fi
     
     echo ">>> Running Figure 8 (Legacy - Single Feature)"
     echo "    Feature: $FEATURE (not-good)"
     echo "    Device: $fig8_device"
     echo "    Samples: $n_samples"
+    if $STREAMING; then
+        echo "    Streaming: enabled (chunk_size=$CHUNK_SIZE)"
+    fi
     echo "    Memory: Uses iterative eigensolver (constant memory)"
     echo ""
     
@@ -395,7 +431,8 @@ run_figure8_legacy() {
         --output "results/language/figure_8_data_fw_medium.json" \
         --feature "$FEATURE" \
         --device "$fig8_device" \
-        --n-samples "$n_samples"
+        --n-samples "$n_samples" \
+        $streaming_flag
     
     echo ""
     echo "Figure 8 data generated!"
@@ -684,6 +721,8 @@ show_help() {
     echo "  --model       Specific model: ts-medium, fw-small, fw-medium, all"
     echo "  --sequential  Run models sequentially (memory-safe for figure9)"
     echo "  --feature     Feature index for figure8 legacy (default: 3834)"
+    echo "  --streaming   Use streaming Q computation for CUDA (Figure 8)"
+    echo "  --chunk-size  Chunk size for streaming (default: 256, 128 for smaller GPUs)"
     echo ""
     echo "Examples:"
     echo "  ./scripts/train/run_language.sh test                      # Quick tests"
@@ -691,6 +730,7 @@ show_help() {
     echo "  ./scripts/train/run_language.sh figure9 --model fw-medium # Single model"
     echo "  ./scripts/train/run_language.sh figure8 all               # Full Figure 8 pipeline"
     echo "  ./scripts/train/run_language.sh figure8 search --quick    # Quick search (100 features)"
+    echo "  ./scripts/train/run_language.sh figure8 all --streaming --device cuda  # CUDA with streaming"
     echo "  ./scripts/train/run_language.sh all                       # Full pipeline"
     echo ""
     echo "Models for Figure 9:"

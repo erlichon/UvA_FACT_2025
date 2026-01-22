@@ -223,10 +223,10 @@ if ! $SKIP_LANGUAGE; then
         echo ">>> Figure 9: Correlation sweep (fw-medium only, quick mode)"
         ./scripts/train/run_language.sh figure9 --quick --model fw-medium $CONDA_FLAG
         
-        # Figure 8 (circuit search) - 100 features only
+        # Figure 8 (circuit search) - 100 features only, with streaming for CUDA
         echo ""
-        echo ">>> Figure 8: Circuit search (100 features)"
-        ./scripts/train/run_language.sh figure8 search --quick $CONDA_FLAG
+        echo ">>> Figure 8: Circuit search (100 features, streaming enabled)"
+        ./scripts/train/run_language.sh figure8 search --quick --streaming $CONDA_FLAG
         
         # Negation discovery - quick mode
         echo ""
@@ -242,10 +242,11 @@ if ! $SKIP_LANGUAGE; then
         ./scripts/train/run_language.sh figure9 --sequential $CONDA_FLAG
         
         # Figure 8 (full circuit search) - all 8192 features
+        # --streaming enables chunked Q computation, reducing memory from 17GB to ~1GB
         if ! $SKIP_FIGURE8; then
             echo ""
-            echo ">>> Figure 8: Full circuit search (8192 features, ~2h on A100)"
-            ./scripts/train/run_language.sh figure8 all $CONDA_FLAG
+            echo ">>> Figure 8: Full circuit search (8192 features, streaming enabled, ~1-2h on A100)"
+            ./scripts/train/run_language.sh figure8 all --streaming $CONDA_FLAG
         else
             echo ""
             echo ">>> Skipping Figure 8 (--skip-figure8 set, run separately on MPS)"

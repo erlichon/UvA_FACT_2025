@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Comprehensive circuit search for fw-medium - optimized for MPS.
+Comprehensive circuit search for fw-medium - optimized for MPS and CUDA.
 
-Searches ALL output features for AND-gate structure, with MPS optimizations:
+Searches ALL output features for AND-gate structure, with optimizations:
 - Batch processing to reduce memory transfers
 - Caching of repeated computations
 - Progress saving for resumability
+- Streaming Q computation for CUDA (reduces memory from 17GB to 1GB)
 """
 
 import sys
@@ -22,6 +23,7 @@ import torch
 import numpy as np
 
 from src.utils import track_emissions
+from src.language.streaming_tracer import q_streaming
 
 
 def search_all_circuits(
@@ -30,19 +32,30 @@ def search_all_circuits(
     save_interval: int = 100,
     resume: bool = True,
     max_features: int = None,
+    use_streaming: bool = False,
+    chunk_size: int = 256,
 ):
     """
     Search all output features for AND-gate structure.
     
-    MPS Optimizations:
-    - Keep model and latents on GPU
-    - Batch eigenvalue computations where possible
-    - Minimize CPU-GPU transfers
+    Optimizations:
+    - MPS: Keep model and latents on GPU, batch eigenvalue computations
+    - CUDA (streaming): Chunk Q computation to reduce memory from 17GB to 1GB
+    
+    Args:
+        device: Device to run on (mps, cuda, cpu)
+        batch_size: Not currently used (reserved for future batch processing)
+        save_interval: Save checkpoint every N features
+        resume: Resume from checkpoint if exists
+        max_features: Limit number of features to search
+        use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
+        chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
     """
     print(f"=" * 70)
-    print(f"COMPREHENSIVE CIRCUIT SEARCH - MPS OPTIMIZED")
+    print(f"COMPREHENSIVE CIRCUIT SEARCH")
     print(f"=" * 70)
     print(f"Device: {device}")
+    print(f"Streaming: {use_streaming} (chunk_size={chunk_size})")
     print(f"Batch size: {batch_size}")
     
     # Output paths
@@ -114,11 +127,14 @@ def search_all_circuits(
     for i, out_feat in enumerate(features_to_process):
         try:
             # Get Q matrix - this is the main computation
-            # MPS optimization: compute on device, then move to CPU for eigen
-            Q = tracer.q(out_feat, project=False).float()
-            
-            # Move to CPU for stable eigendecomposition
-            Q_cpu = Q.cpu()
+            # Streaming mode for CUDA: reduces memory from 17GB to ~1GB
+            if use_streaming and device == "cuda":
+                Q = q_streaming(tracer, out_feat, chunk_size=chunk_size)
+                Q_cpu = Q.cpu()
+            else:
+                # Original path for MPS/CPU
+                Q = tracer.q(out_feat, project=False).float()
+                Q_cpu = Q.cpu()
             
             # Find top self-interacting input features
             # MPS optimization: do matrix ops on GPU
@@ -224,9 +240,17 @@ def search_all_circuits(
     return final_results
 
 
-def analyze_top_candidate(device: str, feature_idx: int, n_top: int = 15):
+def analyze_top_candidate(device: str, feature_idx: int, n_top: int = 15, 
+                          use_streaming: bool = False, chunk_size: int = 256):
     """
     Detailed analysis of a specific output feature.
+    
+    Args:
+        device: Device to run on (mps, cuda, cpu)
+        feature_idx: Output feature index to analyze
+        n_top: Number of top input features to include
+        use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
+        chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
     """
     print(f"\n{'='*70}")
     print(f"DETAILED ANALYSIS: Output Feature {feature_idx}")
@@ -246,7 +270,11 @@ def analyze_top_candidate(device: str, feature_idx: int, n_top: int = 15):
     tracer = Tracer(model, layer=7, inp=dict(expansion=8), out=dict(expansion=8), device=device)
     inp_latents = tracer.inp_latents.float().cpu()
     
-    Q = tracer.q(feature_idx, project=False).float().cpu()
+    # Get Q matrix - streaming mode for CUDA
+    if use_streaming and device == "cuda":
+        Q = q_streaming(tracer, feature_idx, chunk_size=chunk_size).cpu()
+    else:
+        Q = tracer.q(feature_idx, project=False).float().cpu()
     
     # Find top features
     inp_Q = torch.mm(Q, inp_latents)
@@ -312,6 +340,10 @@ def main():
                         help="Analyze specific feature instead of searching")
     parser.add_argument("--test", action="store_true",
                         help="Quick test mode: only search 10 features")
+    parser.add_argument("--streaming", action="store_true",
+                        help="Use streaming Q computation (reduces memory, enables CUDA)")
+    parser.add_argument("--chunk-size", type=int, default=256,
+                        help="Chunk size for streaming (256=1GB, 128=0.5GB)")
     args = parser.parse_args()
     
     if args.test:
@@ -322,7 +354,8 @@ def main():
         args.no_resume = True
     
     if args.analyze is not None:
-        analyze_top_candidate(args.device, args.analyze)
+        analyze_top_candidate(args.device, args.analyze, 
+                             use_streaming=args.streaming, chunk_size=args.chunk_size)
     else:
         # Track emissions for the full search
         with track_emissions("fact-bilinear") as tracker:
@@ -332,6 +365,8 @@ def main():
                 save_interval=args.save_interval,
                 resume=not args.no_resume,
                 max_features=args.max_features,
+                use_streaming=args.streaming,
+                chunk_size=args.chunk_size,
             )
         
         # Add emissions to final results and re-save

@@ -449,7 +449,7 @@ def generate_figure_8_comparison(results_dir: Path, figure_dir: Path):
     
     # Panel 4: Tutorial feature projections
     if tutorial_data and "panel_b" in tutorial_data:
-        projs = tutorial_data["panel_b"]["projections"]
+        projs = tutorial_data["panel_b"].get("feature_projections") or tutorial_data["panel_b"].get("projections", {})
         x = [p[0] for p in projs.values()]
         y = [p[1] for p in projs.values()]
         ax4.scatter(x, y, alpha=0.7, s=50)

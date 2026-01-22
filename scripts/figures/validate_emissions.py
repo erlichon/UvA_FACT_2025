@@ -86,6 +86,10 @@ def check_json(path: Path, required_keys: list[str] = None) -> tuple[bool, str |
             if 'emissions' in data and isinstance(data['emissions'], dict):
                 if key in data['emissions']:
                     continue
+            # Check in 'summary' dict (for interaction_analysis.json)
+            if 'summary' in data and isinstance(data['summary'], dict):
+                if key in data['summary']:
+                    continue
             return False, f"Missing '{key}'"
         
         return True, None
@@ -214,6 +218,8 @@ def main():
         'correlation_ts-medium.json': ['co2_kg'],
         # Figure 8 circuit search
         'circuit_search_complete.json': ['co2_kg'],
+        # Figure 8 legacy data
+        'figure_8_data_fw_medium.json': ['co2_kg'],
         # Figure 10 SAE training time
         'sae_training_time_comparison.json': ['co2_kg'],
         # Negation discovery

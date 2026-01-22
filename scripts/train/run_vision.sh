@@ -236,7 +236,7 @@ train_challenge() {
     print_header
     activate_conda
     
-    local ckpt_dir="results/challenge/checkpoints"
+    local ckpt_dir="checkpoints/vision/challenge"
     mkdir -p "$ckpt_dir"
     
     echo ">>> Challenge Task Training (Figure 6)"

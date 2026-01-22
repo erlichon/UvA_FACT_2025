@@ -67,6 +67,7 @@ from src.language.verify_correlation import (
 )
 from src.language.context import LanguageContext
 from src.language.memory_efficient_eigen import top_k_eigenvectors_by_magnitude
+from src.language.streaming_tracer import q_streaming
 
 
 # Feature type classification for fw-medium layer 7 input features.
@@ -134,6 +135,8 @@ def compute_figure_8a_submatrix(
     tracer: Tracer,
     feat_idx: int,
     top_k: int = 15,
+    use_streaming: bool = False,
+    chunk_size: int = 256,
 ) -> Tuple[torch.Tensor, List[int]]:
     """
     Compute the interaction submatrix for Figure 8A.
@@ -148,12 +151,18 @@ def compute_figure_8a_submatrix(
         tracer: Tracer object with loaded SAEs
         feat_idx: Output feature index (e.g., 3834 for "not-good")
         top_k: Number of top interacting features to include
+        use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
+        chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
     
     Returns:
         (Q_submatrix, feature_indices) - The submatrix and the feature indices it contains
     """
     # Get Q matrix in d_model space (NOT projected to avoid OOM)
-    Q = tracer.q(feat_idx, project=False).float().cpu()  # [d_model, d_model]
+    # Streaming mode for CUDA: reduces memory from 17GB to ~1GB
+    if use_streaming and str(tracer.device) == "cuda":
+        Q = q_streaming(tracer, feat_idx, chunk_size=chunk_size).cpu()  # [d_model, d_model]
+    else:
+        Q = tracer.q(feat_idx, project=False).float().cpu()  # [d_model, d_model]
     
     # Get SAE input decoder directions
     inp_latents = tracer.inp_latents.float().cpu()  # [d_model, n_features]
@@ -221,6 +230,8 @@ def compute_figure_8b_projections(
     tracer: Tracer,
     feat_idx: int,
     top_features: List[int],
+    use_streaming: bool = False,
+    chunk_size: int = 256,
 ) -> Tuple[Dict[int, Tuple[float, float]], Dict[str, Tuple[float, float]], torch.Tensor, torch.Tensor]:
     """
     Compute projections for Figure 8B.
@@ -240,12 +251,18 @@ def compute_figure_8b_projections(
         tracer: Tracer with loaded SAEs
         feat_idx: Output feature index
         top_features: List of SAE input feature indices to project
+        use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
+        chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
     
     Returns:
         (feature_projections, meaningful_directions, v1, v2)
     """
     # Get Q matrix in d_model space (small: 1024x1024 for fw-medium)
-    Q = tracer.q(feat_idx, project=False).float().cpu()  # [d_model, d_model]
+    # Streaming mode for CUDA: reduces memory from 17GB to ~1GB
+    if use_streaming and str(tracer.device) == "cuda":
+        Q = q_streaming(tracer, feat_idx, chunk_size=chunk_size).cpu()  # [d_model, d_model]
+    else:
+        Q = tracer.q(feat_idx, project=False).float().cpu()  # [d_model, d_model]
     
     # Get SAE input latents (decoder directions)
     inp_latents = tracer.inp_latents.float().cpu()  # [d_model, n_features]
@@ -468,6 +485,8 @@ def generate_figure_8_data(
     device: str,
     top_k_interactions: int = 15,
     max_batches: int = 50,
+    use_streaming: bool = False,
+    chunk_size: int = 256,
 ) -> Figure8Data:
     """
     Generate all data needed for Figure 8.
@@ -482,22 +501,28 @@ def generate_figure_8_data(
         device: Device for computation
         top_k_interactions: Number of top interactions for Panel A
         max_batches: Maximum batches for Panel C
+        use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
+        chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
     
     Returns:
         Figure8Data containing all panel data
     """
     print(f"\nGenerating Figure 8 data for feature {feat_idx}...")
+    if use_streaming:
+        print(f"  Using streaming Q computation (chunk_size={chunk_size})")
     
     # Panel A: Interaction submatrix
     print("  Computing Panel A (interaction submatrix)...")
     Q_submatrix, submatrix_features = compute_figure_8a_submatrix(
-        tracer, feat_idx, top_k=top_k_interactions
+        tracer, feat_idx, top_k=top_k_interactions,
+        use_streaming=use_streaming, chunk_size=chunk_size,
     )
     
     # Panel B: Eigenvector projections
     print("  Computing Panel B (eigenvector projections)...")
     feature_projections, meaningful_directions, v1, v2 = compute_figure_8b_projections(
-        model, tracer, feat_idx, submatrix_features
+        model, tracer, feat_idx, submatrix_features,
+        use_streaming=use_streaming, chunk_size=chunk_size,
     )
     
     # Panel C: Activation vs approximation
@@ -522,7 +547,7 @@ def generate_figure_8_data(
     )
 
 
-def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Optional[Dict[str, str]] = None):
+def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Optional[Dict[str, str]] = None, emissions: Optional[dict] = None):
     """Save Figure 8 data to JSON.
     
     Args:
@@ -530,6 +555,7 @@ def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Opti
         output_path: Path to save JSON file
         feature_types: Optional dict mapping feature indices to semantic types
                        (e.g., {"508": "structural", "7198": "negation"})
+        emissions: Optional dict with emissions data (co2_kg, wall_time_hours, gpu_hours)
     """
     # Get feature types for the features in this data
     if feature_types is None:
@@ -563,6 +589,10 @@ def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Opti
         "feature_types": relevant_feature_types,
     }
     
+    # Add emissions data if provided
+    if emissions is not None:
+        results["emissions"] = emissions
+    
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
@@ -584,6 +614,10 @@ def main():
                         help="Number of validation samples")
     parser.add_argument("--max-batches", type=int, default=50, 
                         help="Maximum batches for Panel C")
+    parser.add_argument("--streaming", action="store_true",
+                        help="Use streaming Q computation (reduces memory, enables CUDA)")
+    parser.add_argument("--chunk-size", type=int, default=256,
+                        help="Chunk size for streaming (256=1GB, 128=0.5GB)")
     args = parser.parse_args()
     
     # Setup device
@@ -626,21 +660,38 @@ def main():
             device=device,
             top_k_interactions=args.top_k,
             max_batches=args.max_batches,
+            use_streaming=args.streaming,
+            chunk_size=args.chunk_size,
         )
-        
-        # Save results
-        save_figure_8_data(figure_data, Path(args.output))
-        
-        # Print summary
-        print(f"\n{'='*60}")
-        print("FIGURE 8 GENERATION COMPLETE")
-        print(f"{'='*60}")
-        print(f"Feature: {args.feature}")
-        print(f"Panel A: {len(figure_data.submatrix_feature_indices)} features in submatrix")
-        print(f"Panel B: {len(figure_data.feature_projections)} feature projections")
-        print(f"         {len(figure_data.meaningful_directions)} meaningful directions")
-        print(f"Panel C: {len(figure_data.z_true)} scatter points, correlation={figure_data.correlation:.4f}")
-        print(f"{'='*60}")
+    
+    # Access emissions AFTER exiting the context manager (tracker has stopped)
+    if tracker.result is not None:
+        emissions = {
+            "co2_kg": tracker.result.emissions_kg,
+            "wall_time_hours": tracker.result.wall_time_hours,
+            "gpu_hours": tracker.result.gpu_hours,
+        }
+    else:
+        # Fallback if tracker failed
+        emissions = {
+            "co2_kg": 0.0,
+            "wall_time_hours": 0.0,
+            "gpu_hours": 0.0,
+        }
+        print("Warning: CodeCarbon tracker failed, emissions not recorded")
+    
+    save_figure_8_data(figure_data, Path(args.output), emissions=emissions)
+    
+    # Print summary
+    print(f"\n{'='*60}")
+    print("FIGURE 8 GENERATION COMPLETE")
+    print(f"{'='*60}")
+    print(f"Feature: {args.feature}")
+    print(f"Panel A: {len(figure_data.submatrix_feature_indices)} features in submatrix")
+    print(f"Panel B: {len(figure_data.feature_projections)} feature projections")
+    print(f"         {len(figure_data.meaningful_directions)} meaningful directions")
+    print(f"Panel C: {len(figure_data.z_true)} scatter points, correlation={figure_data.correlation:.4f}")
+    print(f"{'='*60}")
 
 
 if __name__ == "__main__":

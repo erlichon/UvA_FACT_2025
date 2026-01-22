@@ -1,134 +1,88 @@
 % Section 6: CP-Decomposition Analysis (Extension 2)
-% Structural low-rank via CP factorization as architectural constraint
 
 \section{CP-Decomposition Analysis}
 \label{sec:cp_extension}
 
-We extend the original Bilinear MLP framework by proposing Canonical Polyadic (CP) decomposition not merely as a post-training analysis tool, but as an architectural constraint applied during training. This approach shifts the paradigm from discovering low-rank structure \emph{post-hoc} to enforcing \emph{intrinsic} interpretability and \emph{computational efficiency}.
+We extend the Bilinear MLP framework by proposing Canonical Polyadic (CP) decomposition as an \emph{architectural constraint} during training, shifting from discovering low-rank structure post-hoc to enforcing intrinsic interpretability.
 
-%==============================================================================
 \subsection{Motivation: From Post-Hoc to Intrinsic Interpretability}
-\label{sec:cp_motivation}
-%==============================================================================
 
-The standard Bilinear MLP approach relies on \emph{post-hoc} interpretability: the interaction tensor is decomposed via eigendecomposition only after training is complete. While effective for estimating the effective rank of a learned model, this method suffers from a fundamental limitation: eigendecomposition enforces orthogonality. This forces learned features to be disjoint, even when the underlying concepts they represent naturally overlap.
+Standard eigendecomposition enforces orthogonality, creating \emph{entangled} features---mixed concepts artificially separated to satisfy mathematical constraints.
+For example, vertical and horizontal strokes in digits ``4'' and ``7'' must be forced into mutually exclusive eigenvectors.
 
-For example, in digit recognition, a vertical stroke and a horizontal stroke may co-occur in digits such as ``4'' and ``7.'' Orthogonality constraints compel the model to separate these into mutually exclusive eigenvectors, creating \emph{entangled} features—mixed concepts artificially separated to satisfy mathematical constraints rather than visual reality.
-
-In contrast, CP-decomposition provides \emph{intrinsic} interpretability by parameterizing the interaction tensor $W$ directly as a sum of rank-1 tensors during training:
+CP-decomposition parameterizes the interaction tensor directly as a sum of rank-1 tensors:
 \begin{equation}
     W_{cij} = \sum_{r=1}^{R} \lambda_r A_{cr} B_{ir} C_{jr}
     \label{eq:cp_factorization}
 \end{equation}
-where $R$ is the maximum rank, and $\lambda_r$ are learnable scaling factors, adopting the \emph{Canonical Weight Normalization} formulation proposed by Veeramacheneni et al.~\cite{veeramacheneni2022canonical}. Crucially, this factorization does not enforce orthogonality. This flexibility allows for \emph{disentangled} representations where factors can naturally overlap, aligning more closely with human intuition of how visual patterns decompose into atomic parts (e.g., strokes, loops).
+where $R$ is the maximum rank and $\lambda_r$ are learnable scaling factors~\citep{veeramacheneni2022canonical}.
+This factorization does \emph{not} enforce orthogonality, enabling \emph{disentangled} representations where factors naturally overlap.
 
-%==============================================================================
 \subsection{Methodology: Regularization Variants}
-\label{sec:cp_methodology}
-%==============================================================================
 
-We investigate three variants of CP decomposition to analyze the trade-off between model capacity and interpretability constraints:
+We investigate three CP variants:
+\textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
+\textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
+\textbf{Gated CP:} Stochastic gates with $L_0$ proxy for explicit rank pruning~\citep{cao2024learning}.
+All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{8, \ldots, 784\}$.
 
-\begin{itemize}
-    \item \textbf{Fixed CP:} A hard structural constraint where the rank $R$ is fixed. No additional sparsity regularization is applied. This enforces a strict upper bound on complexity but may limit model capacity if $R$ is set too low.
-    
-    \item \textbf{Lambda CP (Magnitude Regularization):} Following Veeramacheneni et al.~\cite{veeramacheneni2022canonical}, we utilize the learnable scalar scales $\lambda_r$ as a proxy for rank importance. We subject these scalars to $L_1$ regularization to encourage ``soft sparsity,'' allowing the model to downweight unnecessary ranks dynamically while retaining the capacity to utilize them if necessary.
-    
-    \item \textbf{Gated CP (Sparsity Regularization):} Leveraging the probabilistic rank selection framework of Cao et al.~\cite{cao2024learning}, we apply stochastic gates $z_r \sim \text{Bernoulli}(\sigma(\phi_r))$ to each rank component, where $\phi_r$ are learnable parameters. We optimize their differentiable $L_0$ proxy objective ($\sum_r \sigma(\phi_r)$) to explicitly prune unnecessary ranks. This method allows the model to self-select the minimal set of active ranks required for the task.
-\end{itemize}
+\subsection{Quantitative Analysis: Accuracy-Interpretability Trade-off}
 
-All variants were trained on MNIST with minimal regularization (weight decay $0.1$, no noise augmentation) across a rank sweep $R \in \{8, \dots, 784\}$.
-
-%==============================================================================
-\subsection{Quantitative Analysis: The Accuracy-Interpretability Trade-off}
-\label{sec:cp_quantitative}
-%==============================================================================
-
-We present the performance of the CP variants compared to dense baselines in Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep}. The results reveal a clear Pareto frontier between structural constraints and classification accuracy.
+Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep} present the Pareto frontier.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.85\linewidth]{figures/extension_cp/cp_rank_accuracy_tradeoff.pdf}
-    \caption{\textbf{Accuracy-Interpretability Pareto Frontier.} Comparison of dense baselines against Fixed, Lambda, and Gated CP variants. Points closer to the top-left indicate a superior trade-off (high accuracy, low effective rank). While Fixed CP forces extreme sparsity at the cost of accuracy, Lambda and Gated CP maintain performance competitive with dense models while significantly reducing the effective rank.}
+    \caption{\textbf{Accuracy-Interpretability Pareto Frontier.}
+    Fixed CP forces extreme sparsity (eff.\ rank $\sim$3.5) at accuracy cost.
+    Lambda and Gated CP maintain competitive accuracy while reducing effective rank.}
     \label{fig:cp_tradeoff}
 \end{figure}
 
 \begin{table}[h]
-    \caption{\textbf{Rank Sweep Results.} Mean accuracy and effective rank ($\pm$ std, 5 seeds). Fixed CP enforces a strict bottleneck (Effective Rank $\approx 3.5$), while Lambda and Gated methods allow the effective rank to scale with model capacity, recovering accuracy lost by the strict constraint.}
+    \caption{CP-Decomposition results (mean ± std, 5 seeds). Best CP results in bold.}
     \label{tab:cp_sweep}
     \centering
+    \small
     \begin{tabular}{lcc}
         \toprule
         \textbf{Model} & \textbf{Accuracy (\%)} & \textbf{Eff.\ Rank} \\
         \midrule
-        \multicolumn{3}{c}{\textit{Dense Baselines}} \\
         Dense (no reg) & $97.49 \pm 0.05$ & $38.5 \pm 0.7$ \\
         Dense (WD only) & $97.49 \pm 0.05$ & $15.5 \pm 0.3$ \\
         \midrule
-        \multicolumn{3}{c}{\textit{CP-Decomposition Variants}} \\
-        Fixed $R=32$ & $90.63 \pm 0.23$ & $3.42 \pm 0.22$ \\
-        Fixed $R=64$ & $91.05 \pm 0.13$ & $3.45 \pm 0.12$ \\
-        Fixed $R=128$ & $91.48 \pm 0.22$ & $3.65 \pm 0.05$ \\
         Fixed $R=256$ & $91.89 \pm 0.09$ & $3.74 \pm 0.07$ \\
-        \midrule
-        Lambda $R=32$ & $92.67 \pm 0.15$ & $9.07 \pm 0.44$ \\
-        Lambda $R=64$ & $93.04 \pm 0.10$ & $11.57 \pm 0.52$ \\
-        Lambda $R=128$ & $93.34 \pm 0.11$ & $14.92 \pm 0.49$ \\
-        Lambda $R=256$ & $93.80 \pm 0.14$ & $17.50 \pm 0.36$ \\
-        \midrule
-        Gated $R=32$ & $92.72 \pm 0.20$ & $8.76 \pm 0.47$ \\
-        Gated $R=64$ & $93.05 \pm 0.12$ & $11.69 \pm 0.35$ \\
-        Gated $R=128$ & $93.31 \pm 0.14$ & $14.83 \pm 0.16$ \\
+        Lambda $R=256$ & $\mathbf{93.80 \pm 0.14}$ & $\mathbf{17.50 \pm 0.36}$ \\
         Gated $R=256$ & $93.79 \pm 0.15$ & $17.35 \pm 0.48$ \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Distinct Regimes of Operation.} We observe two distinct regimes. The \textbf{Fixed CP} variant operates as a ``strict bottleneck,'' maintaining an extremely low effective rank ($\sim3.5$) regardless of the allocated capacity ($R$). This extreme sparsity comes at an accuracy cost (approx. $6\%$ drop from dense baselines), identifying it as the preferred choice when interpretability is the paramount constraint.
+\textbf{Two distinct regimes:}
+(1) \textbf{Fixed CP} operates as a strict bottleneck with eff.\ rank $\sim$3.5 regardless of allocated capacity, at $\sim$6\% accuracy cost.
+(2) \textbf{Lambda/Gated CP} at $R=256$ achieve \textbf{93.8\% accuracy with eff.\ rank 17.5}---matching dense model complexity while providing structural disentanglement.
 
-Conversely, the \textbf{Lambda and Gated} variants successfully balance the trade-off. At $R=256$, they recover nearly all the accuracy of the dense baseline ($93.8\%$ vs $97.5\%$) while maintaining an effective rank of $\sim17.5$. This matches the complexity of the dense model (with weight decay) but provides explicit structural disentanglement.
-
-%==============================================================================
 \subsection{Qualitative Analysis: Disentangled Factors}
-\label{sec:cp_qualitative}
-%==============================================================================
 
-The quantitative reduction in rank translates directly to qualitative differences in the learned features. Figure~\ref{fig:cp_top5_comparison} presents a side-by-side comparison of the top eigenvectors extracted from a Dense baseline versus a CP model, while Figure~\ref{fig:cp_eigenvectors_top2} provides a focused view of the top two factors for the Lambda CP variant ($R=32$).
-
-\begin{figure}[ht!]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figures/extension_cp/cp_eigenvectors_top2.pdf}
-    \caption{\textbf{Top-2 CP Factors (Lambda $R=32$).} Visualization of the two most dominant factors per class. These factors exhibit clear, localized patterns consistent with atomic visual features, such as distinct strokes or curves, rather than holistic digit templates.}
-    \label{fig:cp_eigenvectors_top2}
-\end{figure}
+Figure~\ref{fig:cp_comparison} compares eigenvectors from Dense vs.\ CP models.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_top5_eigenvectors_comparison.pdf}
-    \caption{\textbf{Feature Disentanglement: Dense vs. CP.} Top 5 eigenvectors for digits 0--9. \textbf{Left (Dense):} Features tend to look like holistic, superimposed templates of the digits, mixing multiple strokes into single orthogonal vectors. \textbf{Right (CP):} Factors appear more localized and atomic (e.g., isolated curves, specific strokes), suggesting that CP decomposition successfully disentangles visual concepts into their constituent parts.}
-    \label{fig:cp_top5_comparison}
+    \caption{\textbf{Feature Disentanglement: Dense vs.\ CP.}
+    Top 5 eigenvectors for digits 0--9.
+    \textbf{Dense:} Holistic, superimposed templates mixing multiple strokes.
+    \textbf{CP:} Atomic, localized factors (isolated curves, specific strokes) that can be combined to reconstruct digits.}
+    \label{fig:cp_comparison}
 \end{figure}
 
-The visualization supports the hypothesis of disentanglement. Dense eigenvectors often resemble \textbf{superimposed, holistic templates} of digits—entangled representations that combine multiple strokes to satisfy orthogonality. CP factors, conversely, appear more \textbf{atomic} and \textbf{localized}. They represent specific constituent elements—a top loop, a vertical stroke, a bottom curve—which can be linearly combined to reconstruct the full digit. This aligns with the ``parts-based'' representation often sought in interpretability research.
+Dense eigenvectors resemble superimposed digit templates---entangled representations combining strokes for orthogonality.
+CP factors appear more \textbf{atomic} and \textbf{localized}: top loops, vertical strokes, bottom curves that can be linearly combined.
+This aligns with ``parts-based'' representations sought in interpretability.
 
-%==============================================================================
-\subsection{Scalability and Efficiency: Breaking the Width Bottleneck}
-\label{sec:cp_scalability}
-%==============================================================================
-
-Crucially, CP decomposition provides a path to scaling interpretable models that dense architectures cannot match. Standard dense layers suffer from quadratic complexity: parameter count scales as $O(d_{\text{in}} \cdot d_{\text{out}})$ and compute as $O(d_{\text{in}} \cdot d_{\text{out}} \cdot \text{batch})$. For large foundation models where hidden dimensions ($d$) reach the thousands, this quadratic growth becomes a severe bottleneck.
-
-CP decomposition fundamentally alters this scaling law to $O(R \cdot (d_{\text{in}} + d_{\text{out}}))$. While typically employed strictly for model compression on resource-constrained devices~\cite{veeramacheneni2022canonical, cao2024learning}, here we demonstrate that this efficiency gain comes with the added benefit of semantic disentanglement.
-
-\textbf{Parameter Efficiency.} For our architecture ($d=256, R=64$), CP decomposition reduces the parameter count by \textbf{62.5\%}. This advantage grows with model size; for a hypothetical layer with $d=4096$, a CP layer with rank $R=512$ would require only $\approx 12\%$ of the parameters of a dense equivalent.
-
-\textbf{Computational Cost.} This reduction extends to compute operations. The Dense forward pass requires two full matrix multiplications. The CP pass, composed of smaller projections and element-wise operations, reduces the theoretical FLOPs by approximately $4\times$ at our experimental scale. This theoretical efficiency translates to reduced carbon emissions during training (see Appendix~\ref{app:cp_efficiency} for detailed CO2 emission analysis).
-
-These results suggest that CP regularization is not just an interpretability constraint, but a viable strategy for \textbf{scaling up} bilinear architectures. It enables the training of significantly larger models within fixed compute or memory budgets while retaining the high accuracy and intrinsic interpretability demonstrated in our experiments.
-
-%==============================================================================
 \subsection{Conclusion}
-\label{sec:cp_conclusion}
-%==============================================================================
 
-We find that CP decomposition serves as a dual-purpose architectural choice. First, it enforces \textbf{intrinsic interpretability}, replacing the entangled, holistic templates of dense models with disentangled, atomic parts. Second, it acts as a \textbf{scalable foundation for efficiency}, breaking the quadratic scaling laws of dense layers. While \textbf{Fixed CP} offers maximum transparency, the \textbf{Lambda and Gated} variants provide a robust middle ground—maintaining competitive accuracy and scalability, making them a promising candidate for efficient, interpretable large-scale modeling.
+CP-decomposition serves dual purposes:
+(1) \textbf{Intrinsic interpretability} via disentangled, atomic parts rather than entangled templates.
+(2) \textbf{Scalable efficiency} by reducing parameters from $\mathcal{O}(d_{\text{hidden}} \times d_{\text{in}}^2)$ to $\mathcal{O}(R \times d_{\text{in}})$.
+Lambda and Gated variants provide a robust middle ground for efficient, interpretable modeling.

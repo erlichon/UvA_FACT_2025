@@ -1,5 +1,4 @@
 % Section 2: Scope of Reproducibility
-% Reproduce both Section 4 (Vision) and Section 5 (Language/Negation) of Pearce et al. (2024)
 
 \section{Scope of Reproducibility}
 \label{sec:scope}
@@ -8,67 +7,34 @@ We reproduce the main experimental sections of \citet{pearce2024bilinear}: Secti
 
 \subsection{Claims to Verify}
 
-\subsubsection{Section 4: Vision (Image Classification)}
+\paragraph{Section 4: Vision (Image Classification).}
+The paper makes the following testable claims:
+\textbf{V1 (Low-Rank Emergence):} Regularization induces low-rank structure in the bilinear interaction tensor (effective rank $\sim$20--40 with regularization vs.\ $\sim$150--200 without).
+\textbf{V2 (Interpretable Eigenvectors):} Top eigenvectors correspond to interpretable digit-like stroke templates.
+\textbf{V3 (Overfitting Without Regularization):} Without regularization, eigenspectrum is flat and eigenvectors show noise-like patterns.
+\textbf{V4 (Regularization Roles):} Noise augmentation and weight decay have complementary effects.
+\textbf{V5 (Cross-Seed Consistency):} Eigenvectors are consistent across seeds (cosine similarity 0.8--0.9).
+\textbf{V6 (Adversarial Generation):} Adversarial perturbations can be constructed from eigendecomposition.
 
-The paper makes the following testable claims regarding vision experiments:
-
-\begin{enumerate}
-    \item \textbf{Claim V1 (Low-Rank Emergence):} Regularization (input noise + weight decay) induces low-rank structure in the bilinear interaction tensor, as measured by effective rank.
-    \textit{Paper baseline: effective rank $\sim$20--40 with regularization vs.\ $\sim$150--200 without.}
-    
-    \item \textbf{Claim V2 (Interpretable Eigenvectors):} The top eigenvectors of the regularized model's interaction tensor correspond to interpretable digit-like patterns that resemble stroke templates.
-    
-    \item \textbf{Claim V3 (Overfitting Without Regularization):} Without regularization, the eigenspectrum is flat (high effective rank) and eigenvectors show noise-like overfitting patterns rather than generalizable features.
-    
-    \item \textbf{Claim V4 (Regularization Roles):} Input noise augmentation and weight decay have complementary effects: noise improves generalization while weight decay reduces effective rank.
-    
-    \item \textbf{Claim V5 (Cross-Seed Consistency):} Eigenvectors are consistent across random seeds, with cosine similarity 0.8--0.9 for top components.
-    
-    \item \textbf{Claim V6 (Adversarial Generation):} Adversarial perturbations can be constructed directly from the eigendecomposition via pseudoinverse projection.
-\end{enumerate}
-
-\subsubsection{Section 5: Language (Negation Circuits)}
-
-The paper discovers \textbf{sentiment negation circuits} in bilinear transformers:
-
-\begin{enumerate}
-    \item \textbf{Claim L1 (SAE Feature Discovery):} Sparse Autoencoders trained on MLP layers reveal interpretable features that can be analyzed via bilinear decomposition.
-    
-    \item \textbf{Claim L2 (Negation Features):} The model learns distinct features for ``not + negative words'' (e.g., ``not lost'') and ``not + positive words'' (e.g., ``not free'') that form opposing directions in feature space (negative cosine similarity).
-    
-    \item \textbf{Claim L3 (Low-Rank Interactions):} 69\% of SAE output features achieve $>$0.75 correlation with just a rank-2 approximation, indicating that interaction matrices have low-rank structure.
-    \textit{This is the paper's central quantitative claim for language experiments.}
-    
-    \item \textbf{Claim L4 (Sparse Interaction Matrices):} The top interactions between input and output SAE features form a small, interpretable submatrix showing AND-gate-like behavior.
-    
-    \item \textbf{Claim L5 (Cross-Model Generalization):} The same negation circuit structure appears across different model sizes and training datasets.
-\end{enumerate}
+\paragraph{Section 5: Language (Negation Circuits).}
+\textbf{L1 (SAE Feature Discovery):} SAEs reveal interpretable features for bilinear decomposition.
+\textbf{L2 (Negation Features):} The model learns distinct features for ``not + negative'' and ``not + positive'' forming opposing directions.
+\textbf{L3 (Low-Rank Interactions):} 69\% of SAE output features achieve $>$0.75 correlation with rank-2 approximation.
+\textbf{L4 (Sparse Interaction Matrices):} Top interactions form interpretable AND-gate-like submatrices.
+\textbf{L5 (Cross-Model Generalization):} Negation circuit structure appears across model sizes.
 
 \subsection{Success Criteria}
 
-We define quantitative thresholds for successful reproduction:
+\textbf{Vision:} Effective rank ratio (regularized/unregularized) $< 0.6$; top eigenvectors visually resemble digit templates; test accuracy within 2\% of paper ($\sim$95--98\%); results consistent across 5 seeds.
 
-\textbf{Vision (Section 4):}
-\begin{itemize}
-    \item Effective rank ratio (regularized / unregularized) $< 0.6$ (paper implies $<0.5$)
-    \item Top eigenvectors visually resemble digit/fashion templates (qualitative)
-    \item Test accuracy within 2\% of paper values ($\sim$95--98\%)
-    \item Results consistent across 5 random seeds (std $< 1\%$ for accuracy)
-\end{itemize}
-
-\textbf{Language (Section 5):}
-\begin{itemize}
-    \item Negation feature pairs show opposing directions (cosine similarity $< 0$)
-    \item $>$50\% of features show $>$0.75 rank-2 correlation (relaxed from 69\% to account for SAE variance)
-    \item Interaction matrices show interpretable structure
-\end{itemize}
+\textbf{Language:} Negation feature pairs show opposing directions (cosine similarity $< 0$); $>$50\% of features show $>$0.75 rank-2 correlation (relaxed from 69\%); interaction matrices show interpretable structure.
 
 \subsection{Results Summary}
 
 Table~\ref{tab:claims_summary} summarizes our reproduction outcomes.
 
 \begin{table}[h]
-    \caption{Summary of reproduction results by claim. \checkmark = reproduced, $\times$ = not reproduced, $\sim$ = partially reproduced.}
+    \caption{Summary of reproduction results. \checkmark = reproduced, $\times$ = not reproduced, $\sim$ = partially reproduced.}
     \label{tab:claims_summary}
     \centering
     \small
@@ -89,19 +55,9 @@ Table~\ref{tab:claims_summary} summarizes our reproduction outcomes.
         \midrule
         L1 & SAE feature discovery & \checkmark & Pretrained SAEs work for analysis \\
         L2 & Negation features & \checkmark & Cosine similarity $= -0.16$ \\
-        L3 & Low-rank interactions & $\sim$ & Validated mechanism (trend), but missed numeric threshold due to artifact gap \\
+        L3 & Low-rank interactions & $\sim$ & Mechanism validated; artifact gap \\
         L4 & Sparse interactions & $\sim$ & Structure exists but weaker than paper \\
         L5 & Cross-model generalization & $\sim$ & Methodology works; magnitudes differ \\
         \bottomrule
     \end{tabular}
 \end{table}
-
-\subsection{Paper Context}
-
-This work fits into the broader landscape of mechanistic interpretability research~\citep{olah2020zoom, elhage2022toy}.
-Traditional approaches train Sparse Autoencoders post-hoc to discover interpretable features in model activations~\citep{bricken2023monosemanticity, cunningham2023sparse}.
-\citet{pearce2024bilinear} propose that bilinear architectures enable \emph{intrinsic} interpretability: the interaction tensor's eigenvectors are directly interpretable without auxiliary models.
-
-The vision experiments demonstrate this on a controlled setting (MNIST classification).
-The language experiments extend this to discovering \emph{circuits}---computational subgraphs implementing specific behaviors like sentiment negation---by combining bilinear decomposition with SAE analysis.
-Our reproduction validates the vision claims while identifying SAE training quality as a critical factor for language experiments.

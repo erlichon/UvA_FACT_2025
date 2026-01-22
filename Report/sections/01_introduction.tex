@@ -1,6 +1,5 @@
 % Section 1: Introduction
 % Topic: Transparency (FACT-AI Topic 1.4)
-% Narrative: Mechanistic Interpretability - "post-hoc" (SAEs) vs "intrinsic" (Bilinear layers)
 
 \section{Introduction}
 \label{sec:introduction}
@@ -20,23 +19,17 @@ If learned eigenvectors correspond to human-interpretable concepts (e.g., digit 
 We reproduce both main experimental sections of \citet{pearce2024bilinear} and report our contributions:
 
 \begin{itemize}
-    \item \textbf{Vision Reproduction (Section 4):} We successfully reproduce the MNIST and Fashion-MNIST experiments, confirming that weight decay reduces effective rank from 38.5 to 21.4 (MNIST) while maintaining 97--98\% accuracy.
+    \item \textbf{Vision Reproduction (Section~\ref{sec:vision_results}):} We successfully reproduce the MNIST and Fashion-MNIST experiments, confirming that weight decay reduces effective rank from 38.5 to 21.4 while maintaining 97--98\% accuracy.
     Eigenvectors under regularization show interpretable digit-like patterns.
+    Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank.
     
-    \item \textbf{Language Reproduction (Section 5):} We partially reproduce the negation circuit discovery.
-    We confirm that negation features form opposing directions in SAE feature space (cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---the fraction of features achieving $>$0.75 correlation is significantly lower than the claimed 69\%, and the mean rank-2 correlation saturates at 0.37--0.55.
+    \item \textbf{Language Reproduction (Section~\ref{sec:language_results}):} We partially reproduce the negation circuit discovery.
+    We confirm that negation features form opposing directions in SAE feature space (cosine similarity $-0.16$), but do \emph{not} reproduce the low-rank interaction structure---the fraction of features achieving $>$0.75 correlation is significantly lower than the claimed 69\%.
     
     \item \textbf{Root Cause Analysis:} We trace the language discrepancy to SAE training time.
     Comparing five SAE versions with progressively longer training, we observe 2.5$\times$ improvement in rank-2 correlation (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that ``correlation drastically improves with longer SAE training.''
-    We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in \citet{pearce2024bilinear}, creating a reproducibility gap.
-    We resolve this by characterizing the relationship between SAE training steps and eigenvector correlation.
     
-    \item \textbf{Ablation Study:} We disentangle noise augmentation and weight decay, finding that weight decay alone achieves the lowest effective rank, while noise augmentation improves accuracy but \emph{increases} effective rank.
+    \item \textbf{Extension 1 (Section~\ref{sec:cross_dataset_robustness}):} We probe cross-dataset robustness, demonstrating that regularized bilinear MLPs learn transferable geometric circuits across MNIST, EMNIST, and USPS. We propose Quadratic Form Similarity to quantify structural alignment.
     
-    \item \textbf{Extension:} We explore cross-dataset robustness, analyzing subspace overlap between MNIST and EMNIST-Digits to test whether interpretable structure transfers across related domains.
-    
-    \item \textbf{Environmental Analysis:} We report computational costs and CO2 emissions following responsible AI practices.
+    \item \textbf{Extension 2 (Section~\ref{sec:cp_extension}):} We explore CP-decomposition as an architectural constraint for intrinsic low-rank structure, achieving disentangled, atomic feature representations.
 \end{itemize}
-
-Our reproduction reveals an important nuance: while the bilinear decomposition \emph{methodology} is sound and reproducible, the quality of low-rank approximations depends critically on SAE training---a factor not immediately apparent from the paper's main claims.
-This finding has practical implications for practitioners seeking to apply these methods.

@@ -1,25 +1,21 @@
 % Section 4: Reproduction Results
-% Reproducing both Section 4 (Vision) and Section 5 (Language) of the paper
-% References figures by path; avoids hardcoding values where possible
 
 \section{Reproduction Results}
 \label{sec:reproduction}
 
 This section presents our reproduction of the main experiments from \citet{pearce2024bilinear}: Section 4 (Vision) on MNIST/Fashion-MNIST and Section 5 (Language) on bilinear transformers.
 
-%==============================================================================
 \subsection{Vision Results (Paper Section 4)}
 \label{sec:vision_results}
-%==============================================================================
 
-We trained bilinear MLPs on MNIST and Fashion-MNIST under four regularization configurations across 5 random seeds each, following the paper's experimental setup (Appendix G.1).
+We trained bilinear MLPs on MNIST and Fashion-MNIST under four regularization configurations across 5 random seeds each.
 
 \subsubsection{Main Result: Regularization Induces Low-Rank Structure}
 
-The paper's central claim is that regularization (input noise + weight decay) induces low-rank structure in the bilinear interaction tensor.
-We verify this through ablation experiments, shown in Figure~\ref{fig:ablation_combined}.
+The paper's central claim is that regularization induces low-rank structure in the bilinear interaction tensor.
+Figure~\ref{fig:ablation_combined} confirms this through our ablation experiments.
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/mnist_ablation.pdf}
@@ -32,214 +28,115 @@ We verify this through ablation experiments, shown in Figure~\ref{fig:ablation_c
         \caption{Fashion-MNIST: Accuracy vs.\ effective rank}
         \label{fig:fashion_ablation}
     \end{subfigure}
-    \caption{Ablation study showing the accuracy-interpretability trade-off across four regularization configurations (none, noise-only, weight-decay-only, full).
+    \caption{Ablation study showing accuracy-interpretability trade-off across regularization configurations.
     Weight decay achieves the lowest effective rank on both datasets while maintaining competitive accuracy.
-    The effective rank ratio (regularized / unregularized) meets the paper's $<0.5$ criterion.}
+    The effective rank ratio (regularized/unregularized) meets the paper's $<0.5$ criterion.}
     \label{fig:ablation_combined}
 \end{figure}
 
-\textbf{Key findings from the ablation:}
-\begin{enumerate}
-    \item \textbf{Weight decay is the primary driver of low-rank structure.}
-    As shown in Figure~\ref{fig:ablation_combined}, weight-decay-only achieves the lowest effective rank among all configurations---even lower than the fully regularized model.
-    
-    \item \textbf{Noise augmentation increases effective rank.}
-    Contrary to the paper's emphasis, noise-only achieves \emph{higher} effective rank than the baseline, while improving accuracy.
-    Noise prevents overfitting but spreads variance across more eigenvectors.
-    
-    \item \textbf{The effective rank ratio meets the paper's criterion.}
-    The ratio of regularized to unregularized effective rank is well below 0.5, confirming Claim V1 (Low-Rank Emergence).
-\end{enumerate}
+\textbf{Key findings:}
+(1) \textbf{Weight decay is the primary driver of low-rank structure}---achieving even lower effective rank than the fully regularized model.
+(2) \textbf{Noise augmentation increases effective rank} while improving accuracy, spreading variance across more eigenvectors.
+(3) The effective rank ratio (15.5/38.5 $\approx$ 0.40) meets the paper's $<0.5$ criterion, confirming Claim V1.
 
 \subsubsection{Eigenspectrum Analysis}
 
-Figure~\ref{fig:eigenspectrum} shows the eigenvalue distributions across configurations, revealing sharp spectral decay with regularization.
+Figure~\ref{fig:eigenspectrum} shows eigenvalue distributions, revealing sharp spectral decay with regularization.
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/eigenspectrum_comparison.pdf}
         \caption{Eigenspectrum by regularization}
-        \label{fig:eigenspectrum_comparison}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/eigenvalue_decay.pdf}
         \caption{Eigenvalue decay rate}
-        \label{fig:eigenvalue_decay}
     \end{subfigure}
     \caption{Eigenspectrum analysis on MNIST.
-    (a) Eigenvalue magnitudes (sorted, log scale) for each configuration.
-    Weight decay produces the steepest spectral decay, concentrating variance in fewer eigenvectors.
-    (b) Eigenvalue decay showing that regularized models have sharp spectral cutoff around 10--20 components.}
+    Weight decay produces the steepest spectral decay, concentrating variance in 10--20 eigenvectors.}
     \label{fig:eigenspectrum}
 \end{figure}
 
-\subsubsection{Eigenvector Visualization (Claim V2)}
+\subsubsection{Eigenvector Visualization (Claims V2, V3)}
 
-The paper claims that top eigenvectors are interpretable as digit-like patterns.
-Figure~\ref{fig:eigenvectors} confirms this claim.
+Figure~\ref{fig:eigenvectors} confirms that top eigenvectors are interpretable digit-like patterns under regularization.
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
     \begin{subfigure}{0.95\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/eigenvectors_noreg.pdf}
         \caption{No regularization: diffuse, noise-like patterns}
-        \label{fig:eigenvectors_noreg}
     \end{subfigure}
-    \\[0.5em]
+    \\[0.3em]
     \begin{subfigure}{0.95\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/eigenvectors_reg.pdf}
         \caption{With regularization: recognizable digit strokes}
-        \label{fig:eigenvectors_reg}
     \end{subfigure}
     \caption{Top eigenvectors for each digit class (0--9).
-    (a) Without regularization, eigenvectors are diffuse and uninterpretable---showing signs of overfitting to training data.
-    (b) With regularization, eigenvectors show clear digit-like structures: strokes, curves, and edges that correspond to how humans recognize digits.
-    This confirms Claim V2 (Interpretable Eigenvectors) and V3 (Overfitting Without Regularization).}
+    Without regularization, eigenvectors are diffuse (V3); with regularization, they show clear digit structures (V2).}
     \label{fig:eigenvectors}
 \end{figure}
 
-\subsubsection{Additional Vision Results (Paper Figures 4--7)}
+\subsubsection{Additional Vision Results}
 
-We reproduce the paper's additional figures to verify auxiliary claims:
+We reproduce the paper's Figures 4, 6, and 7.
+\textbf{Noise effect (Figure 4):} Increasing noise improves eigenvector interpretability while trading off with effective rank.
+\textbf{Challenge task (Figure 6):} On binary similarity classification, the top eigenvector resembles the target digit.
+\textbf{Adversarial perturbations (Figure 7):} Perturbations from eigenvector pseudoinverses cause larger accuracy drops than random noise, confirming V6.
 
-\textbf{Figure 4 (Noise Effect):}
-Figure~\ref{fig:noise_effect} shows the effect of input noise level on eigenvector interpretability.
-
-\begin{figure}[h]
-    \centering
-    \begin{subfigure}{0.32\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_rank.pdf}
-        \caption{Noise vs.\ effective rank}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.32\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_accuracy.pdf}
-        \caption{Noise vs.\ accuracy}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.32\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_eigenvectors.pdf}
-        \caption{Eigenvector clarity}
-    \end{subfigure}
-    \caption{Effect of input noise level on model properties.
-    Increasing noise improves eigenvector interpretability (panel c) while trading off with effective rank (panel a).
-    Accuracy is relatively stable across noise levels (panel b).}
-    \label{fig:noise_effect}
-\end{figure}
-
-\textbf{Figure 6 (Challenge Task):}
-On a binary similarity classification task (``is this image similar to digit X?''), the bilinear model learns eigenvectors that resemble the target digit, as shown in Figure~\ref{fig:challenge}.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\linewidth]{figures/vision/figure_6_challenge.pdf}
-    \caption{Challenge task: Binary similarity classification.
-    The top eigenvector resembles the target digit, demonstrating that eigendecomposition can recover the underlying algorithm the model learns.}
-    \label{fig:challenge}
-\end{figure}
-
-\textbf{Figure 7 (Adversarial Perturbations):}
-Figure~\ref{fig:adversarial} shows that adversarial perturbations constructed from eigenvector pseudoinverses are more effective than random perturbations.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.8\linewidth]{figures/vision/figure_7_adversarial.pdf}
-    \caption{Adversarial perturbation analysis.
-    Perturbations derived from eigenvectors cause larger accuracy drops than random noise, confirming that the learned eigenstructure captures decision-relevant features.}
-    \label{fig:adversarial}
-\end{figure}
-
-%==============================================================================
 \subsection{Language Results (Paper Section 5)}
 \label{sec:language_results}
-%==============================================================================
 
-We reproduce the negation circuit discovery experiments using pretrained bilinear transformers and their associated Sparse Autoencoders (SAEs) from HuggingFace.
-
-\subsubsection{Model and SAE Configuration}
-
-Due to SAE availability constraints (see Section~\ref{sec:discussion}), we use \texttt{fw-medium} (335M parameters, layer 7, expansion 8$\times$) instead of the paper's \texttt{ts-medium}.
-This model has both \texttt{mlp-in} and \texttt{mlp-out} SAEs available, enabling full Figure 8 reproduction.
+We reproduce the negation circuit discovery using pretrained bilinear transformers and SAEs.
 
 \subsubsection{Negation Circuit Discovery (Paper Figure 8)}
 
-The paper identifies a sentiment negation circuit where input features like ``not good'' and ``not bad'' produce opposing output directions.
-Figure~\ref{fig:negation_circuit} shows our reproduction.
+Figure~\ref{fig:negation_circuit} shows the sentiment negation circuit where input features like ``not good'' and ``not bad'' produce opposing output directions.
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/language/figure_8_negation_circuit.pdf}
-    \caption{Negation circuit visualization (reproduction of Paper Figure 8).
-    Left: Interaction submatrix showing which input feature pairs drive the output.
-    Right: Top eigenvectors of the interaction matrix, revealing the principal directions that explain the negation mechanism.
-    The circuit implements sentiment negation by learning opposing directions for ``not + positive'' vs.\ ``not + negative'' patterns.}
+    \caption{Negation circuit visualization (Paper Figure 8).
+    Left: Interaction submatrix showing input feature pairs driving the output.
+    Right: Top eigenvectors revealing the negation mechanism.
+    The circuit implements sentiment negation via opposing directions for ``not + positive'' vs.\ ``not + negative.''}
     \label{fig:negation_circuit}
 \end{figure}
 
-Using our memory-efficient eigensolver (required due to the large feature space), we identify:
-\begin{itemize}
-    \item Negation features that differentially activate on ``not + positive words'' vs.\ ``not + negative words''
-    \item Opposing decoder directions between these features (negative cosine similarity)
-\end{itemize}
-
-Figure~\ref{fig:negation_comparison} provides additional analysis of the negation features.
-
-\begin{figure}[h]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_8_with_examples.pdf}
-        \caption{Feature activations on example sentences}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_8_comparison_751_vs_3834.pdf}
-        \caption{Comparison of negation feature pairs}
-    \end{subfigure}
-    \caption{Detailed negation circuit analysis.
-    (a) Example sentences showing differential activation of negation features.
-    (b) Comparison of the two primary negation feature pairs, showing their opposing directions in feature space.}
-    \label{fig:negation_comparison}
-\end{figure}
+Using our memory-efficient eigensolver, we identify negation features that differentially activate on sentiment-modifying contexts, with opposing decoder directions (cosine similarity $-0.16$), confirming Claims L1 and L2.
 
 \subsubsection{Low-Rank Correlation Analysis (Paper Figure 9)}
 
-The paper's central quantitative claim for language experiments is that 69\% of SAE output features achieve $>$0.75 correlation with a rank-2 approximation.
-Figure~\ref{fig:correlation_analysis} presents our reproduction attempt.
+The paper claims 69\% of features achieve $>$0.75 rank-2 correlation.
+Figure~\ref{fig:correlation_analysis} presents our reproduction.
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
-    \begin{subfigure}{0.32\textwidth}
+    \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/language/figure_9a_correlation_progression.pdf}
         \caption{Correlation vs.\ rank}
     \end{subfigure}
     \hfill
-    \begin{subfigure}{0.32\textwidth}
+    \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
-        \caption{Rank-2 distribution}
+        \caption{Rank-2 distribution (dashed: 0.75 threshold)}
     \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.32\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_9c_scatter_plots.pdf}
-        \caption{Scatter plots}
-    \end{subfigure}
-    \caption{Low-rank correlation analysis (reproduction of Paper Figure 9).
-    (a) Mean correlation improves with approximation rank but remains below the paper's reported values.
-    (b) Distribution of rank-2 correlations; the 0.75 threshold (dashed line) is achieved by fewer features than the paper claims.
-    (c) Scatter plots showing predicted vs.\ actual activations for sample features.}
+    \caption{Low-rank correlation analysis (Paper Figure 9).
+    Mean correlation improves with rank but remains below paper's reported values.
+    The 0.75 threshold is achieved by fewer features than claimed.}
     \label{fig:correlation_analysis}
 \end{figure}
 
-\textbf{Discrepancy:} Our results show substantially lower rank-2 correlations than the paper's claimed 69\% above 0.75.
-We investigate this discrepancy in the following section.
+\textbf{Discrepancy:} Our rank-2 correlations (mean 0.37--0.55) are substantially lower than the paper's 69\% above 0.75.
 
 \subsubsection{Root Cause Analysis: SAE Training Duration}
 
 The paper acknowledges in Appendix C that ``correlation drastically improves with longer SAE training times.''
-We test this hypothesis by comparing five SAE versions (v0--v4), where v4 represents the most trained checkpoint publicly released, analyzing how training duration affects correlation metrics (Figure~\ref{fig:sae_training_effect}).
+We test this by comparing five SAE versions (v0--v4) with increasing training duration (Figure~\ref{fig:sae_training_effect}).
 
-\begin{figure}[h]
+\begin{figure}[t]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/language/figure_10a_sae_training_effect.pdf}
@@ -251,41 +148,18 @@ We test this hypothesis by comparing five SAE versions (v0--v4), where v4 repres
         \caption{Distribution shift with training}
     \end{subfigure}
     \caption{Effect of SAE training duration on interpretability.
-    Versions (v0--v4) correspond to increasing training steps provided by the authors.
-    (a) Mean rank-2 correlation improves monotonically with training duration, validating the method in principle despite the public artifact gap.
-    (b) The correlation distribution shifts rightward with training, though publicly available SAEs do not reach the paper's reported 69\% threshold.}
+    Rank-2 correlation improves \textbf{2.5$\times$} (0.15 $\to$ 0.39) with longer training, validating the method despite the public artifact gap.}
     \label{fig:sae_training_effect}
 \end{figure}
 
 \textbf{Key findings:}
-\begin{itemize}
-    \item Rank-2 correlation improves substantially with SAE training duration
-    \item The correlation distribution shifts from bimodal to unimodal, matching the paper's description
-    \item Even the most-trained publicly available SAE does not achieve the paper's reported metrics
-    \item This suggests the paper used SAEs with longer training than those released on HuggingFace
-\end{itemize}
+(1) Rank-2 correlation improves monotonically with SAE training duration.
+(2) The distribution shifts from bimodal to unimodal, matching the paper's description.
+(3) Even the most-trained public SAE does not reach the paper's metrics, suggesting internal checkpoints had longer training.
+(4) This confirms the methodology is sound---the reproducibility gap stems from artifact quality, not methodological flaws.
 
-%==============================================================================
-\subsection{Summary of Reproduction Results}
-\label{sec:reproduction_summary}
-%==============================================================================
+\subsection{Summary}
 
-\textbf{Vision (Paper Section 4) --- Fully Reproduced:}
-\begin{itemize}
-    \item[\checkmark] \textbf{Claim V1 (Low-Rank Emergence):} Regularization induces low-rank structure, as shown in Figures~\ref{fig:ablation_combined} and~\ref{fig:eigenspectrum}.
-    \item[\checkmark] \textbf{Claim V2 (Interpretable Eigenvectors):} Top eigenvectors show digit-like patterns (Figure~\ref{fig:eigenvectors}).
-    \item[\checkmark] \textbf{Claim V3 (Overfitting Without Regularization):} Unregularized eigenvectors are diffuse (Figure~\ref{fig:eigenvectors_noreg}).
-    \item[\checkmark] \textbf{Claim V4 (Noise Effect):} Input noise improves eigenvector quality (Figure~\ref{fig:noise_effect}).
-    \item[\checkmark] \textbf{Claim V5 (Challenge Task):} Eigenvectors recover the target digit (Figure~\ref{fig:challenge}).
-    \item[\checkmark] \textbf{Claim V6 (Adversarial):} Eigenvector-based perturbations are effective (Figure~\ref{fig:adversarial}).
-\end{itemize}
+\textbf{Vision (Section 4): Fully Reproduced.} All claims (V1--V6) confirmed.
 
-\textbf{Language (Paper Section 5) --- Partially Reproduced:}
-\begin{itemize}
-    \item[\checkmark] \textbf{Claim L1 (Negation Circuit):} Opposing negation features discovered (Figure~\ref{fig:negation_circuit}).
-    \item[$\sim$] \textbf{Claim L2 (Low-Rank Structure):} Reproducible in Principle---correlation improves with SAE quality (Figure~\ref{fig:sae_training_effect}), but public artifacts do not reach paper's threshold (Figure~\ref{fig:correlation_analysis}).
-    \item[\checkmark] \textbf{Root Cause Identified:} SAE training duration explains the artifact gap.
-\end{itemize}
-
-The vision experiments are fully reproduced.
-For language experiments, we classify Claim L2 as \textbf{Reproducible in Principle, Dependent on Artifact Quality}: we validated the core mechanism but could not replicate the specific numerical threshold (69\%) using currently public model weights.
+\textbf{Language (Section 5): Partially Reproduced.} Negation circuit discovered (L1--L2). Low-rank structure is \textbf{Reproducible in Principle, Dependent on Artifact Quality}---the mechanism is validated but public SAEs don't reach the 69\% threshold. Root cause identified: SAE training duration.

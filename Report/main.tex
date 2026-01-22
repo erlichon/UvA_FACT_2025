@@ -60,7 +60,6 @@ We trace this discrepancy to SAE training time: comparing five SAE versions with
 We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in the original paper, creating a reproducibility gap.
 
 This finding has practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
-We demonstrate that while Bilinear MLPs are highly efficient to train (2.3 kg CO$_2$eq), their interpretability is currently bottlenecked by the substantial pre-computation cost required to train high-quality Sparse Autoencoders (SAEs) to convergence.
 \end{abstract}
 
 % Modular sections
@@ -90,21 +89,91 @@ The original paper's authors for making code and pretrained models publicly avai
 \bibliography{main}
 \bibliographystyle{tmlr}
 
+%==============================================================================
+% APPENDICES
+%==============================================================================
 \appendix
-\section{Additional Figures}
-\label{app:figures}
-% Additional eigenvector visualizations, ablation plots, etc.
+
+\section{Quadratic Form Similarity Derivation}
+\label{app:quadratic_form}
+
+For a bilinear MLP, the class-$c$ logit is a quadratic form $y_c(x) = x^\top A_c x$ where $A_c = V \,\mathrm{diag}(\lambda_c)\, V^\top$.
+
+To compare decision surfaces for two classes $A$ and $B$ (possibly from different datasets), we define \textbf{Quadratic Form Similarity}:
+\[
+\mathrm{sim}(A,B) = \frac{\operatorname{tr}(A \cdot B)}{\|A\|_F \|B\|_F} \in [-1, 1]
+\]
+
+For a rank-$k$ truncation using top eigenmodes, this expands to:
+\[
+\mathrm{sim}(A,B) = \frac{\sum_{i,j} \lambda_i^A \lambda_j^B \cos^2(v_i^A, v_j^B)}{\|\lambda^A\|_2 \|\lambda^B\|_2}
+\]
+
+\textbf{Key properties solving the cosine similarity problem:}
+\begin{itemize}
+    \item Incorporates both eigenvector alignment and eigenvalue magnitudes, unlike cosine similarity which ignores eigenvalues
+    \item Eigenvalue signs matter: same-sign directions contribute positively; opposing signs cancel
+    \item Measures similarity of actual quadratic computations $x^\top A x$, not just eigenvector span
+\end{itemize}
+
+This enables discrimination between geometrically similar pairs (0--O: 0.400) and dissimilar pairs (0--X: -0.060), where cosine similarity failed (0.358 vs.\ 0.339).
+
+\section{Full CP-Decomposition Results}
+\label{app:cp_full}
+
+\begin{table}[h]
+    \caption{Complete CP-Decomposition rank sweep (mean ± std, 5 seeds).}
+    \label{tab:app_cp_sweep}
+    \centering
+    \small
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Model} & \textbf{Accuracy (\%)} & \textbf{Eff.\ Rank} \\
+        \midrule
+        \multicolumn{3}{c}{\textit{Dense Baselines}} \\
+        Dense (no reg) & $97.49 \pm 0.05$ & $38.5 \pm 0.7$ \\
+        Dense (WD only) & $97.49 \pm 0.05$ & $15.5 \pm 0.3$ \\
+        \midrule
+        \multicolumn{3}{c}{\textit{Fixed CP}} \\
+        $R=32$ & $90.63 \pm 0.23$ & $3.42 \pm 0.22$ \\
+        $R=64$ & $91.05 \pm 0.13$ & $3.45 \pm 0.12$ \\
+        $R=128$ & $91.48 \pm 0.22$ & $3.65 \pm 0.05$ \\
+        $R=256$ & $91.89 \pm 0.09$ & $3.74 \pm 0.07$ \\
+        \midrule
+        \multicolumn{3}{c}{\textit{Lambda CP}} \\
+        $R=32$ & $92.67 \pm 0.15$ & $9.07 \pm 0.44$ \\
+        $R=64$ & $93.04 \pm 0.10$ & $11.57 \pm 0.52$ \\
+        $R=128$ & $93.34 \pm 0.11$ & $14.92 \pm 0.49$ \\
+        $R=256$ & $93.80 \pm 0.14$ & $17.50 \pm 0.36$ \\
+        \midrule
+        \multicolumn{3}{c}{\textit{Gated CP}} \\
+        $R=32$ & $92.72 \pm 0.20$ & $8.76 \pm 0.47$ \\
+        $R=64$ & $93.05 \pm 0.12$ & $11.69 \pm 0.35$ \\
+        $R=128$ & $93.31 \pm 0.14$ & $14.83 \pm 0.16$ \\
+        $R=256$ & $93.79 \pm 0.15$ & $17.35 \pm 0.48$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
 \section{Hyperparameter Details}
 \label{app:hyperparams}
-% Full configuration tables
 
-\section{SAE Training Time Analysis Details}
-\label{app:sae_analysis}
-% Detailed per-feature correlation breakdowns for v0-v4
+\textbf{Vision Experiments.}
+Architecture: 1-hidden-layer bilinear MLP, $d_{\text{hidden}} = 256$.
+Training: 100 epochs, batch size 2048, AdamW optimizer, lr $10^{-3}$ with cosine annealing.
+Seeds: 42--46 (5 seeds per configuration).
+
+\textbf{Language Experiments.}
+Models: \texttt{fw-medium} (16L, 1024d, 335M params), \texttt{fw-small} (12L, 768d, 162M params).
+SAEs: TopK sparsity ($k=30$), expansion ratios 4--8$\times$.
+Analysis: 100 randomly sampled output features per model.
 
 \section{CO2 Tracking Details}
 \label{app:co2}
-% Detailed codecarbon logs
+
+All experiments tracked using \texttt{codecarbon} with Netherlands grid intensity.
+Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
+Total compute: 2.02 GPU-hours.
+Total emissions: 0.098 kg CO2eq ($\approx$ 0.6 km driving).
 
 \end{document}
