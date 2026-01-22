@@ -174,6 +174,16 @@ Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector
 \section{Full CP-Decomposition Results}
 \label{app:cp_full}
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_top5_eigenvectors_comparison.pdf}
+    \caption{\textbf{Feature Disentanglement: Dense vs.\ CP.}
+    Top 5 eigenvectors for digits 0--9.
+    \textbf{Dense:} Holistic, superimposed templates mixing multiple strokes.
+    \textbf{CP:} Atomic, localized factors (isolated curves, specific strokes) that can be combined to reconstruct digits.}
+    \label{fig:cp_comparison}
+\end{figure}
+
 \begin{table}[h]
     \caption{Complete CP-Decomposition rank sweep (mean ± std, 5 seeds).}
     \label{tab:app_cp_sweep}

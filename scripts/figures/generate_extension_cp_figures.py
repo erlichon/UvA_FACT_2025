@@ -209,8 +209,8 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
         markers = {'none': 's', 'noise': '^', 'wd': 'v', 'full': 'D'}
         labels = {
             'none': 'Dense (no reg)',
-            'noise': 'Dense (noise only)',
-            'wd': 'Dense (WD only)',
+            'noise': 'Dense (noise)',
+            'wd': 'Dense (WD)',
             'full': 'Dense (full reg)',
         }
         

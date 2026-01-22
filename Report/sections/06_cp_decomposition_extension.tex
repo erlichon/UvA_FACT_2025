@@ -64,18 +64,7 @@ Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep} present the Pareto fro
 
 \subsection{Qualitative Analysis: Disentangled Factors}
 
-Figure~\ref{fig:cp_comparison} compares eigenvectors from Dense vs.\ CP models.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_top5_eigenvectors_comparison.pdf}
-    \caption{\textbf{Feature Disentanglement: Dense vs.\ CP.}
-    Top 5 eigenvectors for digits 0--9.
-    \textbf{Dense:} Holistic, superimposed templates mixing multiple strokes.
-    \textbf{CP:} Atomic, localized factors (isolated curves, specific strokes) that can be combined to reconstruct digits.}
-    \label{fig:cp_comparison}
-\end{figure}
-
+Figure~\ref{fig:cp_comparison} (Appendix~\ref{app:cp_full}) compares eigenvectors from Dense vs.\ CP models.
 Dense eigenvectors resemble superimposed digit templates---entangled representations combining strokes for orthogonality.
 CP factors appear more \textbf{atomic} and \textbf{localized}: top loops, vertical strokes, bottom curves that can be linearly combined.
 This aligns with ``parts-based'' representations sought in interpretability.

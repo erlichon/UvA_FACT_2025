@@ -10,6 +10,15 @@ The key insight is that the einsum:
 Can be decomposed into:
     z[m] = w_p.T @ out_latents  (small: [d_hidden])
     Q[i,j] = Σ_m w_l[m,i] * w_r[m,j] * z[m]  (streamable across m)
+
+For projection onto SAE latents:
+    The original tracer.q(project=True) uses an inefficient einsum that
+    allocates O(n_features^2 * d_model^2) intermediate memory (~281TB!).
+    
+    We use sequential matrix multiplication instead:
+    Q_projected = inp_latents.T @ Q @ inp_latents
+    
+    Which only needs O(n_features * d_model) intermediate memory (~32MB).
 """
 
 import torch
@@ -87,6 +96,74 @@ def q_streaming(
             torch.cuda.empty_cache()
     
     return Q
+
+
+def q_streaming_projected(
+    tracer,
+    idx: int,
+    chunk_size: int = 256,
+    dtype: torch.dtype = torch.float32,
+    device: Optional[str] = None,
+    projection_chunk_size: int = 1024,
+) -> torch.Tensor:
+    """
+    Memory-efficient Q matrix computation WITH projection onto SAE latents.
+    
+    This replaces tracer.q(idx, project=True) which uses an inefficient einsum
+    that allocates O(n_features^2 * d_model^2) intermediate memory (~281TB!).
+    
+    We use sequential matrix multiplication instead:
+        Q_projected = inp_latents.T @ Q @ inp_latents
+    
+    Which only needs O(n_features * d_model) intermediate memory (~32MB).
+    
+    Args:
+        tracer: Tracer instance with loaded model and SAEs
+        idx: Output feature index
+        chunk_size: Chunk size for Q computation (default 256)
+        dtype: Computation dtype (default float32)
+        device: Device to use (default: tracer.device)
+        projection_chunk_size: Chunk size for projection (default 1024)
+    
+    Returns:
+        Q_projected: [n_features, n_features] interaction matrix in SAE latent space
+    """
+    # Step 1: Compute Q in d_model space using streaming
+    Q = q_streaming(tracer, idx, chunk_size=chunk_size, dtype=dtype, device=device)
+    
+    # Step 2: Project onto SAE latents using memory-efficient matrix multiplication
+    # Original einsum: "il,jk,...ij->...lk" means inp_latents has shape [d_model, n_features]
+    # Q_projected = inp_latents.T @ Q @ inp_latents
+    # inp_latents: [d_model, n_features] (note: d_model first!)
+    # Q: [d_model, d_model]
+    # Q_projected: [n_features, n_features]
+    
+    inp_lat = tracer.inp_latents.to(dtype)  # [d_model, n_features]
+    n_features = inp_lat.shape[1]  # Second dimension is n_features
+    
+    # Compute in two steps to avoid large intermediates:
+    # temp = Q @ inp_latents  -> [d_model, n_features]
+    # Q_projected = inp_latents.T @ temp  -> [n_features, n_features]
+    
+    # For very large n_features, chunk the final multiplication
+    temp = Q @ inp_lat  # [d_model, d_model] @ [d_model, n_features] = [d_model, n_features]
+    
+    if n_features <= projection_chunk_size:
+        # Small enough to do in one go
+        Q_projected = inp_lat.T @ temp  # [n_features, d_model] @ [d_model, n_features] = [n_features, n_features]
+    else:
+        # Chunk the projection to reduce peak memory
+        Q_projected = torch.zeros(n_features, n_features, device=device, dtype=dtype)
+        
+        for start in range(0, n_features, projection_chunk_size):
+            end = min(start + projection_chunk_size, n_features)
+            # Q_projected[start:end, :] = inp_lat.T[start:end, :] @ temp
+            Q_projected[start:end, :] = inp_lat[:, start:end].T @ temp
+    
+    # Symmetrize for numerical stability
+    Q_projected = 0.5 * (Q_projected + Q_projected.T)
+    
+    return Q_projected
 
 
 def q_streaming_batch(
