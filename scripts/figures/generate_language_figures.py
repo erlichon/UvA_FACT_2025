@@ -678,7 +678,8 @@ def generate_figure_8_side_by_side(results_dir: Path, figure_dir: Path):
     
     print(f"\nSide-by-side comparison generated!")
     print(f"  Row 1: Feature 3834 (tutorial)")
-    print(f"  Row 2: Feature 751 (best AND-gate, score: {and_score_751:.2f if and_score_751 else 'N/A'})")
+    score_str = f"{and_score_751:.2f}" if and_score_751 is not None else "N/A"
+    print(f"  Row 2: Feature 751 (best AND-gate, score: {score_str})")
     
     return True
 
