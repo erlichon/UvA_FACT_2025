@@ -41,25 +41,8 @@ Figure~\ref{fig:ablation_combined} confirms this through our ablation experiment
 
 \subsubsection{Eigenspectrum Analysis}
 
-Figure~\ref{fig:eigenspectrum} shows eigenvalue distributions, revealing sharp spectral decay with regularization.
-
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[height=4.5cm]{figures/vision/eigenspectrum_comparison.pdf}
-        \caption{Eigenspectrum by regularization}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[height=4.5cm]{figures/vision/eigenvalue_decay.pdf}
-        \caption{Eigenvalue decay rate}
-    \end{subfigure}
-    \caption{Eigenspectrum analysis on MNIST.
-    Weight decay produces the steepest spectral decay, concentrating variance in 10--20 eigenvectors.}
-    \label{fig:eigenspectrum}
-\end{figure}
+Eigenvalue distributions reveal sharp spectral decay with regularization (see Figure~\ref{fig:eigenspectrum} in Appendix~\ref{app:vision_additional}).
+Weight decay produces the steepest spectral decay, concentrating variance in 10--20 eigenvectors.
 
 \subsubsection{Eigenvector Visualization (Claims V2, V3)}
 
@@ -68,57 +51,17 @@ Figures~\ref{fig:eigenvectors_noreg} and~\ref{fig:eigenvectors_reg} (see Appendi
 \subsubsection{Additional Vision Results}
 \label{sec:additional_vision_results}
 
-We reproduce the original paper's Figures 4, 6, and 7.
+We reproduce the original paper's Figures 4, 6, and 7; full visualizations are in Appendix~\ref{app:vision_additional}.
 
 \textbf{Noise effect (original paper Figure 4):}
-Increasing noise improves eigenvector interpretability while trading off with effective rank.
-Figure~\ref{fig:noise_effect} shows the effect of noise augmentation on eigenspectrum structure.
-Additional noise sweep visualizations are provided in Appendix~\ref{app:vision_additional}.
-
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_rank.pdf}
-        \caption{Effective rank increases with noise std}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_accuracy.pdf}
-        \caption{Accuracy improves then saturates}
-    \end{subfigure}
-    \caption{Noise augmentation effect on effective rank and accuracy (reproducing paper Figure 4).
-    Higher noise spreads variance across more eigenvectors while improving generalization.}
-    \label{fig:noise_effect}
-\end{figure}
+Increasing noise improves eigenvector interpretability while trading off with effective rank (Figure~\ref{fig:noise_effect}).
+Higher noise spreads variance across more eigenvectors while improving generalization.
 
 \textbf{Challenge task (original paper Figure 6):}
-On binary similarity classification, the model learns to compare input similarity to a target digit.
-Figure~\ref{fig:challenge_task} shows the eigendecomposition of the ``True $-$ False'' direction.
-The top eigenvector closely resembles the target digit, confirming that bilinear interactions encode task-relevant structure.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/figure_6_challenge.pdf}
-    \caption{Challenge task eigendecomposition (reproducing paper Figure 6).
-    \textbf{Left:} Eigenvalue decay shows dominant positive/negative modes.
-    \textbf{Middle:} Top eigenvectors resemble the target digit pattern.
-    \textbf{Right:} Target digit and bias visualization.}
-    \label{fig:challenge_task}
-\end{figure}
+On binary similarity classification, the top eigenvector closely resembles the target digit (Figure~\ref{fig:challenge_task}), confirming that bilinear interactions encode task-relevant structure.
 
 \textbf{Adversarial perturbations (original paper Figure 7):}
-Perturbations from eigenvector pseudoinverses cause larger accuracy drops than random noise, confirming V6.
-Figure~\ref{fig:adversarial} compares adversarial masks derived from eigenvectors against random baselines.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/figure_7_adversarial.pdf}
-    \caption{Adversarial mask analysis (reproducing paper Figure 7).
-    \textbf{Row A:} Noise-regularized model ($\sigma=0.15$).
-    \textbf{Row B:} No regularization (with rare-edge constraint).
-    Eigenvector-derived masks cause significantly larger accuracy drops than random masks of equal magnitude.}
-    \label{fig:adversarial}
-\end{figure}
+Eigenvector-derived masks cause significantly larger accuracy drops than random masks (Figure~\ref{fig:adversarial}), confirming V6.
 
 \subsection{Language Results (Paper Section 5)}
 \label{sec:language_results}

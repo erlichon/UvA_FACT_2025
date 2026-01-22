@@ -35,17 +35,22 @@ We implemented streaming computation for consumer hardware.
         \toprule
         Experiment & Runs & Wall (h) & GPU-h & CO2 (kg) \\
         \midrule
-        Vision (Section 4) & 76 & 1.11 & 1.11 & 0.039 \\
-        Language (Section 5) & 6 & 0.88 & 0.88 & 0.056 \\
+        Vision (Section 4)$^\dagger$ & 81 & 1.22 & 1.11 & 0.039 \\
+        Language (Section 5)$^\ddagger$ & 2 & 0.19 & 0.07 & 0.005 \\
         Extension 1 (Cross-Dataset) & 15 & 0.58 & 0.58 & 0.020 \\
         Extension 2 (CP-Decomposition) & 105 & 0.05 & 0.05 & 0.004 \\
         \midrule
-        \textbf{Total} & \textbf{202} & \textbf{2.62} & \textbf{2.62} & \textbf{0.118} \\
+        \textbf{Total} & \textbf{203} & \textbf{2.04} & \textbf{1.81} & \textbf{0.067} \\
         \bottomrule
     \end{tabular}
+    
+    \vspace{0.5em}
+    \footnotesize
+    $^\dagger$Challenge task (Figure 6) and adversarial experiments (Figure 7) run on local MacBook Pro M4 (2025) due to computational constraints.\\
+    $^\ddagger$Language experiments run on local MacBook Pro M4 (2025) using Apple Silicon (MPS).
 \end{table}
 
-Total footprint: 0.118 kg CO2 ($\approx$0.7 km driving).
+Total footprint: 0.067 kg CO2 ($\approx$0.4 km driving).
 Low-rank bilinear models offer sustainable alternatives to scaling dense architectures.
 
 \subsection{Connection to FACT-AI Transparency}

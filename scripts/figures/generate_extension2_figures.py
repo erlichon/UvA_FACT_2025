@@ -675,8 +675,8 @@ def generate_eigenvector_comparison_table(
     latex_lines.append("\\midrule")
     if len(loaded_seeds) > 1:
         latex_lines.append(
-            f"\\textbf{{Mean}} & & $\\textbf{{{mean_mnist_emnist_digit:.3f} \\pm {std_mnist_emnist_digit:.3f}}}$ & "
-            f"$\\textbf{{{mean_mnist_emnist_letter:.3f} \\pm {std_mnist_emnist_letter:.3f}}}$ \\\\"
+            f"\\textbf{{Mean}} & & \\textbf{{{mean_mnist_emnist_digit:.3f} $\\pm$ {std_mnist_emnist_digit:.3f}}} & "
+            f"\\textbf{{{mean_mnist_emnist_letter:.3f} $\\pm$ {std_mnist_emnist_letter:.3f}}} \\\\"
         )
     else:
         mean_mnist_emnist_digit_str = f"{mean_mnist_emnist_digit:.3f}"
@@ -889,8 +889,8 @@ def generate_eigenvector_comparison_table_0_O_X(
     latex_lines.append("\\midrule")
     latex_lines.append(
         f"\\textbf{{Mean}} & & "
-        f"$\\textbf{{{mean_o:.3f} \\pm {std_o:.3f}}}$ & "
-        f"$\\textbf{{{mean_x:.3f} \\pm {std_x:.3f}}}$ \\\\"
+        f"\\textbf{{{mean_o:.3f} $\\pm$ {std_o:.3f}}} & "
+        f"\\textbf{{{mean_x:.3f} $\\pm$ {std_x:.3f}}} \\\\"
     )
 
     latex_lines.append("\\bottomrule")

@@ -600,6 +600,84 @@ def plot_subspace_overlap_by_rank(
     return fig
 
 
+def plot_cosine_similarity_heatmap(
+    digit_vecs: Float[Tensor, "n_components d_input"],
+    letter_vecs: Float[Tensor, "n_components d_input"],
+    digit_vals: Float[Tensor, "n_components"],
+    letter_vals: Float[Tensor, "n_components"],
+    k: int = 10,
+    digit_label: str = "0",
+    letter_label: str = "O",
+    figsize: Tuple[float, float] = (8, 7),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot k×k cosine similarity heatmap between top-k eigenvectors of two classes.
+    
+    Shows pairwise absolute cosine similarity between eigenvectors,
+    helping visualize which eigenvectors are aligned.
+    
+    Args:
+        digit_vecs: [n_components, d_input] eigenvectors for MNIST digit
+        letter_vecs: [n_components, d_input] eigenvectors for EMNIST letter
+        digit_vals: [n_components] eigenvalues for MNIST digit
+        letter_vals: [n_components] eigenvalues for EMNIST letter
+        k: Number of top eigenvectors to compare
+        digit_label: Label for the digit (e.g., "0")
+        letter_label: Label for the letter (e.g., "O")
+        figsize: Figure size
+        save_path: If provided, save figure to this path
+    
+    Returns:
+        matplotlib Figure object
+    """
+    # Get top-k eigenvectors by eigenvalue magnitude
+    _, digit_sorted = digit_vals.abs().sort(descending=True)
+    _, letter_sorted = letter_vals.abs().sort(descending=True)
+    
+    digit_top_k = digit_vecs[digit_sorted[:k]].cpu()
+    letter_top_k = letter_vecs[letter_sorted[:k]].cpu()
+    
+    # Normalize eigenvectors
+    digit_norm = digit_top_k / (digit_top_k.norm(dim=1, keepdim=True) + 1e-10)
+    letter_norm = letter_top_k / (letter_top_k.norm(dim=1, keepdim=True) + 1e-10)
+    
+    # Compute absolute cosine similarity matrix
+    cos_matrix = (digit_norm @ letter_norm.T).abs().numpy()
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    im = ax.imshow(cos_matrix, cmap='RdBu_r', aspect='auto', vmin=0, vmax=1)
+    
+    # Add text annotations
+    for i in range(k):
+        for j in range(k):
+            color = 'white' if cos_matrix[i, j] > 0.5 else 'black'
+            ax.text(j, i, f'{cos_matrix[i, j]:.2f}',
+                   ha='center', va='center', fontsize=8, color=color)
+    
+    ax.set_xticks(range(k))
+    ax.set_xticklabels([f'{i+1}' for i in range(k)], fontsize=10)
+    ax.set_yticks(range(k))
+    ax.set_yticklabels([f'{i+1}' for i in range(k)], fontsize=10)
+    ax.set_xlabel(f"EMNIST '{letter_label}' Eigenvector Rank", fontsize=12)
+    ax.set_ylabel(f"MNIST '{digit_label}' Eigenvector Rank", fontsize=12)
+    ax.set_title(f"Cosine Similarity: '{digit_label}' vs '{letter_label}' (top {k})", fontsize=14)
+    
+    cbar = plt.colorbar(im, ax=ax, label='|Cosine Similarity|')
+    cbar.ax.tick_params(labelsize=10)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
 def plot_eigenvalue_distribution_overlay(
     digit_vals: Float[Tensor, "n_components"],
     letter_vals: Float[Tensor, "n_components"],
