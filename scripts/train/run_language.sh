@@ -48,6 +48,7 @@ FEATURE=3834
 NO_CONDA=false
 STREAMING=false
 CHUNK_SIZE=256
+METRIC="pearson"
 
 # Parse global options and extract command
 COMMAND=""
@@ -89,6 +90,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --chunk-size)
             CHUNK_SIZE="$2"
+            shift 2
+            ;;
+        --metric)
+            METRIC="$2"
             shift 2
             ;;
         figure9|correlation|figure8|negation-viz|figure10|sae-training|negation|interaction|figures|test|all|help)
@@ -138,6 +143,7 @@ print_header() {
     echo "=========================================="
     echo "Command: $COMMAND"
     echo "Device: $DEVICE"
+    echo "Metric: $METRIC"
     if $QUICK_MODE; then echo "Mode: QUICK"; fi
     if $STREAMING; then echo "Streaming: enabled (chunk_size=$CHUNK_SIZE)"; fi
     if [ -n "$MODEL" ]; then echo "Model: $MODEL"; fi
@@ -179,12 +185,20 @@ run_figure9() {
         esac
     fi
     
-    # Quick mode settings
-    local n_features=100
+    # Default: analyze ALL features; quick mode uses subset
+    local n_features="all"
     local ranks="1,2,4,8,16"
     local n_samples=3000
     local max_batches=60
+    local batch_size=32
+    local chunk_size=256
     local scatter_flag=""
+    
+    # MPS optimization: larger batches since Apple Silicon has unified memory
+    if [[ "$DEVICE" == "mps" ]]; then
+        batch_size=64
+        chunk_size=512
+    fi
     
     if $QUICK_MODE; then
         n_features=50
@@ -198,6 +212,8 @@ run_figure9() {
     echo "    Models: ${#MODELS[@]}"
     echo "    Features: $n_features"
     echo "    Ranks: $ranks"
+    echo "    Metric: $METRIC"
+    echo "    Batch size: $batch_size, Chunk size: $chunk_size"
     echo ""
     
     for model_config in "${MODELS[@]}"; do
@@ -205,7 +221,7 @@ run_figure9() {
         
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Running: $model (layer=$layer, expansion=$expansion)"
+        echo "Running: $model (layer=$layer, expansion=$expansion, metric=$METRIC)"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
         python src/language/verify_correlation.py \
@@ -222,6 +238,9 @@ run_figure9() {
             --ranks "$ranks" \
             --n-samples "$n_samples" \
             --max-batches "$max_batches" \
+            --batch-size "$batch_size" \
+            --chunk-size "$chunk_size" \
+            --metric "$METRIC" \
             $scatter_flag
         
         echo "Completed: $model"
@@ -420,6 +439,7 @@ run_figure8_legacy() {
     echo "    Feature: $FEATURE (not-good)"
     echo "    Device: $fig8_device"
     echo "    Samples: $n_samples"
+    echo "    Metric: $METRIC"
     if $STREAMING; then
         echo "    Streaming: enabled (chunk_size=$CHUNK_SIZE)"
     fi
@@ -432,6 +452,7 @@ run_figure8_legacy() {
         --feature "$FEATURE" \
         --device "$fig8_device" \
         --n-samples "$n_samples" \
+        --metric "$METRIC" \
         $streaming_flag
     
     echo ""
@@ -494,12 +515,14 @@ run_figure10() {
     echo "    SAE versions: v0 (1x) -> v4 (16x training)"
     echo "    Features: $n_features (-1 = all)"
     echo "    Device: $DEVICE"
+    echo "    Metric: $METRIC"
     echo ""
     
     PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/sae_training_time_analysis.py \
         --device "$DEVICE" \
         --n-features "$n_features" \
         --n-batches "$n_batches" \
+        --metric "$METRIC" \
         --output "results/language/sae_training_time_comparison.json"
     
     echo ""
@@ -723,14 +746,17 @@ show_help() {
     echo "  --feature     Feature index for figure8 legacy (default: 3834)"
     echo "  --streaming   Use streaming Q computation for CUDA (Figure 8)"
     echo "  --chunk-size  Chunk size for streaming (default: 256, 128 for smaller GPUs)"
+    echo "  --metric      pearson|cosine (default: pearson)"
     echo ""
     echo "Examples:"
     echo "  ./scripts/train/run_language.sh test                      # Quick tests"
     echo "  ./scripts/train/run_language.sh figure9 --quick           # Quick correlation sweep"
     echo "  ./scripts/train/run_language.sh figure9 --model fw-medium # Single model"
+    echo "  ./scripts/train/run_language.sh figure9 --metric cosine   # Use cosine similarity"
     echo "  ./scripts/train/run_language.sh figure8 all               # Full Figure 8 pipeline"
     echo "  ./scripts/train/run_language.sh figure8 search --quick    # Quick search (100 features)"
     echo "  ./scripts/train/run_language.sh figure8 all --streaming --device cuda  # CUDA with streaming"
+    echo "  ./scripts/train/run_language.sh figure10 --metric cosine  # SAE training with cosine"
     echo "  ./scripts/train/run_language.sh all                       # Full pipeline"
     echo ""
     echo "Models for Figure 9:"

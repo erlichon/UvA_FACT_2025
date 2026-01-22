@@ -1,7 +1,7 @@
 % Appendix: Additional Vision Results
 % Contains detailed figures from Paper Figures 4-7 reproduction
 
-\section{Additional Vision Results}
+\section{Vision Results}
 \label{app:vision_additional}
 
 This appendix provides visualizations from our reproduction of the paper's vision experiments (Section 4).
@@ -9,7 +9,7 @@ This appendix provides visualizations from our reproduction of the paper's visio
 \subsection{Eigenspectrum Analysis}
 \label{app:eigenspectrum}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \centering
@@ -30,7 +30,7 @@ This appendix provides visualizations from our reproduction of the paper's visio
 \subsection{Noise Effect (Paper Figure 4)}
 \label{app:noise_effect}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_rank.pdf}
@@ -49,7 +49,7 @@ This appendix provides visualizations from our reproduction of the paper's visio
 Figure~\ref{fig:app_noise_eigenvectors} shows how the top eigenvector for digit 5 changes across noise augmentation levels.
 Higher noise produces more diffuse, averaged eigenvectors that better capture the canonical digit shape.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/vision/figure_4_noise_eigenvectors.pdf}
     \caption{Top eigenvector for digit 5 across noise levels ($\sigma = 0.0$ to $0.5$).
@@ -60,10 +60,10 @@ Higher noise produces more diffuse, averaged eigenvectors that better capture th
 \subsection{Challenge Task (Paper Figure 6)}
 \label{app:challenge_task}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/figure_6_challenge.pdf}
-    \caption{Challenge task eigendecomposition (reproducing paper Figure 6).
+    \includegraphics[width=0.95\linewidth]{figures/vision/figure_6_challenge_full.pdf}
+    \caption{Challenge task eigendecomposition with full regularization (noise $\sigma=0.5$, weight decay $=1.0$), reproducing paper Figure 6.
     \textbf{Left:} Eigenvalue decay shows dominant positive/negative modes.
     \textbf{Middle:} Top eigenvectors resemble the target digit pattern.
     \textbf{Right:} Target digit and bias visualization.}
@@ -73,7 +73,7 @@ Higher noise produces more diffuse, averaged eigenvectors that better capture th
 We trained challenge task models under four regularization configurations to analyze how regularization affects the eigendecomposition structure.
 Figure~\ref{fig:app_challenge_decay} compares eigenvalue decay across these variants.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/vision/figure_6_challenge_eigenvalue_decay_by_reg.pdf}
     \caption{Challenge task eigenvalue decay by regularization configuration.
@@ -84,7 +84,7 @@ Figure~\ref{fig:app_challenge_decay} compares eigenvalue decay across these vari
 \subsection{Adversarial Perturbations (Paper Figure 7)}
 \label{app:adversarial}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/vision/figure_7_adversarial.pdf}
     \caption{Adversarial mask analysis (reproducing paper Figure 7).
@@ -100,7 +100,7 @@ Figure~\ref{fig:app_challenge_decay} compares eigenvalue decay across these vari
 Our reproduction of Figure 5 examines how eigenvector similarity and truncation accuracy vary with model size.
 Figure~\ref{fig:app_truncation} shows classification error under rank truncation across model sizes.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \begin{subfigure}{0.48\textwidth}
         \includegraphics[width=\linewidth]{figures/vision/figure_5a_similarity.pdf}
@@ -124,7 +124,7 @@ Figure~\ref{fig:app_truncation} shows classification error under rank truncation
 
 Figure~\ref{fig:app_eigenvectors_noise} shows the effect of noise-only regularization on eigenvector interpretability.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noise.pdf}
     \caption{Top eigenvectors with noise augmentation only ($\sigma=0.5$, $\lambda=0.0$).
@@ -137,10 +137,25 @@ Figure~\ref{fig:app_eigenvectors_noise} shows the effect of noise-only regulariz
 
 Figure~\ref{fig:app_fashion} shows eigenvector quality on Fashion-MNIST under noise-only regularization.
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/fashion_eigenvectors_noise.pdf}
+    \includegraphics[width=0.80\linewidth]{figures/vision/fashion_eigenvectors_noise.pdf}
     \caption{Fashion-MNIST top eigenvectors with noise augmentation ($\sigma=0.5$).
     Class labels: T-shirt, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Boot.}
     \label{fig:app_fashion}
+\end{figure}
+
+\noindent The silhouette-like patterns for clothing items (T-shirt, Dress, Coat) demonstrate that the eigenvector interpretability extends beyond digit recognition to more complex shape categories.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noreg.pdf}
+    \caption{Top eigenvectors for each digit class (0--9) without regularization: diffuse, noise-like patterns (V3).}
+    \label{fig:eigenvectors_noreg}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_reg.pdf}
+    \caption{Top eigenvectors for each digit class (0--9) with regularization (noise $\sigma=0.5$, weight decay $=1.0$): recognizable digit strokes (V2).}
+    \label{fig:eigenvectors_reg}
 \end{figure}

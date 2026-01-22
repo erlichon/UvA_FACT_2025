@@ -20,6 +20,7 @@
 \usepackage{natbib}
 \usepackage{cleveref}
 \usepackage{enumitem}
+\usepackage{float}  % For [H] placement to keep figures in place
 
 \title{Reproducing ``Bilinear MLPs Enable Weight-Based Mechanistic Interpretability''}
 
@@ -85,22 +86,66 @@ Improved interpretability methods could help identify biases, failure modes, and
 Our finding that SAE training quality affects reproducibility highlights the importance of standardized training protocols for interpretability research.
 
 \subsubsection*{Author Contributions}
-Author 1 led vision experiment infrastructure, training pipelines, and Figure 4--7 reproduction.
-Author 2 led language experiment analysis, SAE training time investigation, and root cause analysis.
-Both authors contributed to writing and experimental design.
+All authors contributed equally to this work.
 
-\subsubsection*{Acknowledgments}
-We thank the SURF cooperative for providing access to the Snellius supercomputer.
-We acknowledge the FACT-AI course instructors for feedback on experimental design.
-The original paper's authors for making code and pretrained models publicly available.
 
 \bibliography{main}
 \bibliographystyle{tmlr}
 
 %==============================================================================
-% APPENDICES
+% APPENDICES - Grouped by Subject
 %==============================================================================
 \appendix
+
+%------------------------------------------------------------------------------
+% VISION
+%------------------------------------------------------------------------------
+\section{Hyperparameter Details}
+\label{app:hyperparams}
+
+\textbf{Vision Experiments.}
+Architecture: 1-hidden-layer bilinear MLP, $d_{\text{hidden}} = 256$.
+Training: 100 epochs, batch size 2048, AdamW optimizer, lr $10^{-3}$ with cosine annealing.
+Seeds: 42--46 (5 seeds per configuration).
+
+\textbf{Language Experiments.}
+Models: \texttt{ts-medium} (6L, 512d, 29M params), \texttt{fw-small} (12L, 768d, 162M params), \texttt{fw-medium} (16L, 1024d, 335M params).
+SAEs: TopK sparsity ($k=30$), expansion ratios 4--8$\times$.
+Correlation analysis: all active output features per model (features with $\geq$50 activations; n=2,048 / 3,068 / 3,600 respectively).
+
+% Vision Results
+\input{sections/appendix_vision_additional}
+
+%------------------------------------------------------------------------------
+% LANGUAGE
+%------------------------------------------------------------------------------
+\input{sections/appendix_language}
+
+% Sentiment Negation Circuit Investigation
+\input{sections/appendix_figure8_investigation}
+
+%------------------------------------------------------------------------------
+% CROSS-DATASET ROBUSTNESS
+%------------------------------------------------------------------------------
+\input{sections/appendix_cross_dataset}
+
+\section{Cosine Similarity Limitations}
+\label{app:cosine_failure}
+
+Figure~\ref{fig:cosine_heatmap} shows the absolute cosine similarity heatmap between MNIST digit classes and EMNIST letter classes.
+The heatmap demonstrates that cosine similarity fails to produce a clear distinction between geometrically similar and dissimilar class pairs.
+Figure~\ref{fig:3way_comparison} provides a three-way eigenvector comparison that further illustrates this limitation.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/extension2/extension2_heatmap_abs_cosine_similarity.pdf}
+    \caption{Absolute cosine similarity between MNIST digit classes and EMNIST letter classes fails to distinguish geometrically similar pairs (0--O) from dissimilar pairs (0--X).}
+    \label{fig:cosine_heatmap}
+\end{figure}
+
+Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector breakdown, showing that the mean cosine similarity for 0--O (0.358) is nearly identical to 0--X (0.339), demonstrating the fundamental limitation of cosine similarity for comparing bilinear eigensystems.
+
+\input{eigenvector_comparison_table_0_O_X}
 
 \section{Quadratic Form Similarity Derivation}
 \label{app:quadratic_form}
@@ -126,55 +171,15 @@ For a rank-$k$ truncation using top eigenmodes, this expands to:
 
 This enables discrimination between geometrically similar pairs (0--O: 0.400) and dissimilar pairs (0--X: -0.060), where cosine similarity failed (0.358 vs.\ 0.339).
 
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.9\linewidth]{figures/extension2/extension2_3way_comparison_0_O_X.pdf}
-    \caption{Three-way eigenvector comparison: MNIST-0, EMNIST-O, and EMNIST-X. The top eigenvectors for each class are visually distinct from one another}
-    \label{fig:3way_comparison}
-\end{figure}
-
-\section{Eigenvector Visualization}
-\label{app:eigenvectors}
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noreg.pdf}
-    \caption{Top eigenvectors for each digit class (0--9) without regularization: diffuse, noise-like patterns (V3).}
-    \label{fig:eigenvectors_noreg}
-\end{figure}
-
-\clearpage
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_reg.pdf}
-    \caption{Top eigenvectors for each digit class (0--9) with regularization (noise $\sigma=0.5$, weight decay $=1.0$): recognizable digit strokes (V2).}
-    \label{fig:eigenvectors_reg}
-\end{figure}
-
-\section{Cosine Similarity Limitations}
-\label{app:cosine_failure}
-
-Figure~\ref{fig:cosine_heatmap} shows the absolute cosine similarity heatmap between MNIST digit classes and EMNIST letter classes.
-The heatmap demonstrates that cosine similarity fails to produce a clear distinction between geometrically similar and dissimilar class pairs.
-Figure~\ref{fig:3way_comparison} provides a three-way eigenvector comparison that further illustrates this limitation.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=0.7\linewidth]{figures/extension2/extension2_heatmap_abs_cosine_similarity.pdf}
-    \caption{Absolute cosine similarity between MNIST digit classes and EMNIST letter classes fails to distinguish geometrically similar pairs (0--O) from dissimilar pairs (0--X).}
-    \label{fig:cosine_heatmap}
-\end{figure}
-
-Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector breakdown, showing that the mean cosine similarity for 0--O (0.358) is nearly identical to 0--X (0.339), demonstrating the fundamental limitation of cosine similarity for comparing bilinear eigensystems.
-
-\input{eigenvector_comparison_table_0_O_X}
+%------------------------------------------------------------------------------
+% CP-DECOMPOSITION
+%------------------------------------------------------------------------------
+\input{sections/appendix_cp}
 
 \section{Full CP-Decomposition Results}
 \label{app:cp_full}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/extension_cp/cp_top5_eigenvectors_comparison.pdf}
     \caption{\textbf{Feature Disentanglement: Dense vs.\ CP.}
@@ -184,7 +189,7 @@ Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector
     \label{fig:cp_comparison}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[H]
     \caption{Complete CP-Decomposition rank sweep (mean ± std, 5 seeds).}
     \label{tab:app_cp_sweep}
     \centering
@@ -218,18 +223,10 @@ Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector
     \end{tabular}
 \end{table}
 
-\section{Hyperparameter Details}
-\label{app:hyperparams}
-
-\textbf{Vision Experiments.}
-Architecture: 1-hidden-layer bilinear MLP, $d_{\text{hidden}} = 256$.
-Training: 100 epochs, batch size 2048, AdamW optimizer, lr $10^{-3}$ with cosine annealing.
-Seeds: 42--46 (5 seeds per configuration).
-
-\textbf{Language Experiments.}
-Models: \texttt{fw-medium} (16L, 1024d, 335M params), \texttt{fw-small} (12L, 768d, 162M params).
-SAEs: TopK sparsity ($k=30$), expansion ratios 4--8$\times$.
-Analysis: 100 randomly sampled output features per model.
+%------------------------------------------------------------------------------
+% ENVIRONMENTAL
+%------------------------------------------------------------------------------
+\input{sections/appendix_environmental}
 
 \section{CO2 Tracking Details}
 \label{app:co2}
@@ -238,11 +235,5 @@ All experiments tracked using \texttt{codecarbon} with Netherlands grid intensit
 Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
 Total compute: 2.02 GPU-hours.
 Total emissions: 0.098 kg CO2eq ($\approx$ 0.6 km driving).
-
-% Additional Vision Results Appendix
-\input{sections/appendix_vision_additional}
-
-% Figure 8 Investigation Appendix
-\input{sections/appendix_figure8_investigation}
 
 \end{document}

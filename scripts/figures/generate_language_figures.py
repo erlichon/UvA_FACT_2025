@@ -1155,6 +1155,187 @@ def generate_figure_10(results_dir: Path, figure_dir: Path):
     return True
 
 
+def generate_figure_9_cosine(results_dir: Path, figure_dir: Path):
+    """
+    Generate Figure 9 (A, B, C) from COSINE similarity sweep results.
+    
+    Same as generate_figure_9 but reads from results/language/cosine/ subfolder.
+    """
+    cosine_results_dir = results_dir / "cosine"
+    cosine_figure_dir = figure_dir / "cosine"
+    
+    print("\n" + "="*60)
+    print("FIGURE 9 (COSINE): Cosine Similarity Analysis")
+    print("="*60)
+    
+    # Load correlation results from cosine subfolder
+    correlation_results = load_correlation_results(cosine_results_dir)
+    
+    if not correlation_results:
+        print("No cosine similarity results found.")
+        print("Run the sweep first with --metric cosine:")
+        print("  ./scripts/train/run_language.sh figure9 --metric cosine")
+        return False
+    
+    print(f"Loaded cosine results for models: {list(correlation_results.keys())}")
+    
+    # Figure 9A: Correlation Progression (cosine)
+    print("\nGenerating Figure 9A (cosine): Similarity Progression...")
+    fig = plot_correlation_progression(
+        correlation_results,
+        title="Average Cosine Similarity vs Approximation Rank",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_9a.pdf", cosine_figure_dir)
+    
+    # Figure 9B: Correlation Histogram (cosine)
+    print("Generating Figure 9B (cosine): Rank-2 Cosine Similarity Histogram...")
+    fig = plot_correlation_histogram(
+        correlation_results,
+        rank=2,
+        title="Rank-2 Cosine Similarity Distribution",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_9b.pdf", cosine_figure_dir)
+    
+    # Figure 9C: Scatter plots (cosine)
+    print("Generating Figure 9C (cosine): True vs Predicted Scatter Plots...")
+    fw_medium_data = correlation_results.get("fw-medium")
+    if fw_medium_data:
+        scatter_dir = cosine_results_dir / "scatter_data"
+        has_streaming_scatter = scatter_dir.exists() and any(scatter_dir.glob("scatter_fw-medium_*.json"))
+        has_embedded_scatter = any("scatter_data" in f for f in fw_medium_data.get("per_feature", []))
+        
+        if has_streaming_scatter or has_embedded_scatter:
+            fig = plot_figure_9c_scatters(
+                fw_medium_data,
+                n_features=9,
+                seed=42,
+                scatter_dir=scatter_dir if has_streaming_scatter else None,
+            )
+            save_figure(fig, "figure_9c.pdf", cosine_figure_dir)
+        else:
+            print("  Note: No scatter data available for Figure 9C (cosine).")
+    else:
+        print("  Note: fw-medium cosine results not found for Figure 9C.")
+    
+    # Print summary statistics
+    print("\n--- Cosine Similarity Summary Statistics ---")
+    fractions = compute_fraction_above_threshold(correlation_results, rank=2, threshold=0.75)
+    for model, frac in fractions.items():
+        n_analyzed = len(correlation_results[model].get("per_feature", []))
+        print(f"  {model}: {frac*100:.1f}% features above 0.75 cosine similarity (n={n_analyzed})")
+    
+    return True
+
+
+def generate_figure_10_cosine(results_dir: Path, figure_dir: Path):
+    """
+    Generate Figure 10 from COSINE similarity SAE training time results.
+    
+    Same as generate_figure_10 but reads from results/language/cosine/ subfolder.
+    """
+    cosine_results_dir = results_dir / "cosine"
+    cosine_figure_dir = figure_dir / "cosine"
+    
+    print("\n" + "="*60)
+    print("FIGURE 10 (COSINE): SAE Training Time Effect")
+    print("="*60)
+    
+    sae_results_file = cosine_results_dir / "sae_training_time_comparison.json"
+    if not sae_results_file.exists():
+        print(f"SAE training time cosine results not found: {sae_results_file}")
+        print("Generate it first:")
+        print("  python scripts/figures/sae_training_time_analysis.py --metric cosine")
+        return False
+    
+    print(f"Loading SAE training time cosine results from {sae_results_file}")
+    results = load_sae_training_results(sae_results_file)
+    
+    # Print summary
+    print("\n--- SAE Training Time (Cosine Similarity) ---")
+    versions = results.get('versions', {})
+    print(f"{'Version':<10} {'Rank-1':>10} {'Rank-2':>10} {'%>0.75':>10}")
+    print("-" * 45)
+    for version in ['v0', 'v1', 'v2', 'v3', 'v4']:
+        if version not in versions:
+            continue
+        summary = versions[version].get('summary', {})
+        r1 = summary.get('rank_1', {}).get('mean', 0)
+        r2 = summary.get('rank_2', {}).get('mean', 0)
+        pct = summary.get('rank_2', {}).get('above_75_pct', 0)
+        print(f"{version:<10} {r1:>10.3f} {r2:>10.3f} {pct:>9.1f}%")
+    print("-" * 45)
+    
+    # Figure 10A: Cosine Similarity vs Rank (all versions)
+    print("\nGenerating Figure 10A (cosine): Cosine vs SAE Training Time...")
+    fig = plot_sae_training_effect(
+        results,
+        title="Effect of SAE Training on Low-Rank Approximation (Cosine)",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_10a.pdf", cosine_figure_dir)
+    
+    # Figure 10B: Rank-2 Histogram (cosine)
+    print("Generating Figure 10B (cosine): Rank-2 Cosine Similarity Distribution...")
+    fig = plot_sae_training_histogram(
+        results,
+        rank=2,
+        versions=['v0', 'v1', 'v2', 'v3', 'v4'],
+        title="Rank-2 Cosine Similarity: Training Progression (v0 → v4)",
+        show_paper_threshold=True,
+    )
+    save_figure(fig, "figure_10b.pdf", cosine_figure_dir)
+    
+    return True
+
+
+def generate_figure_8_final_cosine(results_dir: Path, figure_dir: Path):
+    """
+    Generate Figure 8 final from COSINE similarity data.
+    
+    Same structure as generate_figure_8_final but reads from cosine subfolder.
+    """
+    cosine_results_dir = results_dir / "cosine"
+    cosine_figure_dir = figure_dir / "cosine"
+    
+    print("\n" + "="*60)
+    print("FIGURE 8 FINAL (COSINE): Sentiment Negation Circuit")
+    print("="*60)
+    
+    # Look for cosine Figure 8 data files
+    figure_8_file = cosine_results_dir / "figure_8_data_fw_medium.json"
+    
+    if not figure_8_file.exists():
+        print(f"Cosine Figure 8 data not found: {figure_8_file}")
+        print("Generate it first:")
+        print("  python src/language/negation_visualization.py --config configs/language_negation_fw.yaml --metric cosine")
+        return False
+    
+    print(f"Loading cosine Figure 8 data from {figure_8_file}")
+    
+    # Load the data
+    data = load_figure_8_data(figure_8_file)
+    if data is None:
+        return False
+    
+    # Generate composite figure using the same plotting function
+    print("Generating Figure 8 Final (cosine)...")
+    fig = plot_figure_8_composite(
+        data,
+        figsize=(15, 5),
+    )
+    save_figure(fig, "figure_8_final.pdf", cosine_figure_dir)
+    
+    # Also check for search results to generate comparison
+    search_results_file = cosine_results_dir / "circuit_search_complete.json"
+    if search_results_file.exists():
+        print("  Found search results, generating comparison figure...")
+        # Could add comparison logic here if needed
+    
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate language experiment figures")
     parser.add_argument("--figure8-only", action="store_true",
@@ -1163,6 +1344,8 @@ def main():
                         help="Only generate Figure 9 variants")
     parser.add_argument("--figure10-only", action="store_true",
                         help="Only generate Figure 10 variants")
+    parser.add_argument("--cosine", action="store_true",
+                        help="Generate cosine similarity versions from results/language/cosine/")
     args = parser.parse_args()
     
     # Ensure artifacts are available (downloads from Google Drive if missing)
@@ -1177,11 +1360,46 @@ def main():
     REPORT_FIG_DIR.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
-    print("Language Figure Generation")
+    if args.cosine:
+        print("Language Figure Generation (COSINE SIMILARITY)")
+    else:
+        print("Language Figure Generation")
     print("="*60)
     
     # Determine which figures to generate
     generate_all = not (args.figure8_only or args.figure9_only or args.figure10_only)
+    
+    # ==========================================================
+    # COSINE SIMILARITY FIGURES
+    # ==========================================================
+    if args.cosine:
+        COSINE_FIG_DIR = REPORT_FIG_DIR / "cosine"
+        COSINE_FIG_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # === Figure 9 (Cosine): Similarity Analysis ===
+        if generate_all or args.figure9_only:
+            generate_figure_9_cosine(RESULTS_DIR, REPORT_FIG_DIR)
+        
+        # === Figure 8 (Cosine): Sentiment Negation Circuit ===
+        if generate_all or args.figure8_only:
+            generate_figure_8_final_cosine(RESULTS_DIR, REPORT_FIG_DIR)
+        
+        # === Figure 10 (Cosine): SAE Training Time Effect ===
+        if generate_all or args.figure10_only:
+            generate_figure_10_cosine(RESULTS_DIR, REPORT_FIG_DIR)
+        
+        print(f"\n{'='*60}")
+        print("Cosine Similarity Figure Generation Complete!")
+        print(f"{'='*60}")
+        print(f"Figures saved to: {COSINE_FIG_DIR}")
+        return
+    
+    # ==========================================================
+    # PEARSON CORRELATION FIGURES (default)
+    # ==========================================================
+    # Note: Default behavior reads from results/language/ (not cosine subfolder)
+    # This maintains backward compatibility with existing JSON files that
+    # don't have a "metric" field - they are assumed to be Pearson correlation.
     
     # === Figure 9: Correlation Analysis (from sweep) ===
     if generate_all or args.figure9_only:

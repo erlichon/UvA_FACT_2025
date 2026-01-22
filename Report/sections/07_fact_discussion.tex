@@ -26,31 +26,8 @@ We implemented streaming computation for consumer hardware.
 \subsection{Environmental Impact}
 \label{sec:environmental}
 
-\begin{table}[h]
-    \caption{Environmental impact (CO2 via \texttt{codecarbon}).}
-    \label{tab:environmental}
-    \centering
-    \small
-    \begin{tabular}{lcccc}
-        \toprule
-        Experiment & Runs & Wall (h) & GPU-h & CO2 (kg) \\
-        \midrule
-        Vision (Section 4)$^\dagger$ & 81 & 1.22 & 1.11 & 0.039 \\
-        Language (Section 5)$^\ddagger$ & 2 & 0.19 & 0.07 & 0.005 \\
-        Extension 1 (Cross-Dataset) & 15 & 0.58 & 0.58 & 0.020 \\
-        Extension 2 (CP-Decomposition) & 105 & 0.05 & 0.05 & 0.004 \\
-        \midrule
-        \textbf{Total} & \textbf{203} & \textbf{2.04} & \textbf{1.81} & \textbf{0.067} \\
-        \bottomrule
-    \end{tabular}
-    
-    \vspace{0.5em}
-    \footnotesize
-    $^\dagger$Challenge task (Figure 6) and adversarial experiments (Figure 7) run on local MacBook Pro M4 (2025) due to computational constraints.\\
-    $^\ddagger$Language experiments run on local MacBook Pro M4 (2025) using Apple Silicon (MPS).
-\end{table}
-
-Total footprint: 0.067 kg CO2 ($\approx$0.4 km driving).
+All experiments were tracked using \texttt{codecarbon} (Table~\ref{tab:environmental}, Appendix~\ref{app:environmental}).
+Total footprint: 0.067 kg CO2 ($\approx$0.4 km driving) across 203 runs and 2.04 wall-clock hours.
 Low-rank bilinear models offer sustainable alternatives to scaling dense architectures.
 
 \subsection{Connection to FACT-AI Transparency}
@@ -64,13 +41,13 @@ Our partial language reproduction highlights an underappreciated dimension: the 
 We recommend future work explicitly document SAE training budgets.
 
 \textbf{Accuracy-Interpretability Trade-off.}
-Weight decay reduces effective rank from 38.5 to 21.4 ($1.8\times$ interpretability improvement) at $<$1\% accuracy cost---a favorable trade-off for transparent AI deployment.
+Weight decay reduces effective rank from 38.5 to 15.5 ($2.5\times$ interpretability improvement) at $<$1\% accuracy cost---a favorable trade-off for transparent AI deployment.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
 \textbf{Vision (Section 4): Fully Reproduced.}
-Weight decay reduces effective rank from 38.5 to 21.4; eigenvectors show interpretable digit patterns; accuracy remains 97--98\%; results robust across 5 seeds and generalize to Fashion-MNIST.
+Weight decay reduces effective rank from 38.5 to 15.5; eigenvectors show interpretable digit patterns; accuracy remains 97--98\%; results robust across 5 seeds and generalize to Fashion-MNIST.
 
 \textbf{Language (Section 5): Partially Reproduced.}
 AND-gate circuit confirmed with clear semantic clusters (positive vs.\ negative concepts).

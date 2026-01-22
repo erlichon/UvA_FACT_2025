@@ -24,43 +24,15 @@ We investigate three CP variants:
 \textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
 \textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
 \textbf{Gated CP:} Stochastic gates with $L_0$ proxy for explicit rank pruning~\citep{cao2024learning}.
-All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{8, \ldots, 784\}$.
+All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{32, 64, 128, 256\}$.
 
 \subsection{Quantitative Analysis: Accuracy-Interpretability Trade-off}
 
-Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep} present the Pareto frontier.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.85\linewidth]{figures/extension_cp/cp_rank_accuracy_tradeoff.pdf}
-    \caption{\textbf{Accuracy-Interpretability Pareto Frontier.}
-    Fixed CP forces extreme sparsity (eff.\ rank $\sim$3.5) at accuracy cost.
-    Lambda and Gated CP maintain competitive accuracy while reducing effective rank.}
-    \label{fig:cp_tradeoff}
-\end{figure}
-
-\begin{table}[h]
-    \caption{CP-Decomposition results (mean ± std, 5 seeds). Best CP results in bold.}
-    \label{tab:cp_sweep}
-    \centering
-    \small
-    \begin{tabular}{lcc}
-        \toprule
-        \textbf{Model} & \textbf{Accuracy (\%)} & \textbf{Eff.\ Rank} \\
-        \midrule
-        Dense (no reg) & $97.49 \pm 0.05$ & $38.5 \pm 0.7$ \\
-        Dense (WD only) & $97.49 \pm 0.05$ & $15.5 \pm 0.3$ \\
-        \midrule
-        Fixed $R=256$ & $91.89 \pm 0.09$ & $3.74 \pm 0.07$ \\
-        Lambda $R=256$ & $\mathbf{93.80 \pm 0.14}$ & $\mathbf{17.50 \pm 0.36}$ \\
-        Gated $R=256$ & $93.79 \pm 0.15$ & $17.35 \pm 0.48$ \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep} (Appendix~\ref{app:cp_results}) present the Pareto frontier; Table~\ref{tab:app_cp_sweep} (Appendix~\ref{app:cp_full}) provides the complete rank sweep.
 
 \textbf{Two distinct regimes:}
-(1) \textbf{Fixed CP} operates as a strict bottleneck with eff.\ rank $\sim$3.5 regardless of allocated capacity, at $\sim$6\% accuracy cost.
-(2) \textbf{Lambda/Gated CP} at $R=256$ achieve \textbf{93.8\% accuracy with eff.\ rank 17.5}---matching dense model complexity while providing structural disentanglement.
+(1) \textbf{Fixed CP} operates as a strict bottleneck with eff.\ rank $\sim$3.5 regardless of allocated capacity, at $\sim$6\% accuracy cost (91.9\% vs.\ 97.5\%).
+(2) \textbf{Lambda/Gated CP} at $R=256$ achieve \textbf{93.8\% accuracy with eff.\ rank 17.5}---comparable to dense models with weight decay (eff.\ rank 15.5) while providing structural disentanglement.
 
 \subsection{Qualitative Analysis: Disentangled Factors}
 

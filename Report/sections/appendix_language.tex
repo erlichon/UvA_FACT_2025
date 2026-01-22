@@ -1,0 +1,63 @@
+% Appendix: Language Experiment Results
+
+\section{Language Experiment Results}
+\label{app:language_results}
+
+\begin{table}[H]
+    \caption{Language model configurations.}
+    \label{tab:language_configs}
+    \centering
+    \begin{tabular}{lccccc}
+        \toprule
+        Model & Layers & Params & SAE Layer & Expansion & $k$ \\
+        \midrule
+        ts-medium & 6 & 29M & 4 & 4 & 30 \\
+        fw-small & 12 & 162M & 8 & 4 & 30 \\
+        fw-medium & 16 & 335M & 7 & 8 & 30 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/language/figure_8_final.pdf}
+    \caption{AND-gate circuit comparison (fw-medium, layer 7).
+    \textbf{Top}: Feature 3834 (tutorial) shows diffuse structure.
+    \textbf{Bottom}: Feature 751 (AND-score 0.96) shows clear block structure with opposing eigenvalues ($\lambda_1 < 0$, $\lambda_2 > 0$).
+    Axes in (B) show projection onto top eigenvectors; clusters separate along these directions.}
+    \label{fig:negation_circuit}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_9a_correlation_progression.pdf}
+        \caption{Correlation vs.\ rank}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
+        \caption{Rank-2 distribution (dashed: 0.75 threshold)}
+    \end{subfigure}
+    \caption{Low-rank correlation analysis (Paper Figure 9).
+    Configurations: ts-medium (layer 4, exp=4, n=2,048), fw-small (layer 8, exp=4, n=3,068), fw-medium (layer 7, exp=8, n=3,600).
+    All active output features analyzed (features with $\geq$50 activations).
+    Mean rank-2 correlations range 0.27--0.51; only 18--32\% exceed the 0.75 threshold vs.\ paper's 69\%.}
+    \label{fig:correlation_analysis}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_10a_sae_training_effect.pdf}
+        \caption{Correlation vs.\ SAE training time}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_10b_sae_training_histogram.pdf}
+        \caption{Distribution shift with training}
+    \end{subfigure}
+    \caption{Effect of SAE training duration on interpretability (fw-medium layer 12, expansion 16, active features only).
+    From v0 to v4: mean rank-2 correlation improves \textbf{2.8$\times$} (0.15 $\to$ 0.42); percentage above 0.75 threshold improves \textbf{2.7$\times$} (12\% $\to$ 32\%).}
+    \label{fig:sae_training_effect}
+\end{figure}

@@ -35,18 +35,18 @@ Figure~\ref{fig:ablation_combined} confirms this through our ablation experiment
 \end{figure}
 
 \textbf{Key findings:}
-(1) \textbf{Weight decay is the primary driver of low-rank structure}---achieving even lower effective rank than the fully regularized model.
+(1) \textbf{Weight decay is the primary driver of low-rank structure}---achieving even lower effective rank than the fully regularized model (15.5 vs.\ 21.4).
 (2) \textbf{Noise augmentation increases effective rank} while improving accuracy, spreading variance across more eigenvectors.
 (3) The effective rank ratio (15.5/38.5 $\approx$ 0.40) meets the paper's $<0.5$ criterion, confirming Claim V1.
 
 \subsubsection{Eigenspectrum Analysis}
 
-Eigenvalue distributions reveal sharp spectral decay with regularization (see Figure~\ref{fig:eigenspectrum} in Appendix~\ref{app:vision_additional}).
+Eigenvalue distributions reveal sharp spectral decay with regularization (Figure~\ref{fig:eigenspectrum}, Appendix~\ref{app:vision_additional}).
 Weight decay produces the steepest spectral decay, concentrating variance in 10--20 eigenvectors.
 
 \subsubsection{Eigenvector Visualization (Claims V2, V3)}
 
-Figures~\ref{fig:eigenvectors_noreg} and~\ref{fig:eigenvectors_reg} (see Appendix~\ref{app:eigenvectors}) confirm that top eigenvectors are interpretable digit-like patterns under regularization.
+Figures~\ref{fig:eigenvectors_noreg} and~\ref{fig:eigenvectors_reg} (Appendix~\ref{app:vision_additional}) confirm that top eigenvectors are interpretable digit-like patterns under regularization, while unregularized models show diffuse, noise-like patterns.
 
 \subsubsection{Additional Vision Results}
 \label{sec:additional_vision_results}
@@ -55,7 +55,6 @@ We reproduce the original paper's Figures 4, 6, and 7; full visualizations are i
 
 \textbf{Noise effect (original paper Figure 4):}
 Increasing noise improves eigenvector interpretability while trading off with effective rank (Figure~\ref{fig:noise_effect}).
-Higher noise spreads variance across more eigenvectors while improving generalization.
 
 \textbf{Challenge task (original paper Figure 6):}
 On binary similarity classification, the top eigenvector closely resembles the target digit (Figure~\ref{fig:challenge_task}), confirming that bilinear interactions encode task-relevant structure.
@@ -78,19 +77,8 @@ We therefore use \texttt{fw-medium} (layer 7, expansion 8) which has both SAE ty
 We reproduce the AND-gate circuit discovery demonstrating how bilinear interactions implement semantic operations.
 Using a memory-efficient eigensolver, we systematically searched all 8,192 output features in fw-medium and identified feature 751 as having the strongest AND-gate structure (AND-score 0.96).
 
-Figure~\ref{fig:negation_circuit} compares the tutorial feature 3834 with our discovered feature 751.
-Feature 751 exhibits clear block structure in its interaction matrix and separates input features into two semantic clusters: \textbf{positive sentiment} (3 features: ``wonderful'', ``excellent'', ``fortunate'') and \textbf{negative concepts} (12 features: ``horrible'', ``disease'', ``unfair'', etc.).
+Feature 751 exhibits clear block structure in its interaction matrix (Figure~\ref{fig:negation_circuit}, Appendix~\ref{app:language_results}) and separates input features into two semantic clusters: \textbf{positive sentiment} (3 features: ``wonderful'', ``excellent'', ``fortunate'') and \textbf{negative concepts} (12 features: ``horrible'', ``disease'', ``unfair'', etc.).
 The dominant eigenvalues have opposing signs ($\lambda_1 = -0.46$, $\lambda_2 = +0.18$), creating the AND-gate behavior.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.95\linewidth]{figures/language/figure_8_final.pdf}
-    \caption{AND-gate circuit comparison (fw-medium, layer 7).
-    \textbf{Top}: Feature 3834 (tutorial) shows diffuse structure.
-    \textbf{Bottom}: Feature 751 (AND-score 0.96) shows clear block structure with opposing eigenvalues ($\lambda_1 < 0$, $\lambda_2 > 0$).
-    Axes in (B) show projection onto top eigenvectors; clusters separate along these directions.}
-    \label{fig:negation_circuit}
-\end{figure}
 
 \textbf{Evidence:} On test sentences, feature 751 activates for negative-only contexts (``The disease spread quickly'' $\to$ 0.88), moderately when both clusters appear (0.62), and not at all for positive-only (0.0).
 This confirms the AND-gate mechanism: the opposing eigenvalues cause cancellation when only one cluster is present.
@@ -99,52 +87,15 @@ Full methodology in Appendix~\ref{app:figure8_investigation}.
 \subsubsection{Low-Rank Correlation Analysis (Paper Figure 9)}
 
 The paper claims 69\% of features achieve $>$0.75 rank-2 correlation.
-Figure~\ref{fig:correlation_analysis} presents our reproduction across three bilinear transformers using configurations closest to those described in the paper.%
-\footnote{The paper specifies ``approximately 2/3 model depth'' and 4$\times$ expansion for Figure 9. Available SAEs at \texttt{fw-medium} layer 7 use 8$\times$ expansion.}
+Our reproduction across three bilinear transformers (Figure~\ref{fig:correlation_analysis}, Appendix~\ref{app:language_results}) shows significantly lower values: mean rank-2 correlations range 0.27--0.51, with only 18--32\% exceeding the 0.75 threshold.
 
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_9a_correlation_progression.pdf}
-        \caption{Correlation vs.\ rank}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
-        \caption{Rank-2 distribution (dashed: 0.75 threshold)}
-    \end{subfigure}
-    \caption{Low-rank correlation analysis (Paper Figure 9).
-    Configurations: ts-medium (layer 4, exp=4, n=2,048), fw-small (layer 8, exp=4, n=3,068), fw-medium (layer 7, exp=8, n=3,600).
-    Only features with $\geq$50 activations included.
-    Mean rank-2 correlations range 0.27--0.51; only 18--32\% exceed the 0.75 threshold vs.\ paper's 69\%.}
-    \label{fig:correlation_analysis}
-\end{figure}
-
-\textbf{Discrepancy:} Our rank-2 correlations (18--32\% above 0.75) are substantially lower than the paper's 69\%.
-We verified our implementation uses the same Pearson correlation metric, computed on active samples only.
+\textbf{Discrepancy:} We verified our implementation uses the same Pearson correlation metric, computed on active samples only.
 The discrepancy persists across all three models, suggesting an artifact quality gap rather than methodological error.
 
 \subsubsection{Root Cause Analysis: SAE Training Duration}
 
 The paper acknowledges in Appendix C that ``correlation drastically improves with longer SAE training times.''
-We test this using fw-medium's layer 12 SAEs (expansion=16), where training-time checkpoints v0--v4 are publicly available.%
-\footnote{Layer 12 v0--v4 checkpoints are the only training-time variants available. No such variants exist for layer 7 used in Figure~\ref{fig:correlation_analysis}.}
-
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_10a_sae_training_effect.pdf}
-        \caption{Correlation vs.\ SAE training time}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/language/figure_10b_sae_training_histogram.pdf}
-        \caption{Distribution shift with training}
-    \end{subfigure}
-    \caption{Effect of SAE training duration on interpretability (fw-medium layer 12, expansion 16, active features only).
-    From v0 to v4: mean rank-2 correlation improves \textbf{2.8$\times$} (0.15 $\to$ 0.42); percentage above 0.75 threshold improves \textbf{2.7$\times$} (12\% $\to$ 32\%).}
-    \label{fig:sae_training_effect}
-\end{figure}
+We test this using fw-medium's layer 12 SAEs (expansion=16), where training-time checkpoints v0--v4 are publicly available (Figure~\ref{fig:sae_training_effect}, Appendix~\ref{app:language_results}).
 
 \textbf{Key findings:}
 (1) Rank-2 correlation improves monotonically with SAE training duration (v0: 12\% $\to$ v4: 32\% above 0.75 threshold).

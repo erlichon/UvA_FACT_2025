@@ -18,7 +18,8 @@ We probe robustness under three distributional shifts:
 
 \subsubsection{Writer Independence: MNIST $\leftrightarrow$ EMNIST-Digits}
 
-With the regularized CoM model, cross-dataset accuracy is near-perfect and symmetric:
+With the regularized CoM model, cross-dataset accuracy is near-perfect and symmetric (Table~\ref{tab:mnist_emnist_digits}): MNIST $\to$ EMNIST achieves 97.5\% and the reverse achieves 97.9\%.
+This confirms that regularized bilinear features \textbf{do not overfit to MNIST writers}.
 
 \begin{table}[h]
 \centering
@@ -36,52 +37,16 @@ Bidirectional Average & 97.719 ± 0.012\% \\
 \end{tabular}
 \end{table}
 
-This confirms that regularized bilinear features \textbf{do not overfit to MNIST writers}.
-
 \subsubsection{Domain Transfer: MNIST $\rightarrow$ USPS}
 
 USPS images are originally $16 \times 16$ pixels collected from U.S.\ Postal Service mail, compared to MNIST's $28 \times 28$ pixels from handwritten digit samples.
 We upscale USPS to $28 \times 28$ using bilinear interpolation before applying CoM normalization.
-This introduces both resolution mismatch (requiring interpolation) and style shift (cleaner, more uniform strokes from automated mail processing vs.\ varied handwriting styles in MNIST).
-Regularization yields \textbf{+19 pp} improvement:
-
-\begin{table}[h]
-\centering
-\caption{Cross-Dataset Accuracy: MNIST $\rightarrow$ USPS (mean over 5 seeds).}
-\label{tab:usps}
-\small
-\begin{tabular}{lc}
-\toprule
-\textbf{Model} & \textbf{Accuracy} \\
-\midrule
-Baseline (no reg) & 53.42 ± 0.88\% \\
-Regularized & 72.33 ± 0.83\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+Regularization yields \textbf{+19 pp} improvement (Table~\ref{tab:usps}, Appendix~\ref{app:cross_dataset_results}): 72.3\% vs.\ 53.4\% for the baseline.
 
 \subsubsection{Geometric Semantics: MNIST $\rightarrow$ EMNIST-Letters}
 
-We test whether MNIST classifiers ``see'' shape by running them on visually similar letters:
-
-\begin{table}[h]
-\centering
-\caption{Letter$\to$Digit Transfer (regularized CoM model, 5 seeds).}
-\label{tab:letter_digit}
-\small
-\begin{tabular}{lc}
-\toprule
-\textbf{Letter $\rightarrow$ Digit} & \textbf{Accuracy} \\
-\midrule
-O $\rightarrow$ 0 & 99.60 ± 0.05\% \\
-I $\rightarrow$ 1 & 87.08 ± 0.10\% \\
-Z $\rightarrow$ 2 & 88.75 ± 0.26\% \\
-S $\rightarrow$ 5 & 87.38 ± 0.22\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The model's most confident prediction for each letter is \textbf{exactly} the geometrically corresponding digit (mapping accuracy = 100\%).
+We test whether MNIST classifiers ``see'' shape by running them on visually similar letters (Table~\ref{tab:letter_digit}, Appendix~\ref{app:cross_dataset_results}).
+The model's most confident prediction for each letter is \textbf{exactly} the geometrically corresponding digit: O$\to$0 (99.6\%), I$\to$1 (87.1\%), Z$\to$2 (88.8\%), S$\to$5 (87.4\%).
 
 \subsection{Structural Analysis: Quadratic Form Similarity}
 
@@ -90,7 +55,7 @@ The model's most confident prediction for each letter is \textbf{exactly} the ge
 Direct eigenvector comparison via cosine similarity fails to distinguish geometrically similar pairs.
 MNIST-0 vs EMNIST-O (similar) yields 0.358, while MNIST-0 vs EMNIST-X (dissimilar) yields 0.339---virtually identical.
 The root cause: bilinear eigensystems share eigenvector directions while class information resides in eigenvalue \emph{weights}.
-See Figure~\ref{fig:3way_comparison} for visualization and Appendix~\ref{app:cosine_failure} for full cosine similarity heatmap and per-eigenvector comparison.
+See Figure~\ref{fig:3way_comparison} for visualization and Appendix~\ref{app:cosine_failure} for the full cosine similarity heatmap.
 
 \subsubsection{Quadratic Form Similarity}
 
@@ -100,55 +65,10 @@ We propose comparing full decision surfaces. For class interaction matrices $A$ 
 \end{equation}
 This incorporates both eigenvector alignment and eigenvalue magnitudes, with signs enabling discrimination (see Appendix~\ref{app:quadratic_form} for derivation).
 
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[height=4.5cm]{figures/extension2/extension2_quadratic_form_heatmap_digits.pdf}
-        \caption{MNIST vs EMNIST-Digits}
-        \label{fig:qf_digits}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.48\textwidth}
-        \centering
-        \includegraphics[height=4.5cm]{figures/extension2/extension2_heatmap_quadratic_form.pdf}
-        \caption{MNIST vs EMNIST-Letters}
-        \label{fig:qf_letters}
-    \end{subfigure}
-    \caption{Quadratic Form Similarity ($k=20$).
-    (a) Strong diagonal confirms writer-independent circuits.
-    (b) Bright entries at shape-matched pairs (0--O, 1--I, 2--Z, 5--S) indicate mechanistically similar circuits; unrelated pairs are near zero or negative.}
-    \label{fig:quadratic_heatmaps}
-\end{figure}
+Figure~\ref{fig:quadratic_heatmaps} (Appendix~\ref{app:cross_dataset_results}) shows clear discrimination: (a) strong diagonal for MNIST vs.\ EMNIST-Digits confirms writer-independent circuits; (b) bright entries at shape-matched pairs (0--O, 1--I, 2--Z, 5--S) indicate mechanistically similar circuits.
+Quadratic Form Similarity produces a \textbf{large gap} between similar (0.400) and dissimilar (-0.060) pairs ($p_{value} < 10^{-4}$); Figure~\ref{fig:similarity_vs_k} (Appendix~\ref{app:cross_dataset_results}) shows this gap emerges around $k=20$ eigenvectors and remains stable thereafter.
 
-Figure~\ref{fig:quadratic_heatmaps} shows clear discrimination.
-Quadratic Form Similarity produces a \textbf{large gap} between similar (0.400) and dissimilar (-0.060) pairs ($p < 10^{-4}$).
-
-\begin{table}[h]
-    \centering
-    \caption{Ranking analysis: Position of expected letter among 26 EMNIST letters sorted by Quadratic Form Similarity. Random baseline: rank 13.}
-    \label{tab:ranking_analysis}
-    \small
-    \begin{tabular}{lccccc}
-        \toprule
-        & 0--O & 1--I & 2--Z & 5--S & Mean \\
-        \midrule
-        Rank & \textbf{1} & \textbf{2} & \textbf{1} & \textbf{1} & \textbf{1.2} \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
-Table~\ref{tab:ranking_analysis} confirms specificity: 3/4 pairs rank \#1, with mean rank 1.2 vs.\ random baseline of 13.
-
-Figure~\ref{fig:similarity_vs_k} shows that similarity for shape-matched pairs increases and converges around $k=20$, while dissimilar pairs remain near zero throughout.
-
-\begin{figure}[t]
-    \centering
-    \includegraphics[width=0.7\linewidth]{figures/extension2/extension2_similarity_vs_k_quadratic_form.pdf}
-    \caption{Quadratic Form Similarity vs number of eigenvectors $k$.
-    Similar pairs converge around $k=20$; dissimilar pairs stay near zero with non-overlapping 90\% CIs.}
-    \label{fig:similarity_vs_k}
-\end{figure}
+Table~\ref{tab:ranking_analysis} (Appendix~\ref{app:cross_dataset_results}) confirms specificity: 3/4 pairs rank \#1, with mean rank 1.2 vs.\ random baseline of 13.
 
 \subsection{Conclusion}
 

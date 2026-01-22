@@ -64,6 +64,8 @@ from src.language.interaction_utils import (
 from src.language.verify_correlation import (
     create_validation_dataloader,
     pearson_correlation,
+    cosine_similarity_metric,
+    get_metric_function,
 )
 from src.language.context import LanguageContext
 from src.language.memory_efficient_eigen import top_k_eigenvectors_by_magnitude
@@ -364,6 +366,7 @@ def compute_figure_8c_scatter(
     dataloader,
     device: str,
     max_batches: int = 50,
+    metric: str = "pearson",
 ) -> Tuple[torch.Tensor, torch.Tensor, float]:
     """
     Compute true vs predicted activations for Figure 8C.
@@ -381,11 +384,15 @@ def compute_figure_8c_scatter(
         dataloader: Validation dataloader
         device: Device for computation
         max_batches: Maximum batches to process
+        metric: Similarity metric - 'pearson' or 'cosine' (default: 'pearson')
     
     Returns:
         (z_true, z_pred_rank2, correlation)
     """
+    metric_fn = get_metric_function(metric)
+    metric_label = "cosine similarity" if metric == "cosine" else "Pearson correlation"
     print(f"  Using memory-efficient Panel C (only accumulating active samples)")
+    print(f"  Metric: {metric_label}")
     
     sight = Sight(model)
     sae_out_cpu = sae_out.cpu()  # Keep SAE on CPU to save memory
@@ -469,8 +476,8 @@ def compute_figure_8c_scatter(
     # Rank-2 prediction using pre-computed eigenpairs
     z_pred = predict_activation_from_eigenpairs(x_active, eigenvalues_2, eigenvectors_2)
     
-    # Compute correlation
-    corr = pearson_correlation(z_active, z_pred)
+    # Compute metric (pearson or cosine)
+    corr = metric_fn(z_active, z_pred)
     
     return z_active, z_pred, corr
 
@@ -487,6 +494,7 @@ def generate_figure_8_data(
     max_batches: int = 50,
     use_streaming: bool = False,
     chunk_size: int = 256,
+    metric: str = "pearson",
 ) -> Figure8Data:
     """
     Generate all data needed for Figure 8.
@@ -503,11 +511,14 @@ def generate_figure_8_data(
         max_batches: Maximum batches for Panel C
         use_streaming: Use streaming Q computation (reduces memory, enables CUDA)
         chunk_size: Chunk size for streaming (256=1GB, 128=0.5GB)
+        metric: Similarity metric - 'pearson' or 'cosine' (default: 'pearson')
     
     Returns:
         Figure8Data containing all panel data
     """
+    metric_label = "cosine similarity" if metric == "cosine" else "Pearson correlation"
     print(f"\nGenerating Figure 8 data for feature {feat_idx}...")
+    print(f"  Metric: {metric_label}")
     if use_streaming:
         print(f"  Using streaming Q computation (chunk_size={chunk_size})")
     
@@ -528,7 +539,7 @@ def generate_figure_8_data(
     # Panel C: Activation vs approximation
     print("  Computing Panel C (activation scatter)...")
     z_true, z_pred, corr = compute_figure_8c_scatter(
-        model, sae_out, layer, feat_idx, dataloader, device, max_batches
+        model, sae_out, layer, feat_idx, dataloader, device, max_batches, metric
     )
     
     return Figure8Data(
@@ -547,7 +558,7 @@ def generate_figure_8_data(
     )
 
 
-def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Optional[Dict[str, str]] = None, emissions: Optional[dict] = None):
+def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Optional[Dict[str, str]] = None, emissions: Optional[dict] = None, metric: str = "pearson"):
     """Save Figure 8 data to JSON.
     
     Args:
@@ -567,10 +578,13 @@ def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Opti
         f: feature_types.get(f, "other") for f in feature_indices
     }
     
+    metric_label = "Cosine similarity" if metric == "cosine" else "Pearson correlation"
     results = {
         "output_feature_idx": data.output_feature_idx,
         "layer": data.layer,
         "model_name": data.model_name,
+        "metric": metric,
+        "metric_label": metric_label,
         "panel_a": {
             "Q_submatrix": data.Q_submatrix.tolist(),
             "feature_indices": data.submatrix_feature_indices,
@@ -583,6 +597,8 @@ def save_figure_8_data(data: Figure8Data, output_path: Path, feature_types: Opti
             "z_true": data.z_true.tolist(),
             "z_pred_rank2": data.z_pred_rank2.tolist(),
             "correlation": data.correlation,
+            "metric": metric,
+            "metric_label": metric_label,
             "n_samples": len(data.z_true),
         },
         # Include feature type classification for visualization
@@ -618,7 +634,16 @@ def main():
                         help="Use streaming Q computation (reduces memory, enables CUDA)")
     parser.add_argument("--chunk-size", type=int, default=256,
                         help="Chunk size for streaming (256=1GB, 128=0.5GB)")
+    parser.add_argument("--metric", type=str, default="pearson", choices=["pearson", "cosine"],
+                        help="Similarity metric: 'pearson' (default) or 'cosine'")
     args = parser.parse_args()
+    
+    # Adjust output path for cosine metric - put in cosine/ subfolder
+    if args.metric == "cosine":
+        output_path = Path(args.output)
+        cosine_dir = output_path.parent / "cosine"
+        args.output = str(cosine_dir / output_path.name)
+        print(f"Cosine metric: output will be saved to {args.output}")
     
     # Setup device
     device = get_device(args.device)
@@ -662,6 +687,7 @@ def main():
             max_batches=args.max_batches,
             use_streaming=args.streaming,
             chunk_size=args.chunk_size,
+            metric=args.metric,
         )
     
     # Access emissions AFTER exiting the context manager (tracker has stopped)
@@ -680,7 +706,7 @@ def main():
         }
         print("Warning: CodeCarbon tracker failed, emissions not recorded")
     
-    save_figure_8_data(figure_data, Path(args.output), emissions=emissions)
+    save_figure_8_data(figure_data, Path(args.output), emissions=emissions, metric=args.metric)
     
     # Print summary
     print(f"\n{'='*60}")

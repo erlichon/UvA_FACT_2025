@@ -146,6 +146,57 @@ def pearson_correlation(x: torch.Tensor, y: torch.Tensor) -> float:
     return (numerator / denominator).item()
 
 
+def cosine_similarity_metric(x: torch.Tensor, y: torch.Tensor) -> float:
+    """
+    Compute cosine similarity between two 1D tensors.
+    
+    Unlike Pearson correlation, cosine similarity does NOT center the vectors.
+    This measures the angle between vectors in the original space.
+    
+    Args:
+        x: First tensor [n]
+        y: Second tensor [n]
+    
+    Returns:
+        Cosine similarity (float in [-1, 1])
+    """
+    import torch.nn.functional as F
+    
+    x = x.float()
+    y = y.float()
+    
+    # Handle edge cases
+    if len(x) < 2:
+        return float('nan')
+    
+    # Compute cosine similarity
+    x_norm = x.norm()
+    y_norm = y.norm()
+    
+    if x_norm < 1e-10 or y_norm < 1e-10:
+        return float('nan')
+    
+    return (x @ y / (x_norm * y_norm)).item()
+
+
+def get_metric_function(metric: str):
+    """
+    Get the metric function based on metric name.
+    
+    Args:
+        metric: 'pearson' or 'cosine'
+    
+    Returns:
+        Metric function that takes (x, y) tensors and returns float
+    """
+    if metric == "pearson":
+        return pearson_correlation
+    elif metric == "cosine":
+        return cosine_similarity_metric
+    else:
+        raise ValueError(f"Unknown metric: {metric}. Use 'pearson' or 'cosine'.")
+
+
 def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32):
     """
     Create a DataLoader for validation data from TinyStories dataset.
@@ -237,6 +288,7 @@ def verify_correlation(
     model_name: str = "unknown",
     use_streaming: bool = True,
     chunk_size: int = 256,
+    metric: str = "pearson",
 ):
     """
     Compute correlation between weight-based predictions and actual SAE activations.
@@ -271,10 +323,14 @@ def verify_correlation(
         model_name: Model name for scatter file naming
         use_streaming: Whether to use GPU-accelerated streaming Q computation (default True)
         chunk_size: Chunk size for streaming computation (default 256)
+        metric: Similarity metric to use - 'pearson' or 'cosine' (default: 'pearson')
     
     Returns:
         Dict with correlation results per rank
     """
+    # Get the metric function
+    metric_fn = get_metric_function(metric)
+    
     results = {k: [] for k in ranks}
     feature_results = []
     scatter_files_saved = []
@@ -353,7 +409,7 @@ def verify_correlation(
             feature_indices = feature_indices[:max_features]
         
         n_features = len(feature_indices)
-        streaming_status = "streaming (GPU)" if use_streaming else "standard (CPU)"
+        streaming_status = f"streaming ({device})" if use_streaming else "standard (CPU)"
         print(f"\nAnalyzing {n_features} features across ranks {ranks} using {streaming_status}...")
         
         for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
@@ -414,8 +470,8 @@ def verify_correlation(
                 if k == 2 and save_scatter:
                     z_pred_rank2 = z_pred
                 
-                # Pearson correlation on FULL accumulated data
-                corr = pearson_correlation(z_active, z_pred)
+                # Compute metric (pearson or cosine) on FULL accumulated data
+                corr = metric_fn(z_active, z_pred)
                 
                 if not np.isnan(corr):
                     results[k].append(corr)
@@ -476,7 +532,7 @@ def main():
     parser.add_argument("--n-samples", type=int, default=2000, help="Number of validation samples")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for DataLoader")
     parser.add_argument("--max-batches", type=int, default=50, help="Maximum batches to process")
-    parser.add_argument("--min-active", type=int, default=50, help="Minimum active samples per feature")
+    parser.add_argument("--min-active", type=int, default=1, help="Minimum active samples per feature")
     parser.add_argument("--target-samples", type=int, default=500, help="Target active samples per feature")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     parser.add_argument("--plot", type=str, default=None, help="Path to save correlation plot (PNG)")
@@ -489,6 +545,10 @@ def main():
     parser.add_argument("--save-scatter", action="store_true", help="Save scatter data (z_true, z_pred) for Figure 9C")
     parser.add_argument("--max-scatter-samples", type=int, default=1000, help="Max scatter samples per feature (-1 for all)")
     
+    # Metric selection
+    parser.add_argument("--metric", type=str, default="pearson", choices=["pearson", "cosine"],
+                        help="Similarity metric: 'pearson' (default) or 'cosine'")
+    
     args = parser.parse_args()
     
     # Parse n_features - support 'all' or integer
@@ -496,6 +556,14 @@ def main():
         n_features = -1  # -1 means all features
     else:
         n_features = int(args.n_features)
+    
+    # Adjust output path for cosine metric - put in cosine/ subfolder
+    if args.metric == "cosine":
+        output_path = Path(args.output)
+        # Insert 'cosine' subfolder before the filename
+        cosine_dir = output_path.parent / "cosine"
+        args.output = str(cosine_dir / output_path.name)
+        print(f"Cosine metric: output will be saved to {args.output}")
     
     # Parse ranks - support both comma-separated and range syntax
     if "-" in args.ranks and "," not in args.ranks:
@@ -576,6 +644,7 @@ def main():
         output_path = Path(args.output)
         scatter_dir = None
         if args.save_scatter:
+            # For cosine metric, scatter data goes to cosine/scatter_data
             scatter_dir = output_path.parent / "scatter_data"
             scatter_dir.mkdir(parents=True, exist_ok=True)
         
@@ -601,14 +670,18 @@ def main():
             model_name=model_short,
             use_streaming=not args.no_streaming,
             chunk_size=args.chunk_size,
+            metric=args.metric,
         )
     
     # Compute summary statistics
+    metric_label = "Cosine similarity" if args.metric == "cosine" else "Pearson correlation"
     summary = {
         "model_name": model_name,
         "layer": layer,
         "expansion": expansion,
         "k": k,
+        "metric": args.metric,
+        "metric_label": metric_label,
         "n_features_requested": "all" if n_features == -1 else n_features,
         "n_features_analyzed": len(feature_results),
         "ranks": ranks,
@@ -625,9 +698,10 @@ def main():
     }
     
     print(f"\n{'='*60}")
-    print("CORRELATION VERIFICATION RESULTS")
+    print(f"VERIFICATION RESULTS ({metric_label.upper()})")
     print(f"{'='*60}")
     print(f"Model: {model_name}, Layer: {layer}")
+    print(f"Metric: {metric_label}")
     print(f"Features analyzed: {summary['n_features_analyzed']}")
     print()
     
@@ -650,7 +724,10 @@ def main():
     print(f"\nPaper claim: {summary['paper_claim']}")
     if "2" in summary["correlation_by_rank"]:
         rank2_corr = summary["correlation_by_rank"]["2"]["mean"]
-        print(f"Our rank-2 correlation: {rank2_corr:.4f}")
+        # Calculate percentage above 0.75 from per-feature results
+        rank2_values = [r["correlations"]["2"] for r in feature_results if "2" in r["correlations"]]
+        pct_above_75 = sum(1 for v in rank2_values if v > 0.75) / len(rank2_values) * 100 if rank2_values else 0
+        print(f"Our rank-2: mean={rank2_corr:.4f}, {pct_above_75:.1f}% above 0.75 threshold")
     print(f"{'='*60}")
     
     # Finalize wandb

@@ -84,24 +84,8 @@ Architecture: $d_{\text{hidden}} = 256$, 100 epochs, batch size 2048, AdamW opti
 \end{table}
 
 \paragraph{Language Experiments.}
-We analyze pretrained bilinear transformers (Table~\ref{tab:language_configs}).
+We analyze pretrained bilinear transformers (Table~\ref{tab:language_configs}, Appendix~\ref{app:language_results}).
 Due to SAE availability constraints (see Section~\ref{sec:discussion}), our primary model is \texttt{fw-medium} rather than the paper's \texttt{ts-medium}.
 Note that \texttt{fw-medium} (16 layers) is deeper than \texttt{ts-medium} (6 layers), potentially making low-rank approximation more challenging.
-
-\begin{table}[h]
-    \caption{Language model configurations.}
-    \label{tab:language_configs}
-    \centering
-    \begin{tabular}{lccccc}
-        \toprule
-        Model & Layers & Params & SAE Layer & Expansion & $k$ \\
-        \midrule
-        ts-medium & 6 & 29M & 4 & 4 & 30 \\
-        fw-small & 12 & 162M & 8 & 4 & 30 \\
-        fw-medium & 16 & 335M & 7 & 8 & 30 \\
-        \bottomrule
-    \end{tabular}
-\end{table}
-
 Experiments ran on Snellius HPC (A100 GPUs) and Apple M4.
 We implemented a memory-efficient streaming algorithm for eigendecomposition, avoiding instantiation of the full $d_{\text{in}} \times d_{\text{in}} \times d_{\text{out}}$ tensor.

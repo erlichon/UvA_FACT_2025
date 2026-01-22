@@ -57,6 +57,29 @@ def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> float:
     return corr.item()
 
 
+def cosine_similarity_metric(x: torch.Tensor, y: torch.Tensor) -> float:
+    """
+    Compute cosine similarity between two 1D tensors.
+    
+    Unlike Pearson correlation, cosine similarity does NOT center the vectors.
+    """
+    x_norm = torch.norm(x)
+    y_norm = torch.norm(y)
+    if x_norm < 1e-10 or y_norm < 1e-10:
+        return float('nan')
+    return (x @ y / (x_norm * y_norm)).item()
+
+
+def get_metric_function(metric: str):
+    """Get the metric function based on metric name."""
+    if metric == "pearson":
+        return pearson_corr
+    elif metric == "cosine":
+        return cosine_similarity_metric
+    else:
+        raise ValueError(f"Unknown metric: {metric}. Use 'pearson' or 'cosine'.")
+
+
 def load_sae_with_tag(repo: str, layer: int, expansion: int, k: int, tag: str) -> SAE:
     """Load SAE with a specific training tag (v0, v1, v2, v3, v4)."""
     point = ('mlp-out', layer)
@@ -80,6 +103,7 @@ def analyze_sae_version(
     ranks: list,
     n_features: int = -1,
     min_active: int = 50,
+    metric: str = "pearson",
 ) -> dict:
     """
     Analyze correlation for a single SAE version.
@@ -88,7 +112,11 @@ def analyze_sae_version(
     
     Args:
         n_features: Number of features to analyze. -1 means all features.
+        metric: Similarity metric - 'pearson' or 'cosine'
     """
+    # Get the metric function
+    metric_fn = get_metric_function(metric)
+    
     # Pre-extract weights
     w_l = model.w_l[layer].cpu().float()
     w_r = model.w_r[layer].cpu().float()
@@ -129,12 +157,12 @@ def analyze_sae_version(
         eigvals_sorted = eigvals[sort_idx]
         eigvecs_sorted = eigvecs[:, sort_idx]
         
-        # Compute correlations for each rank
+        # Compute metric (pearson or cosine) for each rank
         feature_corrs = {'feat_idx': feat_idx, 'n_active': n_active}
         for rank in ranks:
             projections = x_active @ eigvecs_sorted[:, :rank]
             z_pred = (projections ** 2) @ eigvals_sorted[:rank]
-            corr = pearson_corr(z_active, z_pred)
+            corr = metric_fn(z_active, z_pred)
             
             if not np.isnan(corr):
                 results[rank].append(corr)
@@ -164,10 +192,12 @@ def analyze_sae_version(
 
 def run_analysis(args):
     """Run the actual analysis (wrapped by main for emissions tracking)."""
+    metric_label = "Cosine similarity" if args.metric == "cosine" else "Pearson correlation"
     print("=" * 70)
-    print("SAE Training Time Analysis (Figure 10)")
+    print(f"SAE Training Time Analysis (Figure 10) - {metric_label}")
     print("=" * 70)
     print(f"Device: {args.device}")
+    print(f"Metric: {metric_label}")
     print(f"Features per version: {args.n_features}")
     print(f"Start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
@@ -237,6 +267,8 @@ def run_analysis(args):
             'k': k,
             'n_tokens': mlp_in_all.shape[0],
             'ranks': ranks,
+            'metric': args.metric,
+            'metric_label': metric_label,
             'timestamp': datetime.now().isoformat(),
         },
         'versions': {}
@@ -256,7 +288,7 @@ def run_analysis(args):
         z_true_all = sae.encode(mlp_out_all)
         
         # Analyze
-        print(f"  Analyzing correlations (n_features={args.n_features}, -1=all)...")
+        print(f"  Analyzing {args.metric} (n_features={args.n_features}, -1=all)...")
         results = analyze_sae_version(
             model=model,
             sae=sae,
@@ -266,6 +298,7 @@ def run_analysis(args):
             ranks=ranks,
             n_features=args.n_features,
             min_active=args.min_active,
+            metric=args.metric,
         )
         
         all_results['versions'][version] = results
@@ -310,7 +343,16 @@ def main():
     parser.add_argument('--min-active', type=int, default=50, help='Minimum active samples per feature')
     parser.add_argument('--output', type=str, default='results/language/sae_training_time_comparison.json',
                         help='Output JSON file')
+    parser.add_argument('--metric', type=str, default='pearson', choices=['pearson', 'cosine'],
+                        help="Similarity metric: 'pearson' (default) or 'cosine'")
     args = parser.parse_args()
+    
+    # Adjust output path for cosine metric - put in cosine/ subfolder
+    if args.metric == "cosine":
+        output_path = Path(args.output)
+        cosine_dir = output_path.parent / "cosine"
+        args.output = str(cosine_dir / output_path.name)
+        print(f"Cosine metric: output will be saved to {args.output}")
     
     # Run analysis with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
