@@ -15,7 +15,7 @@ The paper's codebase provided clear reference implementations.
 \textbf{Hyperparameter disambiguation:} Code defaults (noise 0.4, WD 0.5) differ from Appendix G.1 values (noise 0.5, WD 1.0).
 We used appendix values after verifying they match paper figures.
 
-\textbf{SAE availability:} The paper's \texttt{ts-medium} lacks \texttt{mlp-in} SAEs on HuggingFace, requiring pivot to \texttt{fw-medium} (16 layers vs.\ 6, different training corpus).
+\textbf{SAE availability:} The paper's \texttt{ts-medium} (``ts-tiny'' in paper) lacks \texttt{mlp-in} SAEs at layer 4 on HuggingFace, requiring pivot to \texttt{fw-medium} for Figure 8 reproduction.
 
 \textbf{Memory constraints:} Interaction matrix computation requires $\mathcal{O}(n_{\text{features}}^2)$ memory.
 At expansion 8$\times$ with $d=1024$, this exceeds 100GB.
@@ -68,8 +68,8 @@ Weight decay reduces effective rank from 38.5 to 21.4 ($1.8\times$ interpretabil
 Weight decay reduces effective rank from 38.5 to 21.4; eigenvectors show interpretable digit patterns; accuracy remains 97--98\%; results robust across 5 seeds and generalize to Fashion-MNIST.
 
 \textbf{Language (Section 5): Partially Reproduced.}
-Negation circuit confirmed (cosine similarity $-0.16$).
-Low-rank structure is \textbf{Reproducible in Principle, Dependent on Artifact Quality}: correlation improves 2.5$\times$ with SAE training (0.15 $\to$ 0.39), but public artifacts don't reach the 69\% threshold.
+AND-gate circuit confirmed with clear semantic clusters (positive vs.\ negative concepts).
+Low-rank structure is \textbf{Reproducible in Principle, Dependent on Artifact Quality}: correlation improves 2.8$\times$ with SAE training (0.15 $\to$ 0.42), but even the longest-trained public SAEs reach only 32\% vs.\ the paper's 69\% threshold.
 
 \textbf{Key Insight.}
 The bilinear decomposition methodology is sound and reproducible.
@@ -81,10 +81,10 @@ Low-rank approximation quality depends critically on SAE convergence---practitio
 
 \textbf{Limitations.}
 Eigenvector interpretability is qualitative.
-Could not use paper's exact model due to missing SAEs.
-CP results are preliminary (single dataset).
+Could not reproduce paper's exact Figure 8 (ts-tiny, layer 4) due to missing \texttt{mlp-in} SAEs.
+Public SAEs appear undertrained compared to paper's internal artifacts.
 
 \textbf{Future Work.}
-Train SAEs longer to test 69\% threshold.
-Develop quantitative interpretability metrics.
+Train SAEs with longer duration to test if 69\% threshold is achievable.
+Develop quantitative interpretability metrics for eigenvector quality.
 Extend to larger vision models (ViTs).

@@ -27,7 +27,7 @@ The paper makes the following testable claims:
 
 \textbf{Vision:} Effective rank ratio (regularized/unregularized) $< 0.6$; top eigenvectors visually resemble digit templates; test accuracy within 2\% of paper ($\sim$95--98\%); results consistent across 5 seeds.
 
-\textbf{Language:} Negation feature pairs show opposing directions (cosine similarity $< 0$); $>$50\% of features show $>$0.75 rank-2 correlation (relaxed from 69\%); interaction matrices show interpretable structure.
+\textbf{Language:} AND-gate circuits show opposing eigenvalue signs; $>$50\% of features show $>$0.75 rank-2 correlation (relaxed from 69\%); interaction matrices show interpretable block structure.
 
 \subsection{Results Summary}
 
@@ -54,9 +54,9 @@ Table~\ref{tab:claims_summary} summarizes our reproduction outcomes.
         \multicolumn{4}{c}{\textit{Language (Section 5)}} \\
         \midrule
         L1 & SAE feature discovery & \checkmark & Pretrained SAEs work for analysis \\
-        L2 & Negation features & \checkmark & Cosine similarity $= -0.16$ \\
-        L3 & Low-rank interactions & $\sim$ & Mechanism validated; artifact gap \\
-        L4 & Sparse interactions & $\sim$ & Structure exists but weaker than paper \\
+        L2 & Negation/AND-gate circuits & \checkmark & Opposing eigenvalues confirmed \\
+        L3 & Low-rank interactions & $\sim$ & 18--32\% $>$0.75 vs.\ paper's 69\% \\
+        L4 & Sparse interactions & \checkmark & Clear block structure in feature 751 \\
         L5 & Cross-model generalization & $\sim$ & Methodology works; magnitudes differ \\
         \bottomrule
     \end{tabular}

@@ -684,6 +684,296 @@ def generate_figure_8_side_by_side(results_dir: Path, figure_dir: Path):
     return True
 
 
+def generate_figure_8_final(results_dir: Path, figure_dir: Path):
+    """
+    Generate Final Figure 8: Comparison of Feature 3834 (tutorial) vs Feature 751 (paper style).
+    
+    Layout: 2 rows x 3 columns
+    - Row 1: Feature 3834 (Tutorial - "not-good" feature)
+    - Row 2: Feature 751 (Strong AND-gate)
+    
+    Each row: A) Interaction Submatrix, B) Eigenvector Projections, C) Scatter plot
+    
+    Clean paper style - semantic meanings explained in appendix.
+    """
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+    
+    print("\n" + "="*60)
+    print("FIGURE 8 FINAL: Feature 3834 vs 751 (Paper Style)")
+    print("="*60)
+    
+    # Load data for both features
+    feature_3834_file = results_dir / "figure_8_data_fw_medium.json"
+    feature_751_file = results_dir / "figure_8_feature751.json"
+    circuit_751_file = results_dir / "circuit_analysis_751.json"
+    
+    if not feature_3834_file.exists():
+        print(f"Feature 3834 data not found: {feature_3834_file}")
+        return False
+    
+    if not feature_751_file.exists():
+        print(f"Feature 751 data not found: {feature_751_file}")
+        return False
+    
+    with open(feature_3834_file) as f:
+        data_3834 = json.load(f)
+    
+    with open(feature_751_file) as f:
+        data_751 = json.load(f)
+    
+    # Load circuit analysis for feature 751
+    cluster_pos_751 = []
+    cluster_neg_751 = []
+    if circuit_751_file.exists():
+        with open(circuit_751_file) as f:
+            circuit_data = json.load(f)
+        cluster_pos_751 = circuit_data.get("cluster_pos", [])
+        cluster_neg_751 = circuit_data.get("cluster_neg", [])
+    
+    # Get feature types
+    feature_types_3834 = data_3834.get("feature_types", {})
+    feature_types_751 = data_751.get("feature_types", {})
+    
+    # Create figure: 2 rows x 3 columns
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    
+    # ==================== ROW 1: Feature 3834 (Tutorial) ====================
+    ax_Q_3834, ax_proj_3834, ax_scatter_3834 = axes[0]
+    
+    # --- Panel A: Interaction Submatrix ---
+    Q_3834 = np.array(data_3834["panel_a"]["Q_submatrix"])
+    feature_ids_3834 = data_3834["panel_a"]["feature_indices"]
+    
+    vmax = np.abs(Q_3834).max()
+    im = ax_Q_3834.imshow(Q_3834, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect='auto')
+    
+    n_feats = len(feature_ids_3834)
+    ax_Q_3834.set_xticks(range(n_feats))
+    ax_Q_3834.set_yticks(range(n_feats))
+    ax_Q_3834.set_xticklabels(feature_ids_3834, rotation=45, ha='right', fontsize=7)
+    ax_Q_3834.set_yticklabels(feature_ids_3834, fontsize=7)
+    
+    # Color and markers by type
+    color_map_3834 = {'structural': '#1f77b4', 'negation': '#d62728', 'contrast': '#ff7f0e', 'other': '#7f7f7f'}
+    marker_map_3834 = {'structural': 's', 'negation': 'o', 'contrast': 'D', 'other': 'o'}
+    
+    for i, fid in enumerate(feature_ids_3834):
+        ftype = feature_types_3834.get(str(fid), 'other')
+        color = color_map_3834.get(ftype, '#7f7f7f')
+        marker = marker_map_3834.get(ftype, 'o')
+        ax_Q_3834.get_xticklabels()[i].set_color(color)
+        ax_Q_3834.get_yticklabels()[i].set_color(color)
+        ax_Q_3834.scatter(i, -0.8, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+        ax_Q_3834.scatter(-0.8, i, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+    
+    ax_Q_3834.set_title("Feature 3834 (Tutorial: \"not-good\")\nA) Interaction Submatrix", fontsize=10, fontweight='bold')
+    ax_Q_3834.set_xlabel("Input Feature", fontsize=9)
+    ax_Q_3834.set_ylabel("Input Feature", fontsize=9)
+    plt.colorbar(im, ax=ax_Q_3834, fraction=0.046, pad=0.04)
+    
+    # --- Panel B: Eigenvector Projections ---
+    projs_3834 = data_3834["panel_b"].get("feature_projections", {})
+    
+    type_counts_3834 = {}
+    for feat_str, coords in projs_3834.items():
+        v1, v2 = coords[0], coords[1]
+        ftype = feature_types_3834.get(feat_str, 'other')
+        color = color_map_3834.get(ftype, '#7f7f7f')
+        marker = marker_map_3834.get(ftype, 'o')
+        
+        ax_proj_3834.scatter(v1, v2, marker=marker, c=color, s=80, alpha=0.85, 
+                            edgecolors='black', linewidths=0.5, zorder=5)
+        type_counts_3834[ftype] = type_counts_3834.get(ftype, 0) + 1
+    
+    ax_proj_3834.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    ax_proj_3834.axvline(x=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    
+    # Add directional arrows (paper style)
+    xlim = ax_proj_3834.get_xlim()
+    ylim = ax_proj_3834.get_ylim()
+    ax_proj_3834.annotate('', xy=(xlim[1]*0.95, 0), xytext=(xlim[0]*0.95, 0),
+                         arrowprops=dict(arrowstyle='->', color='#d62728', lw=2))
+    ax_proj_3834.annotate('', xy=(0, ylim[1]*0.95), xytext=(0, ylim[0]*0.95),
+                         arrowprops=dict(arrowstyle='->', color='#2ca02c', lw=2))
+    ax_proj_3834.text(xlim[1]*0.85, ylim[0]*0.12, '+', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_3834.text(xlim[0]*0.85, ylim[0]*0.12, '−', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_3834.text(xlim[0]*0.12, ylim[1]*0.85, '+', fontsize=12, color='#2ca02c', fontweight='bold')
+    ax_proj_3834.text(xlim[0]*0.12, ylim[0]*0.85, '−', fontsize=12, color='#2ca02c', fontweight='bold')
+    
+    ax_proj_3834.set_xlabel("Top positive eigenvector", fontsize=9, color='#d62728')
+    ax_proj_3834.set_ylabel("Top negative eigenvector", fontsize=9, color='#2ca02c')
+    ax_proj_3834.set_title("B) Eigenvector Projections", fontsize=10, fontweight='bold')
+    
+    legend_handles_3834 = [
+        Line2D([0], [0], marker=marker_map_3834[ft], color='w', markerfacecolor=color_map_3834[ft], 
+               markersize=8, markeredgecolor='black', label=f'{ft} ({type_counts_3834.get(ft, 0)})')
+        for ft in ['structural', 'negation', 'contrast', 'other'] if ft in type_counts_3834
+    ]
+    ax_proj_3834.legend(handles=legend_handles_3834, loc='upper right', fontsize=7)
+    
+    # --- Panel C: Scatter Plot ---
+    panel_c_3834 = data_3834.get("panel_c", {})
+    z_true_3834 = np.array(panel_c_3834.get("z_true", []))
+    z_pred_3834 = np.array(panel_c_3834.get("z_pred_rank2", []))
+    corr_3834 = panel_c_3834.get("correlation", 0)
+    
+    if len(z_true_3834) > 0 and len(z_pred_3834) > 0:
+        n_samples = min(2000, len(z_true_3834))
+        np.random.seed(42)
+        idx = np.random.choice(len(z_true_3834), n_samples, replace=False)
+        ax_scatter_3834.scatter(z_true_3834[idx], z_pred_3834[idx], alpha=0.25, s=6, c='#2E86AB', edgecolors='none')
+        max_val = max(z_true_3834.max(), z_pred_3834.max()) * 1.1
+        ax_scatter_3834.plot([0, max_val], [0, max_val], 'k--', alpha=0.6, linewidth=1.5)
+        ax_scatter_3834.set_xlim(0, max_val)
+        ax_scatter_3834.set_ylim(0, max_val)
+    
+    ax_scatter_3834.set_xlabel("True SAE Activation", fontsize=9)
+    ax_scatter_3834.set_ylabel("Rank-2 Prediction", fontsize=9)
+    ax_scatter_3834.set_title(f"C) Correlation: r = {corr_3834:.3f}", fontsize=10, fontweight='bold')
+    
+    # ==================== ROW 2: Feature 751 (Strong AND-gate) ====================
+    ax_Q_751, ax_proj_751, ax_scatter_751 = axes[1]
+    
+    # --- Panel A: Interaction Submatrix (grouped by cluster) ---
+    if "panel_a" in data_751:
+        Q_orig = np.array(data_751["panel_a"]["Q_submatrix"])
+        feature_ids_751 = data_751["panel_a"]["feature_indices"]
+    else:
+        Q_orig = np.array(data_751["Q_submatrix"])
+        feature_ids_751 = data_751.get("top_input_features", list(range(len(Q_orig))))
+    
+    # Reorder to show block structure
+    pos_indices = [i for i, fid in enumerate(feature_ids_751) if fid in cluster_pos_751]
+    neg_indices = [i for i, fid in enumerate(feature_ids_751) if fid in cluster_neg_751]
+    other_indices = [i for i, fid in enumerate(feature_ids_751) if fid not in cluster_pos_751 and fid not in cluster_neg_751]
+    new_order = pos_indices + neg_indices + other_indices
+    
+    Q_751 = Q_orig[np.ix_(new_order, new_order)]
+    feature_ids_751_reordered = [feature_ids_751[i] for i in new_order]
+    
+    vmax = np.abs(Q_751).max()
+    im = ax_Q_751.imshow(Q_751, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect='auto')
+    
+    n_feats = len(feature_ids_751_reordered)
+    ax_Q_751.set_xticks(range(n_feats))
+    ax_Q_751.set_yticks(range(n_feats))
+    ax_Q_751.set_xticklabels(feature_ids_751_reordered, rotation=45, ha='right', fontsize=7)
+    ax_Q_751.set_yticklabels(feature_ids_751_reordered, fontsize=7)
+    
+    for i, fid in enumerate(feature_ids_751_reordered):
+        if fid in cluster_pos_751:
+            color, marker = '#ff7f0e', '^'
+        elif fid in cluster_neg_751:
+            color, marker = '#1f77b4', 'o'
+        else:
+            color, marker = '#7f7f7f', 's'
+        ax_Q_751.get_xticklabels()[i].set_color(color)
+        ax_Q_751.get_yticklabels()[i].set_color(color)
+        ax_Q_751.scatter(i, -0.8, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+        ax_Q_751.scatter(-0.8, i, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+    
+    # Block boundary
+    n_pos = len(pos_indices)
+    if n_pos > 0:
+        ax_Q_751.axhline(y=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
+        ax_Q_751.axvline(x=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
+    
+    ax_Q_751.set_title("Feature 751 (Strong AND-gate)\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
+    ax_Q_751.set_xlabel("Input Feature", fontsize=9)
+    ax_Q_751.set_ylabel("Input Feature", fontsize=9)
+    plt.colorbar(im, ax=ax_Q_751, fraction=0.046, pad=0.04)
+    
+    # --- Panel B: Eigenvector Projections ---
+    if "panel_b" in data_751:
+        projs_751 = data_751["panel_b"].get("feature_projections", {})
+    else:
+        projs_751 = data_751.get("feature_projections", {})
+    
+    type_counts_751 = {'positive': 0, 'negative': 0}
+    for feat_str, coords in projs_751.items():
+        if isinstance(coords, list) and len(coords) >= 2:
+            v1, v2 = coords[0], coords[1]
+        else:
+            continue
+        fid = int(feat_str)
+        if fid in cluster_pos_751:
+            marker, color, size = '^', '#ff7f0e', 100
+            type_counts_751['positive'] += 1
+        elif fid in cluster_neg_751:
+            marker, color, size = 'o', '#1f77b4', 80
+            type_counts_751['negative'] += 1
+        else:
+            marker, color, size = 's', '#7f7f7f', 60
+        
+        ax_proj_751.scatter(v1, v2, marker=marker, c=color, s=size, alpha=0.85, 
+                           edgecolors='black', linewidths=0.5, zorder=5)
+    
+    ax_proj_751.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    ax_proj_751.axvline(x=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    
+    # Directional arrows
+    xlim = ax_proj_751.get_xlim()
+    ylim = ax_proj_751.get_ylim()
+    ax_proj_751.annotate('', xy=(xlim[1]*0.95, 0), xytext=(xlim[0]*0.95, 0),
+                        arrowprops=dict(arrowstyle='->', color='#d62728', lw=2))
+    ax_proj_751.annotate('', xy=(0, ylim[1]*0.95), xytext=(0, ylim[0]*0.95),
+                        arrowprops=dict(arrowstyle='->', color='#2ca02c', lw=2))
+    ax_proj_751.text(xlim[1]*0.85, ylim[0]*0.12, '+', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_751.text(xlim[0]*0.85, ylim[0]*0.12, '−', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_751.text(xlim[0]*0.12, ylim[1]*0.85, '+', fontsize=12, color='#2ca02c', fontweight='bold')
+    ax_proj_751.text(xlim[0]*0.12, ylim[0]*0.85, '−', fontsize=12, color='#2ca02c', fontweight='bold')
+    
+    ax_proj_751.set_xlabel("Top positive eigenvector", fontsize=9, color='#d62728')
+    ax_proj_751.set_ylabel("Top negative eigenvector", fontsize=9, color='#2ca02c')
+    ax_proj_751.set_title("B) Eigenvector Projections", fontsize=10, fontweight='bold')
+    
+    legend_elements_751 = [
+        Line2D([0], [0], marker='^', color='w', markerfacecolor='#ff7f0e', 
+               markersize=10, markeredgecolor='black', label=f'Positive ({type_counts_751["positive"]})'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#1f77b4', 
+               markersize=10, markeredgecolor='black', label=f'Negative ({type_counts_751["negative"]})'),
+    ]
+    ax_proj_751.legend(handles=legend_elements_751, loc='upper right', fontsize=8)
+    
+    # --- Panel C: Scatter Plot ---
+    panel_c_751 = data_751.get("panel_c", {})
+    z_true_751 = np.array(panel_c_751.get("z_true", []))
+    z_pred_751 = np.array(panel_c_751.get("z_pred_rank2", []))
+    corr_751 = panel_c_751.get("correlation", 0)
+    
+    if len(z_true_751) > 0 and len(z_pred_751) > 0:
+        n_samples = min(2000, len(z_true_751))
+        np.random.seed(42)
+        idx = np.random.choice(len(z_true_751), n_samples, replace=False)
+        ax_scatter_751.scatter(z_true_751[idx], z_pred_751[idx], alpha=0.25, s=6, c='#2E86AB', edgecolors='none')
+        max_val = max(z_true_751.max(), z_pred_751.max()) * 1.1
+        ax_scatter_751.plot([0, max_val], [0, max_val], 'k--', alpha=0.6, linewidth=1.5)
+        ax_scatter_751.set_xlim(0, max_val)
+        ax_scatter_751.set_ylim(0, max_val)
+    
+    ax_scatter_751.set_xlabel("True SAE Activation", fontsize=9)
+    ax_scatter_751.set_ylabel("Rank-2 Prediction", fontsize=9)
+    ax_scatter_751.set_title(f"C) Correlation: r = {corr_751:.3f}", fontsize=10, fontweight='bold')
+    
+    # Main title
+    fig.suptitle("Sentiment Negation Circuits: Tutorial Feature 3834 vs Strong AND-gate 751", 
+                fontsize=13, fontweight='bold', y=0.98)
+    
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.93, hspace=0.3)
+    
+    save_figure(fig, "figure_8_final.pdf", figure_dir)
+    
+    print(f"\nFinal Figure 8 generated!")
+    print(f"  Row 1: Feature 3834 (tutorial), r = {corr_3834:.3f}")
+    print(f"  Row 2: Feature 751 (AND-gate), r = {corr_751:.3f}")
+    print(f"  Clusters (751): {type_counts_751['positive']} positive, {type_counts_751['negative']} negative")
+    print(f"  Style: Clean paper format")
+    
+    return True
+
+
 def generate_figure_8_with_examples(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 8: Circuit with per-word activation examples.
@@ -924,8 +1214,12 @@ def main():
             # 6. With per-word examples
             generate_figure_8_with_examples(RESULTS_DIR, FIGURE_DIR)
             generate_figure_8_with_examples(RESULTS_DIR, REPORT_FIG_DIR)
+            
+            # 7. FINAL Figure 8: Comprehensive comparison (single definitive figure)
+            generate_figure_8_final(RESULTS_DIR, FIGURE_DIR)
+            generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR)
         else:
-            print("\nNote: Skipping Figure 8 variants 2-5 (no search results)")
+            print("\nNote: Skipping Figure 8 variants 2-6 (no search results)")
             print("  Run: ./scripts/train/run_language.sh figure8 search")
     
     # === Figure 10: SAE Training Time Effect ===

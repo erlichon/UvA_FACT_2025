@@ -1065,10 +1065,73 @@ def plot_figure_9c_scatters(
         plt.tight_layout()
         return fig
     
-    # Randomly select features
+    # Stratified sampling: select features from different correlation ranges
+    # This gives a representative view of the distribution (high, medium, low correlations)
     np.random.seed(seed)
-    n_select = min(n_features, len(features_with_scatter))
-    selected_indices = np.random.choice(len(features_with_scatter), n_select, replace=False)
+    
+    # Sort features by correlation
+    features_with_corr = []
+    for i, feat in enumerate(features_with_scatter):
+        corr = feat.get("correlation_rank2")
+        if corr is None:
+            # Compute correlation if not stored
+            scatter = feat.get("scatter_data", {})
+            z_true = np.array(scatter.get("z_true", []))
+            z_pred = np.array(scatter.get("z_pred_rank2", []))
+            if len(z_true) > 1 and len(z_pred) > 1:
+                corr = np.corrcoef(z_true, z_pred)[0, 1]
+            else:
+                corr = 0.0
+        features_with_corr.append((i, corr, feat))
+    
+    # Sort by correlation (descending)
+    features_with_corr.sort(key=lambda x: x[1], reverse=True)
+    
+    # Stratified selection: 3 high (r > 0.6), 3 medium (0.2 < r < 0.5), 3 low (r < 0.15)
+    n_per_group = n_features // 3
+    selected_indices = []
+    
+    # High correlation group (r > 0.6)
+    high_corr = [x for x in features_with_corr if x[1] > 0.6]
+    if len(high_corr) >= n_per_group:
+        high_selected = np.random.choice(len(high_corr), n_per_group, replace=False)
+        selected_indices.extend([high_corr[i][0] for i in high_selected])
+    else:
+        selected_indices.extend([x[0] for x in high_corr[:n_per_group]])
+    
+    # Medium correlation group (0.2 < r < 0.5)
+    medium_corr = [x for x in features_with_corr if 0.2 < x[1] < 0.5]
+    if len(medium_corr) >= n_per_group:
+        med_selected = np.random.choice(len(medium_corr), n_per_group, replace=False)
+        selected_indices.extend([medium_corr[i][0] for i in med_selected])
+    else:
+        selected_indices.extend([x[0] for x in medium_corr[:n_per_group]])
+    
+    # Low correlation group (r < 0.15)
+    low_corr = [x for x in features_with_corr if x[1] < 0.15]
+    if len(low_corr) >= n_per_group:
+        low_selected = np.random.choice(len(low_corr), n_per_group, replace=False)
+        selected_indices.extend([low_corr[i][0] for i in low_selected])
+    else:
+        selected_indices.extend([x[0] for x in low_corr[:n_per_group]])
+    
+    # Fill remaining slots if needed
+    n_select = min(n_features, len(selected_indices))
+    if n_select < n_features:
+        remaining = [x[0] for x in features_with_corr if x[0] not in selected_indices]
+        n_remaining = min(n_features - n_select, len(remaining))
+        if n_remaining > 0:
+            extra = np.random.choice(len(remaining), n_remaining, replace=False)
+            selected_indices.extend([remaining[i] for i in extra])
+    
+    # Create a lookup from original index to correlation
+    idx_to_corr = {x[0]: x[1] for x in features_with_corr}
+    
+    # Sort selected by correlation for visual ordering (high to low)
+    selected_with_corr = [(i, idx_to_corr.get(i, 0)) for i in selected_indices[:n_features]]
+    selected_with_corr.sort(key=lambda x: x[1], reverse=True)
+    selected_indices = [x[0] for x in selected_with_corr]
+    n_select = len(selected_indices)
     
     for i, ax in enumerate(axes):
         if i >= n_select:

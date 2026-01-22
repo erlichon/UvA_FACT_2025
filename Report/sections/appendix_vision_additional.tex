@@ -1,0 +1,86 @@
+% Appendix: Additional Vision Results
+% Contains detailed figures from Paper Figures 4-7 reproduction
+
+\section{Additional Vision Results}
+\label{app:vision_additional}
+
+This appendix provides additional visualizations from our reproduction of the paper's vision experiments (Section 4).
+
+\subsection{Noise Sweep Eigenvectors (Paper Figure 4)}
+\label{app:noise_sweep}
+
+Figure~\ref{fig:app_noise_eigenvectors} shows how the top eigenvector for digit 5 changes across noise augmentation levels.
+Higher noise produces more diffuse, averaged eigenvectors that better capture the canonical digit shape.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/vision/figure_4_noise_eigenvectors.pdf}
+    \caption{Top eigenvector for digit 5 across noise levels ($\sigma = 0.0$ to $0.5$).
+    Accuracy improves with noise despite spreading variance across more eigenvectors.}
+    \label{fig:app_noise_eigenvectors}
+\end{figure}
+
+\subsection{Challenge Task Regularization Variants (Paper Figure 6)}
+\label{app:challenge_variants}
+
+We trained challenge task models under four regularization configurations to analyze how regularization affects the eigendecomposition structure.
+Figure~\ref{fig:app_challenge_decay} compares eigenvalue decay across these variants.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/figure_6_challenge_eigenvalue_decay_by_reg.pdf}
+    \caption{Challenge task eigenvalue decay by regularization configuration.
+    Weight decay produces the sharpest spectral decay, concentrating information in fewer eigenvectors.}
+    \label{fig:app_challenge_decay}
+\end{figure}
+
+\subsection{Eigenvector Quality Comparison}
+\label{app:eigenvector_quality}
+
+Figure~\ref{fig:app_eigenvectors_noise} shows the effect of noise-only regularization on eigenvector interpretability.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noise.pdf}
+    \caption{Top eigenvectors with noise augmentation only ($\sigma=0.5$, $\lambda=0.0$).
+    Noise alone produces recognizable digit patterns, though less sharp than with weight decay.}
+    \label{fig:app_eigenvectors_noise}
+\end{figure}
+
+\subsection{Model Size Analysis (Paper Figure 5)}
+\label{app:size_analysis}
+
+Our reproduction of Figure 5 examines how eigenvector similarity and truncation accuracy vary with model size.
+Figure~\ref{fig:app_truncation} shows classification error under rank truncation across model sizes.
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_5a_similarity.pdf}
+        \caption{Eigenvector similarity across seeds}
+        \label{fig:app_similarity}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_5b_truncation.pdf}
+        \caption{Truncation error by model size}
+        \label{fig:app_truncation_error}
+    \end{subfigure}
+    \caption{Paper Figure 5 reproduction.
+    \textbf{(a)} Top eigenvectors are highly consistent across random seeds, especially for larger models.
+    \textbf{(b)} Truncation error decreases with model size; ~10 eigenvectors per class suffice for near-full accuracy.}
+    \label{fig:app_truncation}
+\end{figure}
+
+\subsection{Cross-Dataset Comparison: MNIST vs Fashion-MNIST}
+\label{app:cross_dataset}
+
+Figure~\ref{fig:app_fashion} shows eigenvector quality on Fashion-MNIST under noise-only regularization.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/fashion_eigenvectors_noise.pdf}
+    \caption{Fashion-MNIST top eigenvectors with noise augmentation ($\sigma=0.5$).
+    Class labels: T-shirt, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Boot.}
+    \label{fig:app_fashion}
+\end{figure}

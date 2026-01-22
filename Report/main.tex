@@ -19,6 +19,7 @@
 \usepackage{subcaption}
 \usepackage{natbib}
 \usepackage{cleveref}
+\usepackage{enumitem}
 
 \title{Reproducing ``Bilinear MLPs Enable Weight-Based Mechanistic Interpretability''}
 
@@ -207,6 +208,9 @@ All experiments tracked using \texttt{codecarbon} with Netherlands grid intensit
 Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
 Total compute: 2.02 GPU-hours.
 Total emissions: 0.098 kg CO2eq ($\approx$ 0.6 km driving).
+
+% Additional Vision Results Appendix
+\input{sections/appendix_vision_additional}
 
 % Figure 8 Investigation Appendix
 \input{sections/appendix_figure8_investigation}

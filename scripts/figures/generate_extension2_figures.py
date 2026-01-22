@@ -1930,12 +1930,13 @@ def main():
         func = SECTION_MAP[section]
         
         # Handle functions with different signatures
-        if section == "3way" or section == "eigenvector_table":
+        if section in ["3way", "eigenvector_table"]:
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals, letters_vecs, letters_vals)
         elif section == "heatmap_digits":
             func(d, mnist_vecs, mnist_vals, digits_vecs, digits_vals)
         elif section in ["eigenvectors", "similarity", "similarity_heatmap", "selection", "angles",
-                         "similarity_weighted", "heatmap_weighted", "metric_comparison", "ranking", "statistical"]:
+                         "similarity_weighted", "heatmap_weighted", "metric_comparison", "ranking", "statistical",
+                         "3way_0_O_X", "eigenvector_table_0_O_X", "cosine_heatmap_abs"]:
             func(d, mnist_vecs, mnist_vals, letters_vecs, letters_vals)
         elif section == "distributions":
             func(d, mnist_vals, letters_vals)

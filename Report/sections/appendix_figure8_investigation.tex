@@ -4,11 +4,33 @@
 \section{Sentiment Negation Circuit Investigation}
 \label{app:figure8_investigation}
 
-This appendix presents our detailed investigation of AND-gate circuits in the bilinear transformer fw-medium (16 layers, 335M parameters, trained on FineWeb-EDU).
-The paper's Figure 8 demonstrates a sentiment negation circuit using feature 3834 from the fw-medium model.
-We conducted a comprehensive search to understand the prevalence and strength of such circuits.
+This appendix presents our detailed investigation of AND-gate circuits in bilinear transformers.
 
-\subsection{Methodology}
+\subsection{SAE Availability Investigation}
+\label{app:sae_availability}
+
+We investigated the publicly available SAEs on HuggingFace to determine reproducibility constraints.
+
+\textbf{ts-medium-scope} (paper's ``ts-tiny'', 6 layers):
+\begin{itemize}[leftmargin=*,topsep=0pt,itemsep=0pt]
+    \item Layers 0--4: Only \texttt{mlp-out}, \texttt{resid-mid}, \texttt{resid-pre} SAEs
+    \item Layer 5: \texttt{mlp-in} and \texttt{mlp-out} available
+    \item \textbf{Critical: No \texttt{mlp-in} SAE at layer 4}---the layer used in the paper's Figure 8
+\end{itemize}
+
+\textbf{fw-medium-scope} (16 layers):
+\begin{itemize}[leftmargin=*,topsep=0pt,itemsep=0pt]
+    \item All layers 0--15: \texttt{mlp-in} and \texttt{mlp-out} at 8$\times$ expansion
+    \item Layer 12: Additional v0--v4 training-time variants at 16$\times$ expansion
+\end{itemize}
+
+Since Figure 8 analysis requires \emph{both} \texttt{mlp-in} and \texttt{mlp-out} SAEs (for the Tracer class), the paper's Figure 8 (ts-tiny, layer 4) cannot be reproduced with public artifacts.
+We therefore use fw-medium (layer 7, expansion 8) which has both SAE types available.
+The paper's tutorial also uses fw-medium with features 3834/751, confirming this is a valid alternative.
+
+\subsection{AND-gate Circuit Analysis}
+
+The following analysis uses fw-medium (16 layers, 335M parameters, trained on FineWeb-EDU) with layer 7 SAEs at 8$\times$ expansion (8,192 output features).
 
 \subsubsection{AND-gate Circuit Definition}
 An AND-gate circuit is characterized by an output SAE feature whose activation depends on the \emph{conjunction} of inputs from two semantically distinct clusters.
@@ -45,67 +67,58 @@ We analyzed all 8,192 output features in fw-medium layer 7:
 \subsection{Results: Feature 3834 vs Feature 751}
 
 \subsubsection{Tutorial Feature 3834}
-Feature 3834 (used in the paper's tutorial) encodes ``not-good'' contexts:
-\begin{itemize}
-    \item \textbf{Activating contexts}: ``not lost'', ``no interference'', negated positive phrases
-    \item \textbf{AND-score}: Weak (diffuse eigenvalue spectrum)
-    \item \textbf{Cluster structure}: Less distinct separation between input clusters
-\end{itemize}
+Feature 3834 (used in the paper's tutorial) encodes ``not-good'' contexts with weaker AND-gate structure:
+diffuse eigenvalue spectrum and less distinct cluster separation.
 
 \subsubsection{Best Circuit: Feature 751}
-Our search identified feature 751 as having the strongest AND-gate structure:
-\begin{itemize}
-    \item \textbf{AND-score}: 0.963 (highest among all 8,192 features)
-    \item \textbf{Top eigenvalue}: $\lambda_1 = -0.463$ (negative)
-    \item \textbf{Second eigenvalue}: $\lambda_2 = +0.179$ (positive)
-    \item \textbf{Eigenvalue ratio}: $|\lambda_1|/|\lambda_2| = 2.59$
-    \item \textbf{Cluster sizes}: 3 features in positive cluster, 12 in negative cluster
-\end{itemize}
-
-\subsubsection{Side-by-Side Comparison}
-Figure~\ref{fig:app_figure8_comparison} presents a direct comparison between features 3834 and 751.
+Our search identified feature 751 as having the strongest AND-gate structure (Table~\ref{tab:app_circuit_comparison}).
 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=\linewidth]{figures/language/figure_8_side_by_side_comparison.pdf}
-    \caption{Side-by-side comparison of AND-gate circuits.
-    \textbf{Top row}: Feature 3834 (tutorial example) shows weak AND-gate structure with diffuse interactions.
-    \textbf{Bottom row}: Feature 751 (best discovered) shows strong AND-gate structure with clear cluster separation and dominant opposing eigenvalues.
-    Each row shows: interaction submatrix (left), eigenvector projections (middle), eigenvalue spectrum (right).}
+    \includegraphics[width=\linewidth]{figures/language/figure_8_final.pdf}
+    \caption{AND-gate circuit comparison.
+    \textbf{Top}: Feature 3834 (tutorial) shows diffuse interaction structure.
+    \textbf{Bottom}: Feature 751 shows clear block structure when features are grouped by cluster (black lines).
+    The eigenvector projections (middle) separate clusters along opposite axes due to opposing eigenvalues.
+    Scatter plots (right) show rank-2 approximation quality ($r = 0.93$).}
     \label{fig:app_figure8_comparison}
 \end{figure}
 
-\subsection{Interpretation}
+\subsection{Semantic Interpretation of Feature 751}
 
-\subsubsection{Why Feature 751 is Stronger}
-Feature 751 exhibits superior AND-gate properties because:
-\begin{enumerate}
-    \item \textbf{Spectral concentration}: 85\% of variance captured by top 2 eigenvalues
-    \item \textbf{Sign opposition}: $\lambda_1 < 0$ and $\lambda_2 > 0$ creates effective cancellation
-    \item \textbf{Clean clustering}: Input features separate clearly along $v_1$
-\end{enumerate}
+The input clusters have clear semantic content based on token analysis:
 
-\subsubsection{Semantic Content}
-The input clusters for feature 751 contain:
+\textbf{Positive cluster} (3 features: 5212, 7655, 253):
 \begin{itemize}
-    \item \textbf{Positive cluster} (3 features): Structural/contextual markers
-    \item \textbf{Negative cluster} (12 features): Content-specific features
+    \item Tokens: ``wonderful'', ``excellent'', ``fortunate'', ``beautiful'', ``amazing''
+    \item Semantics: Positive sentiment/quality descriptors
 \end{itemize}
 
-Note: Unlike ts-medium (trained on TinyStories), fw-medium (trained on FineWeb-EDU educational text) does not show clean sentiment-based clustering.
-The clusters reflect domain-specific patterns in educational/scientific writing rather than simple positive/negative sentiment.
+\textbf{Negative cluster} (12 features):
+\begin{itemize}
+    \item Feature 5201: ``horrible'', ``bad'', ``terrible''
+    \item Feature 3601: ``problems'', ``illness'', ``disease''
+    \item Feature 6051: ``excessive'', ``unfair'', ``wrong''
+    \item Feature 6921: ``no'', ``minimal'', ``neither''
+    \item Feature 1003: ``reduce'', ``prevent'', ``eliminate''
+\end{itemize}
 
-\subsection{Implications}
+\textbf{Circuit function:} Feature 751 detects contexts where negative concepts appear \emph{without} positive modulation.
+The AND-gate structure arises because:
+\begin{enumerate}
+    \item $\lambda_1 = -0.46$ (negative): Suppresses activation when positive cluster projects onto $v_1$
+    \item $\lambda_2 = +0.18$ (positive): Activates when negative cluster projects onto $v_2$
+    \item When both clusters are present, the opposing signs cause partial cancellation
+\end{enumerate}
 
-\subsubsection{Circuit Discovery Requires Systematic Search}
-The tutorial feature (3834) is a weaker example than what exists in the model.
-Comprehensive search revealed that feature 751 has 43\% higher AND-score.
-This suggests practitioners should search across features rather than manually inspecting individual examples.
+\textbf{Empirical validation} on test sentences:
+\begin{itemize}
+    \item ``The disease spread quickly'' $\to$ activation 0.88 (negative cluster only)
+    \item ``The bad weather made the view beautiful'' $\to$ activation 0.62 (both clusters)
+    \item ``It was a wonderful day'' $\to$ activation 0.0 (positive cluster only)
+\end{itemize}
 
-\subsubsection{Model Domain Affects Interpretability}
-The fw-medium model (educational text) shows different semantic clustering than ts-medium (children's stories).
-AND-gate circuits exist in both, but their semantic interpretation differs.
-This has implications for transferring interpretability findings across model families.
+This confirms the mechanism: high activation requires negative concepts \emph{without} positive sentiment, consistent with a ``problematic situation'' detector.
 
 \subsection{Summary}
 
@@ -117,15 +130,17 @@ This has implications for transferring interpretability findings across model fa
         \toprule
         \textbf{Property} & \textbf{Feature 3834} & \textbf{Feature 751} \\
         \midrule
-        AND-score & Weak & 0.963 \\
-        Top eigenvalue $\lambda_1$ & Small & $-0.463$ \\
-        Second eigenvalue $\lambda_2$ & Small & $+0.179$ \\
-        Eigenvalue ratio & Low & 2.59 \\
-        Cluster separation & Diffuse & Clear \\
-        Semantic interpretation & ``not-good'' & Domain-specific \\
+        AND-score & Weak & 0.96 \\
+        Top eigenvalue $\lambda_1$ & Diffuse & $-0.46$ \\
+        Second eigenvalue $\lambda_2$ & Diffuse & $+0.18$ \\
+        Eigenvalue ratio $|\lambda_1/\lambda_2|$ & Low & 2.6 \\
+        Cluster separation & Diffuse & Clear (3 pos, 12 neg) \\
+        Semantic interpretation & ``not-good'' & Negative concepts detector \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Our investigation confirms that AND-gate circuits exist in bilinear transformers, but their strength varies significantly across features.
-Feature 751 demonstrates the clearest AND-gate behavior in fw-medium, while the tutorial feature 3834 is a weaker example chosen for its interpretable semantic content (``not-good'').
+\textbf{Key findings:}
+(1) Systematic search finds stronger AND-gate circuits than manual inspection---feature 751's AND-score (0.96) exceeds the tutorial feature.
+(2) Feature 751 implements a ``problematic situation'' detector: it activates for negative concepts (disease, unfair) unless positive sentiment (wonderful, excellent) is also present.
+(3) The opposing eigenvalue signs create the AND-gate mechanism through cancellation.

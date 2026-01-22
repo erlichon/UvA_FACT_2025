@@ -90,7 +90,7 @@ The model's most confident prediction for each letter is \textbf{exactly} the ge
 Direct eigenvector comparison via cosine similarity fails to distinguish geometrically similar pairs.
 MNIST-0 vs EMNIST-O (similar) yields 0.358, while MNIST-0 vs EMNIST-X (dissimilar) yields 0.339---virtually identical.
 The root cause: bilinear eigensystems share eigenvector directions while class information resides in eigenvalue \emph{weights}.
-See figures~\ref{fig:3way_comparison}, \ref{fig:cosine_failure} Appendix~\ref{app:cosine_failure} for the full cosine similarity heatmap and detailed per-eigenvector comparison.
+See Figure~\ref{fig:3way_comparison} for visualization and Appendix~\ref{app:cosine_failure} for full cosine similarity heatmap and per-eigenvector comparison.
 
 \subsubsection{Quadratic Form Similarity}
 

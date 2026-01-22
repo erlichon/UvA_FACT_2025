@@ -205,7 +205,15 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
             'effective_rank': 'mean',
         }).reset_index()
         
+        # Define markers and labels for dense baselines
         markers = {'none': 's', 'noise': '^', 'wd': 'v', 'full': 'D'}
+        labels = {
+            'none': 'Dense (no reg)',
+            'noise': 'Dense (noise only)',
+            'wd': 'Dense (WD only)',
+            'full': 'Dense (full reg)',
+        }
+        
         for _, row in dense_stats.iterrows():
             ax.scatter(
                 row['effective_rank'],
@@ -216,7 +224,7 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
                 edgecolors='black',
                 linewidths=1,
                 zorder=4,
-                label=f"Dense ({row['config']})"
+                label=labels.get(row['config'], f"Dense ({row['config']})")
             )
     
     ax.set_xlabel('Effective Rank', fontsize=12)
@@ -227,6 +235,9 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
     # Add colorbar for CP rank
     cbar = plt.colorbar(scatter, ax=ax)
     cbar.set_label('log₂(CP Rank)', fontsize=10)
+    
+    # Add legend for dense baselines (position to avoid overlap)
+    ax.legend(loc='lower right', fontsize=9, framealpha=0.9, title='Dense Baselines')
     
     plt.tight_layout()
     ctx.save_cp_figure(fig, "cp_rank_accuracy_tradeoff")
