@@ -80,7 +80,7 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             ;;
-        base|noise|size)
+        base|noise|size|challenge|adversarial|all)
             SUBCOMMAND=$1
             shift
             ;;

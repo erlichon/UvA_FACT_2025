@@ -81,10 +81,10 @@ Figure~\ref{fig:eigenvectors} confirms that top eigenvectors are interpretable d
 
 \subsubsection{Additional Vision Results}
 
-We reproduce the paper's Figures 4, 6, and 7.
-\textbf{Noise effect (Figure 4):} Increasing noise improves eigenvector interpretability while trading off with effective rank.
-\textbf{Challenge task (Figure 6):} On binary similarity classification, the top eigenvector resembles the target digit.
-\textbf{Adversarial perturbations (Figure 7):} Perturbations from eigenvector pseudoinverses cause larger accuracy drops than random noise, confirming V6.
+We reproduce the original paper's Figures 4, 6, and 7.
+\textbf{Noise effect (original paper Figure 4):} Increasing noise improves eigenvector interpretability while trading off with effective rank.
+\textbf{Challenge task (original paper Figure 6):} On binary similarity classification, the top eigenvector resembles the target digit.
+\textbf{Adversarial perturbations (original paper Figure 7):} Perturbations from eigenvector pseudoinverses cause larger accuracy drops than random noise, confirming V6.
 
 \subsection{Language Results (Paper Section 5)}
 \label{sec:language_results}
@@ -93,19 +93,23 @@ We reproduce the negation circuit discovery using pretrained bilinear transforme
 
 \subsubsection{Negation Circuit Discovery (Paper Figure 8)}
 
-Figure~\ref{fig:negation_circuit} shows the sentiment negation circuit where input features like ``not good'' and ``not bad'' produce opposing output directions.
+We reproduce the AND-gate circuit discovery demonstrating how bilinear interactions implement semantic operations.
+Figure~\ref{fig:negation_circuit} shows the sentiment negation circuit where input features encoding ``not'' and sentiment words interact to produce context-dependent outputs.
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=0.9\linewidth]{figures/language/figure_8_negation_circuit.pdf}
-    \caption{Negation circuit visualization (Paper Figure 8).
-    Left: Interaction submatrix showing input feature pairs driving the output.
-    Right: Top eigenvectors revealing the negation mechanism.
-    The circuit implements sentiment negation via opposing directions for ``not + positive'' vs.\ ``not + negative.''}
+    \includegraphics[width=0.9\linewidth]{figures/language/figure_8_side_by_side_comparison.pdf}
+    \caption{AND-gate circuit comparison.
+    \textbf{Top}: Feature 3834 (tutorial example, ``not-good'') shows weaker AND-gate structure.
+    \textbf{Bottom}: Feature 751 (strongest discovered, AND-score 0.963) shows clear cluster separation and dominant opposing eigenvalues.
+    See Appendix~\ref{app:figure8_investigation} for full investigation.}
     \label{fig:negation_circuit}
 \end{figure}
 
-Using our memory-efficient eigensolver, we identify negation features that differentially activate on sentiment-modifying contexts, with opposing decoder directions (cosine similarity $-0.16$), confirming Claims L1 and L2.
+Using our memory-efficient eigensolver, we systematically searched all 8,192 output features in fw-medium.
+We identify that feature 751 has the strongest AND-gate structure (AND-score 0.963), substantially higher than the tutorial feature 3834.
+Both features exhibit opposing decoder directions (cosine similarity $<0$), confirming Claims L1 and L2.
+Full comparison and methodology details are in Appendix~\ref{app:figure8_investigation}.
 
 \subsubsection{Low-Rank Correlation Analysis (Paper Figure 9)}
 

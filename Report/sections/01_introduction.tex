@@ -12,7 +12,7 @@ While effective, this approach incurs substantial computational overhead and yie
 Bilinear MLPs replace standard nonlinearities with element-wise multiplication, creating interaction tensors that can be eigendecomposed to reveal interpretable features directly from the learned weights---no auxiliary models required.
 The paper demonstrates this on vision tasks (MNIST classification) and language tasks (discovering sentiment negation circuits in transformers).
 
-This work contributes to \textbf{FACT-AI Topic 1.4: Transparency}~\citep{fact_manual}.
+This work contributes to \textbf{FACT-AI Transparency}~\citep{fact_manual}.
 Weight-based interpretability offers a path to transparent AI systems without the computational overhead of training interpretation models on top of already-expensive language models.
 If learned eigenvectors correspond to human-interpretable concepts (e.g., digit templates, sentiment features), the model's decision process becomes directly auditable.
 

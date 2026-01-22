@@ -208,7 +208,8 @@ def compute_cross_dataset_accuracies(
     letter_to_digit = {'O': 0, 'I': 1, 'Z': 2, 'S': 5}  # B removed per user request
     
     # Check if baseline checkpoints exist (in vision checkpoints directory)
-    baseline_checkpoint_dir = checkpoint_dir.parent.parent / "vision" / "checkpoints"
+    # checkpoint_dir is checkpoints/extension2, so parent is checkpoints
+    baseline_checkpoint_dir = checkpoint_dir.parent / "vision" / "mnist"
     
     # Evaluate for each seed
     for seed in seeds:
@@ -478,7 +479,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=PROJECT_ROOT / "results" / "extension2",
+        default=PROJECT_ROOT / "Report" / "figures" / "extension2",
         help="Directory to save output tables"
     )
     parser.add_argument(

@@ -60,6 +60,13 @@ We trace this discrepancy to SAE training time: comparing five SAE versions with
 We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in the original paper, creating a reproducibility gap.
 
 This finding has practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
+
+\textbf{Extension 1 (Cross-Dataset Robustness):}
+Regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy.
+We propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
+
+\textbf{Extension 2 (CP-Decomposition):}
+We explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5.
 \end{abstract}
 
 % Modular sections
@@ -118,6 +125,32 @@ For a rank-$k$ truncation using top eigenmodes, this expands to:
 
 This enables discrimination between geometrically similar pairs (0--O: 0.400) and dissimilar pairs (0--X: -0.060), where cosine similarity failed (0.358 vs.\ 0.339).
 
+Figure~\ref{fig:3way_comparison} provides a visual comparison of the eigenvectors for these three classes.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/extension2/extension2_3way_comparison_0_O_X.pdf}
+    \caption{Three-way eigenvector comparison: MNIST-0, EMNIST-O, and EMNIST-X. Despite visual similarity between 0 and O, Quadratic Form Similarity successfully distinguishes them from the dissimilar X.}
+    \label{fig:3way_comparison}
+\end{figure}
+
+\section{Cosine Similarity Limitations}
+\label{app:cosine_failure}
+
+Figure~\ref{fig:cosine_heatmap} shows the absolute cosine similarity heatmap between MNIST digit classes and EMNIST letter classes.
+The heatmap demonstrates that cosine similarity fails to produce a clear distinction between geometrically similar and dissimilar class pairs.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\linewidth]{figures/extension2/extension2_heatmap_abs_cosine_similarity.pdf}
+    \caption{Absolute cosine similarity between MNIST digit classes and EMNIST letter classes fails to distinguish geometrically similar pairs (0--O) from dissimilar pairs (0--X).}
+    \label{fig:cosine_heatmap}
+\end{figure}
+
+Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector breakdown, showing that the mean cosine similarity for 0--O (0.358) is nearly identical to 0--X (0.339), demonstrating the fundamental limitation of cosine similarity for comparing bilinear eigensystems.
+
+\input{eigenvector_comparison_table_0_O_X}
+
 \section{Full CP-Decomposition Results}
 \label{app:cp_full}
 
@@ -175,5 +208,8 @@ All experiments tracked using \texttt{codecarbon} with Netherlands grid intensit
 Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
 Total compute: 2.02 GPU-hours.
 Total emissions: 0.098 kg CO2eq ($\approx$ 0.6 km driving).
+
+% Figure 8 Investigation Appendix
+\input{sections/appendix_figure8_investigation}
 
 \end{document}

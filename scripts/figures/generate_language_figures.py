@@ -528,6 +528,161 @@ def generate_figure_8_comparison(results_dir: Path, figure_dir: Path):
     return True
 
 
+def generate_figure_8_side_by_side(results_dir: Path, figure_dir: Path):
+    """
+    Generate Figure 8 Side-by-Side Comparison: Feature 3834 vs Feature 751.
+    
+    Creates a clean 2-row x 3-column comparison figure:
+    - Row 1: Feature 3834 (Tutorial "not-good")
+    - Row 2: Feature 751 (Best AND-gate circuit discovered)
+    
+    Each row shows: Interaction Submatrix | Eigenvector Projections | Eigenvalue Spectrum
+    """
+    print("\n" + "="*60)
+    print("FIGURE 8: Side-by-Side Comparison (3834 vs 751)")
+    print("="*60)
+    
+    # Load data for both features
+    feature_3834_file = results_dir / "figure_8_data_fw_medium.json"
+    feature_751_file = results_dir / "figure_8_feature751.json"
+    circuit_751_file = results_dir / "circuit_analysis_751.json"
+    
+    if not feature_3834_file.exists():
+        print(f"Feature 3834 data not found: {feature_3834_file}")
+        return False
+    
+    if not feature_751_file.exists() and not circuit_751_file.exists():
+        print(f"Feature 751 data not found")
+        return False
+    
+    # Load feature 3834 data
+    data_3834 = load_figure_8_data(feature_3834_file)
+    
+    # Load feature 751 data
+    if feature_751_file.exists():
+        data_751 = load_figure_8_data(feature_751_file)
+    else:
+        with open(circuit_751_file) as f:
+            data_751 = json.load(f)
+    
+    # Get AND-scores from search results if available
+    search_file = results_dir / "circuit_search_complete.json"
+    and_score_751 = None
+    if search_file.exists():
+        with open(search_file) as f:
+            search_results = json.load(f)
+        for item in search_results.get("top_by_and_score", []):
+            if item["feature"] == 751:
+                and_score_751 = item["and_score"]
+                break
+    
+    # Create figure: 2 rows x 3 columns
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    
+    features_data = [
+        ("Feature 3834 (Tutorial)", data_3834, "weak"),
+        (f"Feature 751 (Best)", data_751, f"{and_score_751:.2f}" if and_score_751 else "strong"),
+    ]
+    
+    for row_idx, (title_prefix, data, and_score_str) in enumerate(features_data):
+        ax_interaction = axes[row_idx, 0]
+        ax_projection = axes[row_idx, 1]
+        ax_eigenval = axes[row_idx, 2]
+        
+        # Panel A: Interaction Submatrix
+        if "panel_a" in data:
+            Q = np.array(data["panel_a"]["Q_submatrix"])
+        elif "Q_submatrix" in data:
+            Q = np.array(data["Q_submatrix"])
+        else:
+            Q = None
+        
+        if Q is not None:
+            vmax = np.abs(Q).max()
+            im = ax_interaction.imshow(Q, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect='auto')
+            ax_interaction.set_title(f"{title_prefix}\nInteraction Submatrix", fontsize=10)
+            ax_interaction.set_xlabel("Input Feature", fontsize=9)
+            ax_interaction.set_ylabel("Input Feature", fontsize=9)
+            plt.colorbar(im, ax=ax_interaction, fraction=0.046, pad=0.04)
+        else:
+            ax_interaction.text(0.5, 0.5, "Data not available", ha='center', va='center')
+            ax_interaction.set_title(f"{title_prefix}\nInteraction Submatrix", fontsize=10)
+        
+        # Panel B: Eigenvector Projections
+        if "panel_b" in data:
+            projs = data["panel_b"].get("feature_projections") or data["panel_b"].get("projections", {})
+        elif "feature_projections" in data:
+            projs = data["feature_projections"]
+        else:
+            projs = {}
+        
+        cluster_pos = data.get("cluster_pos", [])
+        cluster_neg = data.get("cluster_neg", [])
+        
+        if projs:
+            for feat_str, coords in projs.items():
+                v1, v2 = coords[0], coords[1]
+                feat = int(feat_str)
+                if feat in cluster_pos:
+                    color = '#2ca02c'  # Green
+                elif feat in cluster_neg:
+                    color = '#d62728'  # Red
+                else:
+                    color = '#7f7f7f'  # Gray
+                ax_projection.scatter(v1, v2, c=color, s=50, alpha=0.7)
+            
+            ax_projection.axhline(y=0, color='gray', linestyle='--', alpha=0.5, linewidth=0.5)
+            ax_projection.axvline(x=0, color='gray', linestyle='--', alpha=0.5, linewidth=0.5)
+            ax_projection.set_xlabel("$v_1$ projection", fontsize=9)
+            ax_projection.set_ylabel("$v_2$ projection", fontsize=9)
+            ax_projection.set_title(f"Eigenvector Projections\n(AND-score: {and_score_str})", fontsize=10)
+            
+            # Add legend if clusters exist
+            if cluster_pos or cluster_neg:
+                from matplotlib.patches import Patch
+                legend_handles = []
+                if cluster_pos:
+                    legend_handles.append(Patch(color='#2ca02c', label=f'Cluster + ({len(cluster_pos)})'))
+                if cluster_neg:
+                    legend_handles.append(Patch(color='#d62728', label=f'Cluster - ({len(cluster_neg)})'))
+                ax_projection.legend(handles=legend_handles, loc='best', fontsize=7)
+        else:
+            ax_projection.text(0.5, 0.5, "Projection data\nnot available", ha='center', va='center')
+            ax_projection.set_title(f"Eigenvector Projections", fontsize=10)
+        
+        # Panel C: Eigenvalue Spectrum
+        if "panel_c" in data:
+            # For figure_8_data format, eigenvalues might be in a different structure
+            eigenvals = None
+        elif "eigenvalues" in data:
+            eigenvals = data["eigenvalues"][:10]
+        else:
+            eigenvals = None
+        
+        if eigenvals is not None:
+            colors = ['#d62728' if e < 0 else '#2ca02c' for e in eigenvals]
+            ax_eigenval.bar(range(len(eigenvals)), eigenvals, color=colors, alpha=0.7)
+            ax_eigenval.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+            ax_eigenval.set_xlabel("Eigenvalue Index", fontsize=9)
+            ax_eigenval.set_ylabel("Eigenvalue", fontsize=9)
+            ax_eigenval.set_title(f"Eigenvalue Spectrum\n(top 10)", fontsize=10)
+            ax_eigenval.set_xticks(range(len(eigenvals)))
+        else:
+            ax_eigenval.text(0.5, 0.5, "Eigenvalue data\nnot available", ha='center', va='center')
+            ax_eigenval.set_title(f"Eigenvalue Spectrum", fontsize=10)
+    
+    plt.tight_layout()
+    
+    # Save figure
+    save_figure(fig, "figure_8_side_by_side_comparison.pdf", figure_dir)
+    
+    print(f"\nSide-by-side comparison generated!")
+    print(f"  Row 1: Feature 3834 (tutorial)")
+    print(f"  Row 2: Feature 751 (best AND-gate, score: {and_score_751:.2f if and_score_751 else 'N/A'})")
+    
+    return True
+
+
 def generate_figure_8_with_examples(results_dir: Path, figure_dir: Path):
     """
     Generate Figure 8: Circuit with per-word activation examples.
@@ -761,7 +916,11 @@ def main():
             generate_figure_8_comparison(RESULTS_DIR, FIGURE_DIR)
             generate_figure_8_comparison(RESULTS_DIR, REPORT_FIG_DIR)
             
-            # 5. With per-word examples
+            # 5. Side-by-side comparison (2 rows x 3 columns)
+            generate_figure_8_side_by_side(RESULTS_DIR, FIGURE_DIR)
+            generate_figure_8_side_by_side(RESULTS_DIR, REPORT_FIG_DIR)
+            
+            # 6. With per-word examples
             generate_figure_8_with_examples(RESULTS_DIR, FIGURE_DIR)
             generate_figure_8_with_examples(RESULTS_DIR, REPORT_FIG_DIR)
         else:
