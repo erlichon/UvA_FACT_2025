@@ -130,8 +130,27 @@ This enables discrimination between geometrically similar pairs (0--O: 0.400) an
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/extension2/extension2_3way_comparison_0_O_X.pdf}
-    \caption{Three-way eigenvector comparison: MNIST-0, EMNIST-O, and EMNIST-X. Despite visual similarity between 0 and O, Quadratic Form Similarity successfully distinguishes them from the dissimilar X.}
+    \caption{Three-way eigenvector comparison: MNIST-0, EMNIST-O, and EMNIST-X. The top eigenvectors for each class are visually distinct from one another}
     \label{fig:3way_comparison}
+\end{figure}
+
+\section{Eigenvector Visualization}
+\label{app:eigenvectors}
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noreg.pdf}
+    \caption{Top eigenvectors for each digit class (0--9) without regularization: diffuse, noise-like patterns (V3).}
+    \label{fig:eigenvectors_noreg}
+\end{figure}
+
+\clearpage
+
+\begin{figure}[!htbp]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_reg.pdf}
+    \caption{Top eigenvectors for each digit class (0--9) with regularization (noise $\sigma=0.5$, weight decay $=1.0$): recognizable digit strokes (V2).}
+    \label{fig:eigenvectors_reg}
 \end{figure}
 
 \section{Cosine Similarity Limitations}
@@ -139,6 +158,7 @@ This enables discrimination between geometrically similar pairs (0--O: 0.400) an
 
 Figure~\ref{fig:cosine_heatmap} shows the absolute cosine similarity heatmap between MNIST digit classes and EMNIST letter classes.
 The heatmap demonstrates that cosine similarity fails to produce a clear distinction between geometrically similar and dissimilar class pairs.
+Figure~\ref{fig:3way_comparison} provides a three-way eigenvector comparison that further illustrates this limitation.
 
 \begin{figure}[h]
     \centering

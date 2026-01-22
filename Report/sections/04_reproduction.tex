@@ -46,12 +46,14 @@ Figure~\ref{fig:eigenspectrum} shows eigenvalue distributions, revealing sharp s
 \begin{figure}[t]
     \centering
     \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/eigenspectrum_comparison.pdf}
+        \centering
+        \includegraphics[height=4.5cm]{figures/vision/eigenspectrum_comparison.pdf}
         \caption{Eigenspectrum by regularization}
     \end{subfigure}
     \hfill
     \begin{subfigure}{0.48\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/eigenvalue_decay.pdf}
+        \centering
+        \includegraphics[height=4.5cm]{figures/vision/eigenvalue_decay.pdf}
         \caption{Eigenvalue decay rate}
     \end{subfigure}
     \caption{Eigenspectrum analysis on MNIST.
@@ -61,23 +63,7 @@ Figure~\ref{fig:eigenspectrum} shows eigenvalue distributions, revealing sharp s
 
 \subsubsection{Eigenvector Visualization (Claims V2, V3)}
 
-Figure~\ref{fig:eigenvectors} confirms that top eigenvectors are interpretable digit-like patterns under regularization.
-
-\begin{figure}[t]
-    \centering
-    \begin{subfigure}{0.95\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/eigenvectors_noreg.pdf}
-        \caption{No regularization: diffuse, noise-like patterns}
-    \end{subfigure}
-    \\[0.3em]
-    \begin{subfigure}{0.95\textwidth}
-        \includegraphics[width=\linewidth]{figures/vision/eigenvectors_reg.pdf}
-        \caption{With regularization: recognizable digit strokes}
-    \end{subfigure}
-    \caption{Top eigenvectors for each digit class (0--9).
-    Without regularization, eigenvectors are diffuse (V3); with regularization, they show clear digit structures (V2).}
-    \label{fig:eigenvectors}
-\end{figure}
+Figures~\ref{fig:eigenvectors_noreg} and~\ref{fig:eigenvectors_reg} (see Appendix~\ref{app:eigenvectors}) confirm that top eigenvectors are interpretable digit-like patterns under regularization.
 
 \subsubsection{Additional Vision Results}
 \label{sec:additional_vision_results}
