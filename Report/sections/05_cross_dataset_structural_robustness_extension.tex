@@ -18,24 +18,8 @@ We probe robustness under three distributional shifts:
 
 \subsubsection{Writer Independence: MNIST $\leftrightarrow$ EMNIST-Digits}
 
-With the regularized CoM model, cross-dataset accuracy is near-perfect and symmetric (Table~\ref{tab:mnist_emnist_digits}): MNIST $\to$ EMNIST achieves 97.5\% and the reverse achieves 97.9\%.
+With the regularized CoM model, cross-dataset accuracy is near-perfect and symmetric (Table~\ref{tab:mnist_emnist_digits}, Appendix~\ref{app:cross_dataset_results}): MNIST $\to$ EMNIST achieves 97.5\% and the reverse achieves 97.9\%.
 This confirms that regularized bilinear features \textbf{do not overfit to MNIST writers}.
-
-\begin{table}[h]
-\centering
-\caption{Cross-Dataset Accuracy: MNIST $\leftrightarrow$ EMNIST-Digits (mean over 5 seeds).}
-\label{tab:mnist_emnist_digits}
-\small
-\begin{tabular}{lc}
-\toprule
-\textbf{Direction} & \textbf{Accuracy} \\
-\midrule
-MNIST $\rightarrow$ EMNIST-Digits & 97.527 ± 0.024\% \\
-EMNIST-Digits $\rightarrow$ MNIST & 97.910 ± 0.026\% \\
-Bidirectional Average & 97.719 ± 0.012\% \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \subsubsection{Domain Transfer: MNIST $\rightarrow$ USPS}
 
