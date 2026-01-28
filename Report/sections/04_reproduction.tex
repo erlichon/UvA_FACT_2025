@@ -98,16 +98,25 @@ We use \texttt{fw-medium} (layer 7, expansion 8) which has both SAE types.
 
 \subsubsection{Negation Circuit Discovery (Paper Figure 8)}
 
-Figure~\ref{fig:negation_circuit} compares negation feature 3834 with stronger AND-gate feature 751 in fw-medium.
-Each row shows (A) interaction submatrix, (B) eigenvector projections with semantic directions, and (C) rank-2 predictions vs.\ true activations.
-Feature 751 exhibits clearer AND-gate structure, consistent with low-dimensional semantic mechanisms.
-Full methodology in Appendix~\ref{app:figure8_investigation}.
+The paper claims bilinear layers enable circuit discovery via eigendecomposition.
+For output feature $f$, the interaction matrix $Q_f$ captures how input feature pairs contribute to $f$'s activation: $z^{\text{out}}_f \approx (\mathbf{z}^{\text{in}})^\top Q_f \mathbf{z}^{\text{in}}$.
+Eigendecomposing $Q_f$ reveals dominant input directions.
+
+Figure~\ref{fig:negation_circuit} shows this for negation features in fw-medium:
+\textbf{(A) Interaction submatrix}: $Q_f$ restricted to top-15 input features, grouped by cluster.
+Red blocks indicate positive interactions (features that co-activate $f$), blue indicates negative.
+\textbf{(B) Eigenvector projections}: Input features projected onto top eigenvectors.
+Neg./Pos.\ sentiment features cluster separately; arrows show ``good''/``bad'' unembed directions and ``not'' input direction.
+The black dot marks where the output feature lies---at the intersection of negation and sentiment.
+This reveals the AND-gate circuit: \emph{negation $\otimes$ sentiment $\to$ negated-sentiment}.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.82\linewidth]{figures/language/figure_8_final.pdf}
-    \caption{AND-gate circuit (fw-medium, layer 7). Top: feature 3834; bottom: feature 751.
-    (A) Interaction submatrix, (B) eigenvector projections, (C) rank-2 vs.\ true activations.}
+    \caption{Negation circuit discovery (fw-medium, layer 7).
+    Top: feature 3834 (``not-good''); bottom: feature 751 (``not-bad'').
+    (A) Interaction submatrix $Q_f$ shows block structure---positive/negative sentiment features interact oppositely.
+    (B) Eigenvector projections reveal clustering: sentiment features separate along the ``good''$\leftrightarrow$``bad'' axis.}
     \label{fig:negation_circuit}
 \end{figure}
 

@@ -25,7 +25,8 @@ On geometrically similar letters (Table~\ref{tab:letter_digit}, Appendix~\ref{ap
 \subsubsection{The Failure of Cosine Similarity}
 
 Direct eigenvector comparison via cosine similarity fails to distinguish geometrically similar pairs: MNIST-0 vs EMNIST-O (similar) yields 0.358, while MNIST-0 vs EMNIST-X (dissimilar) yields 0.339---virtually identical.
-The root cause: bilinear eigensystems share eigenvector directions while class information resides in eigenvalue weights (Figure~\ref{fig:3way_comparison}, Appendix~\ref{app:cosine_failure}).
+Figure~\ref{fig:cosine_heatmap} (Appendix~\ref{app:cosine_failure}) shows this failure across all digit-letter pairs, while Table~\ref{tab:eigenvector_comparison_0_O_X} provides a detailed per-eigenvector breakdown confirming that mean similarities are nearly identical (0.358 vs.\ 0.339).
+The root cause: bilinear eigensystems share eigenvector directions while class information resides in eigenvalue weights (Figure~\ref{fig:3way_comparison}).
 
 \subsubsection{Quadratic Form Similarity}
 
@@ -34,6 +35,7 @@ We propose comparing full decision surfaces via Quadratic Form Similarity:
 \mathrm{sim}(A,B) = \frac{\operatorname{tr}(A \cdot B)}{\|A\|_F \|B\|_F} \in [-1, 1]
 \end{equation}
 This incorporates both eigenvector alignment and eigenvalue magnitudes, enabling discrimination between similar (0.400) and dissimilar (-0.060) pairs ($p_{value} < 10^{-4}$).
+Figure~\ref{fig:similarity_vs_k} (Appendix~\ref{app:cross_dataset_results}) demonstrates this: similar pairs converge to high similarity around $k=20$ eigenvectors, while dissimilar pairs remain near zero with non-overlapping 90\% confidence intervals.
 Figure~\ref{fig:quadratic_heatmaps} (Appendix~\ref{app:cross_dataset_results}) shows clear discrimination: strong diagonal for MNIST vs.\ EMNIST-Digits and bright entries at shape-matched pairs (0--O, 1--I, 2--Z, 5--S).
 Table~\ref{tab:ranking_analysis} (Appendix~\ref{app:cross_dataset_results}) confirms specificity: 3/4 pairs rank \#1, with mean rank 1.2 vs.\ random baseline of 13.
 
