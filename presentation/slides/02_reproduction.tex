@@ -56,20 +56,64 @@
     \end{columns}
 \end{frame}
 
-\begin{frame}{Language Section}
-    \begin{center}
-        \Large
-        \textbf{Language figures to be filled by Itay}
+\begin{frame}{Language: Negation Circuit Discovery (Figure 8)}
+    \begin{columns}
+        \column{0.65\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\textwidth]{../Report/figures/language/figure_8_final.pdf}
+        \end{figure}
         
-        \vspace{1cm}
-        \normalsize
-        Available figures in \texttt{Report/figures/language/}:
+        \column{0.35\textwidth}
+        \small
+        \textbf{Interaction Matrix:}
+        \begin{equation*}
+            z^{\text{out}}_f \approx (\mathbf{z}^{\text{in}})^\top Q_f \, \mathbf{z}^{\text{in}}
+        \end{equation*}
+        
+        \vspace{0.3cm}
+        \textbf{Key Insight:}
         \begin{itemize}
-            \item \texttt{figure\_8\_negation\_circuit.pdf}
-            \item \texttt{figure\_9a\_correlation\_progression.pdf}
-            \item \texttt{figure\_9b\_correlation\_histogram.pdf}
+            \item SAEs $\to$ sparse features
+            \item Eigendecompose $Q_f$
+            \item Reveals AND-gate circuit:
         \end{itemize}
-    \end{center}
+        \begin{center}
+            \small
+            negation $\otimes$ sentiment\\
+            $\downarrow$\\
+            negated-sentiment
+        \end{center}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Language: Low-Rank Correlation Analysis (Figure 9)}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.31\textwidth]{../Report/figures/language/figure_9a_correlation_progression.pdf}
+        \hfill
+        \includegraphics[width=0.31\textwidth]{../Report/figures/language/figure_9b_correlation_histogram.pdf}
+        \hfill
+        \includegraphics[width=0.31\textwidth]{../Report/figures/language/figure_9c_scatter_plots.pdf}
+    \end{figure}
+    
+    \vspace{-0.4cm}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \footnotesize
+        \textbf{Rank-$k$ Approximation:}
+        \begin{equation*}
+            \hat{z}^{\text{out}}_f = \sum_{r=1}^{k} \lambda_r (\mathbf{v}_r^\top \mathbf{z}^{\text{in}})^2
+        \end{equation*}
+        
+        \column{0.5\textwidth}
+        \footnotesize
+        \textbf{Results:}
+        \begin{itemize}
+            \item Paper: 69\% features $>$0.75 at rank-2
+            \item Ours: 18--32\% (SAE training gap)
+        \end{itemize}
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Reproduction Summary}

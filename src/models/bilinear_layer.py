@@ -193,10 +193,41 @@ class BilinearCP(nn.Module):
         
         return hidden @ self.C.T
 
+    @property
+    def w_l(self) -> Float[Tensor, "d_out d_in"]:
+        """
+        Reconstructed left weight matrix for eigendecomposition compatibility.
+        
+        For CP decomposition: w_l = C @ diag(lambdas) @ A.T
+        This absorbs the lambda scaling into w_l.
+        
+        Returns:
+            Tensor of shape [d_out, d_in]
+        """
+        if self.cp_init_mode == "gated":
+            # For gated mode, use gates instead of lambdas
+            gates = torch.clamp(torch.sigmoid(self.gate_logits) * 1.1 - 0.05, 0, 1)
+            return (self.C * gates.unsqueeze(0) * self.scaling_factor) @ self.A.T
+        else:
+            return (self.C * self.lambdas.unsqueeze(0)) @ self.A.T
+
+    @property
+    def w_r(self) -> Float[Tensor, "d_out d_in"]:
+        """
+        Reconstructed right weight matrix for eigendecomposition compatibility.
+        
+        For CP decomposition: w_r = C @ B.T
+        Lambda scaling is absorbed into w_l, not w_r.
+        
+        Returns:
+            Tensor of shape [d_out, d_in]
+        """
+        return self.C @ self.B.T
+
 
 def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
                     rank: int = None, bias: bool = False, gate: str = None,
-                    cp_init_mode: str = "lambda"):
+                    cp_init_mode: str = "lambda", variance_corrected_init: bool = False):
     """
     Factory function to create appropriate bilinear layer.
 
@@ -208,6 +239,7 @@ def create_bilinear(d_in: int, d_out: int, mode: str = 'dense',
         bias: Include bias term
         gate: Gating function for dense mode
         cp_init_mode: CP initialization mode - "fixed", "lambda", or "gated" (default: "lambda")
+        variance_corrected_init: Apply variance correction for Rich Training regime (dense mode only)
 
     Returns:
         BilinearDense or BilinearCP instance
