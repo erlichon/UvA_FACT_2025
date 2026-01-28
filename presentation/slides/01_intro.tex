@@ -1,0 +1,53 @@
+% Introduction Slides
+
+\begin{frame}{Bilinear MLPs: Weight-Based Interpretability}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Purpose:}
+        \begin{itemize}
+            \item Direct interpretability from weights
+            \item No post-hoc analysis needed
+            \item No SAE training required
+        \end{itemize}
+        
+        \vspace{0.5cm}
+        \textbf{Structure:}
+        \begin{equation*}
+            \mathbf{y} = (\mathbf{W}_l \mathbf{x}) \odot (\mathbf{W}_r \mathbf{x})
+        \end{equation*}
+        
+        \column{0.5\textwidth}
+        \textbf{Benefits:}
+        \begin{itemize}
+            \item Element-wise multiplication creates quadratic interactions
+            \item Interaction tensor can be eigendecomposed
+            \item Interpretable features directly from weights
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Eigendecomposition for Interpretability}
+    \textbf{Method:}
+    \begin{enumerate}
+        \item Extract interaction tensor for each class $c$:
+        \begin{equation*}
+            B_c = \mathbf{W}_l \otimes \mathbf{W}_r
+        \end{equation*}
+        
+        \item Symmetrize the tensor:
+        \begin{equation*}
+            B_c^{\text{sym}} = \frac{1}{2}(B_c + B_c^\top)
+        \end{equation*}
+        
+        \item Eigendecomposition:
+        \begin{equation*}
+            B_c^{\text{sym}} = \sum_{r=1}^{d} \lambda_r^{(c)} \mathbf{v}_r^{(c)} (\mathbf{v}_r^{(c)})^\top
+        \end{equation*}
+    \end{enumerate}
+    
+    \vspace{0.3cm}
+    \textbf{Effective Rank:}
+    \begin{equation*}
+        \text{EffRank}(\boldsymbol{\lambda}) = \left( \frac{\|\boldsymbol{\lambda}\|_1}{\|\boldsymbol{\lambda}\|_2} \right)^2
+    \end{equation*}
+\end{frame}

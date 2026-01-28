@@ -1,0 +1,59 @@
+% Introduction Slides
+
+\begin{frame}{Bilinear MLPs: Weight-Based Interpretability}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Key Innovation:}
+        \begin{itemize}
+            \item Direct interpretability from weights
+            \item No post-hoc analysis needed
+            \item No SAE training required
+        \end{itemize}
+        
+        \vspace{0.2cm}
+        \textbf{Architecture:}
+        \begin{equation*}
+            \mathbf{y} = (\mathbf{W}_l \mathbf{x}) \odot (\mathbf{W}_r \mathbf{x})
+        \end{equation*}
+        
+        \footnotesize
+        Element-wise multiplication creates quadratic interactions
+        
+        \column{0.5\textwidth}
+        \textbf{Motivation:}
+        \begin{itemize}
+            \item Standard: train SAEs on activations
+            \item Bilinear: interpret weights directly
+            \item Interaction tensor eigendecomposable
+            \item Reveals features without auxiliary models
+        \end{itemize}
+        
+        \vspace{0.2cm}
+        \textbf{Goal:}
+        \begin{itemize}
+            \item Understand decisions through weight structure
+            \item Enable transparent AI systems
+        \end{itemize}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Eigendecomposition Methodology}
+    \textbf{Method:}
+    \begin{enumerate}
+        \item Extract interaction tensor: $B_c = \mathbf{W}_l \otimes \mathbf{W}_r$
+        \item Symmetrize: $B_c^{\text{sym}} = \frac{1}{2}(B_c + B_c^\top)$
+        \item Eigendecomposition:
+        \begin{equation*}
+            B_c^{\text{sym}} = \sum_{r=1}^{d} \lambda_r^{(c)} \mathbf{v}_r^{(c)} (\mathbf{v}_r^{(c)})^\top
+        \end{equation*}
+    \end{enumerate}
+    
+    \vspace{0.3cm}
+    \textbf{Effective Rank:}
+    \begin{equation*}
+        \text{EffRank}(\boldsymbol{\lambda}) = \left( \frac{\|\boldsymbol{\lambda}\|_1}{\|\boldsymbol{\lambda}\|_2} \right)^2
+    \end{equation*}
+    
+    \footnotesize
+    Low effective rank $\Rightarrow$ few dominant eigenvectors $\Rightarrow$ interpretable structure
+\end{frame}
