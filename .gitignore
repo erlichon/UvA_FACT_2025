@@ -13,7 +13,6 @@ Report/*.blg
 Report/*.fdb_latexmk
 results/language/scatter_data/
 scripts/figures/archive/
-results/
 checkpoints/
 checkpoints.zip
 results.zip
@@ -40,6 +39,9 @@ results/Thumbs.db
 # Checkpoints (too large for git)
 checkpoints/
 *.pt
-results/sweeps/*/checkpoints/
+Report/main.bbl
+Report/main.blg
+.DS_Store
+__MACOSX/
 Report/main.bbl
 Report/main.blg

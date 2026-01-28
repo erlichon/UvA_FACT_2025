@@ -225,6 +225,9 @@ def main():
     if eigenpairs_dir.exists():
         for model_dir in eigenpairs_dir.iterdir():
             if model_dir.is_dir():
+                # Only count eigenpairs precompute for fw-medium (used in Figure 9)
+                if model_dir.name != "fw-medium":
+                    continue
                 for layer_dir in model_dir.iterdir():
                     if layer_dir.is_dir():
                         manifest_file = layer_dir / "manifest.json"

@@ -607,6 +607,11 @@ def _compute_metric_from_sums(
     cov = sum_z_pred - n_active * mean_z * mean_pred
     var_z = sum_z2 - n_active * (mean_z ** 2)
     var_pred = sum_pred2 - n_active * (mean_pred ** 2)
+    # Numerical safety: clamp negative variances from round-off to zero
+    if var_z < 0:
+        var_z = 0.0
+    if var_pred < 0:
+        var_pred = 0.0
     denom = (var_z ** 0.5) * (var_pred ** 0.5)
     return float("nan") if denom < 1e-10 else cov / denom
 

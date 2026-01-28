@@ -28,6 +28,9 @@
 #   --sequential  Run figure9 sequentially (memory-safe)
 #   --streaming   Use streaming Q computation for CUDA (Figure 8)
 #   --chunk-size  Chunk size for streaming (256=1GB, 128=0.5GB)
+#   --fig8-dataset Dataset for Figure 8 (tinystories|fineweb|fineweb-16k)
+#   --batch-size  Batch size for figure9 validation
+#   --max-batches Max batches for figure9 validation
 #   --exact-accum Use exact streaming accumulation for Figure 9
 #   --precompute  Precompute eigenpairs in 'all' pipeline
 #   --exact-chunk Feature chunk size for exact streaming
@@ -51,12 +54,15 @@ FEATURE=3834
 NO_CONDA=false
 STREAMING=false
 CHUNK_SIZE=256
+BATCH_SIZE=""
+MAX_BATCHES=""
 EXACT_ACCUM=false
 PRECOMPUTE=false
 EXACT_CHUNK=""
 METRIC="pearson"
 LOAD_EIGENPAIRS=""
 LAYER=""
+FIG8_DATASET=""
 
 # Parse global options and extract command
 COMMAND=""
@@ -98,6 +104,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         --chunk-size)
             CHUNK_SIZE="$2"
+            shift 2
+            ;;
+        --fig8-dataset)
+            FIG8_DATASET="$2"
+            shift 2
+            ;;
+        --batch-size)
+            BATCH_SIZE="$2"
+            shift 2
+            ;;
+        --max-batches)
+            MAX_BATCHES="$2"
             shift 2
             ;;
         --exact-accum)
@@ -245,7 +263,7 @@ run_figure9() {
     local max_batches=128
     local target_samples="all"
     local batch_size=48
-    local chunk_size=256
+    local chunk_size="$CHUNK_SIZE"
     local scatter_flag=""
     local exact_flag=""
     local exact_chunk_flag=""
@@ -254,7 +272,15 @@ run_figure9() {
     if [[ "$DEVICE" == "mps" ]]; then
         # Keep batch size modest for memory stability on MPS
         batch_size=48
-        chunk_size=256
+        chunk_size="$CHUNK_SIZE"
+    fi
+
+    # Allow CLI overrides for hardware tuning
+    if [ -n "$BATCH_SIZE" ]; then
+        batch_size="$BATCH_SIZE"
+    fi
+    if [ -n "$MAX_BATCHES" ]; then
+        max_batches="$MAX_BATCHES"
     fi
     
     if $QUICK_MODE; then
@@ -286,7 +312,7 @@ run_figure9() {
     echo "    Features: $n_features"
     echo "    Ranks: $ranks"
     echo "    Metric: $METRIC"
-    echo "    Samples: $n_samples, Target: $target_samples per feature"
+    echo "    Samples: $n_samples, Target: $target_samples per feature (max_batches=$max_batches)"
     echo "    Batch size: $batch_size, Chunk size: $chunk_size"
     echo ""
     
@@ -304,11 +330,19 @@ run_figure9() {
         # Model-specific memory tuning (keeps token counts unchanged)
         local model_chunk_size="$chunk_size"
         local model_exact_chunk_size="$EXACT_CHUNK"
-        if $EXACT_ACCUM && [[ "$model" == "fw-medium" ]]; then
-            # fw-medium is the largest model; smaller chunks reduce peak memory
-            model_chunk_size=128
-            if [ -z "$model_exact_chunk_size" ]; then
-                model_exact_chunk_size=32
+        if $EXACT_ACCUM; then
+            if [[ "$model" == "fw-medium" ]]; then
+                # fw-medium is the largest model; smaller chunks reduce peak memory
+                model_chunk_size=128
+                if [ -z "$model_exact_chunk_size" ]; then
+                    model_exact_chunk_size=32
+                fi
+            elif [[ "$model" == "fw-small" ]]; then
+                # fw-small can still hit MPS memory limits in exact mode
+                model_chunk_size=128
+                if [ -z "$model_exact_chunk_size" ]; then
+                    model_exact_chunk_size=32
+                fi
             fi
         fi
         local model_exact_chunk_flag=""
@@ -525,6 +559,12 @@ run_figure8_search() {
     if $STREAMING; then
         streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
     fi
+    local dataset_flag=""
+    if [ -n "$FIG8_DATASET" ]; then
+        dataset_flag="--dataset $FIG8_DATASET"
+    else
+        dataset_flag="--dataset fineweb"
+    fi
     
     echo ">>> Running Figure 8 Circuit Search (Full 8192 features)"
     echo "    Device: $DEVICE"
@@ -664,7 +704,8 @@ run_figure8_all() {
     echo "Full Figure 8 pipeline complete!"
 }
 
-# Legacy figure8 (simple data generation for single feature)
+# Legacy figure8 (data generation for features 3834 and 751)
+# Uses TinyStories dataset for cleaner semantic clustering
 run_figure8_legacy() {
     print_header
     activate_conda
@@ -677,6 +718,7 @@ run_figure8_legacy() {
     
     local n_samples="all"
     local streaming_flag=""
+    local batch_size=16
     if $QUICK_MODE; then
         n_samples=1000
     fi
@@ -684,9 +726,19 @@ run_figure8_legacy() {
         streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
     fi
     
-    echo ">>> Running Figure 8 (Legacy - Single Feature)"
-    echo "    Feature: $FEATURE (not-good)"
+    # Use TinyStories for cleaner semantic clustering (unless overridden)
+    local dataset_flag=""
+    if [ -n "$FIG8_DATASET" ]; then
+        dataset_flag="--dataset $FIG8_DATASET"
+    else
+        dataset_flag="--dataset tinystories"
+    fi
+    
+    echo ">>> Running Figure 8 (fw-medium layer 7 on TinyStories)"
+    echo "    Features: 3834 (not-good) and 751 (not-bad)"
     echo "    Device: $fig8_device"
+    echo "    Dataset: ${FIG8_DATASET:-tinystories}"
+    echo "    Batch size: $batch_size"
     echo "    Samples: $n_samples"
     echo "    Metric: $METRIC"
     if $STREAMING; then
@@ -695,18 +747,39 @@ run_figure8_legacy() {
     echo "    Memory: Uses iterative eigensolver (constant memory)"
     echo ""
     
+    # Generate data for feature 3834 (not-good)
+    echo "--- Feature 3834 (not-good) ---"
     python src/language/negation_visualization.py \
         --config configs/language_negation_fw.yaml \
         --output "results/language/figure_8_data_fw_medium.json" \
-        --feature "$FEATURE" \
+        --feature 3834 \
         --device "$fig8_device" \
+        --batch-size "$batch_size" \
         --n-samples "$n_samples" \
         --metric "$METRIC" \
+        $dataset_flag \
+        $streaming_flag
+    
+    echo ""
+    cleanup_memory "figure8/3834"
+    
+    # Generate data for feature 751 (not-bad)
+    echo "--- Feature 751 (not-bad) ---"
+    python src/language/negation_visualization.py \
+        --config configs/language_negation_fw.yaml \
+        --output "results/language/figure_8_feature751.json" \
+        --feature 751 \
+        --device "$fig8_device" \
+        --batch-size "$batch_size" \
+        --n-samples "$n_samples" \
+        --metric "$METRIC" \
+        $dataset_flag \
         $streaming_flag
     
     echo ""
     echo "Figure 8 data generated!"
-    echo "Output: results/language/figure_8_data_fw_medium.json"
+    echo "Output: results/language/figure_8_data_fw_medium.json (feature 3834)"
+    echo "        results/language/figure_8_feature751.json (feature 751)"
 }
 
 run_figure8() {
@@ -1063,6 +1136,9 @@ show_help() {
     echo "  --feature         Feature index for figure8 legacy (default: 3834)"
     echo "  --streaming       Use streaming Q computation for CUDA (Figure 8)"
     echo "  --chunk-size      Chunk size for streaming (default: 256)"
+    echo "  --fig8-dataset    Dataset for Figure 8 (tinystories|fineweb|fineweb-16k)"
+    echo "  --batch-size      Batch size for figure9 validation"
+    echo "  --max-batches     Max batches for figure9 validation"
     echo "  --metric          pearson|cosine (default: pearson)"
     echo "  --load-eigenpairs Path to cached eigenpairs or 'auto' (fast iteration)"
     echo "  --float16         Save eigenpairs in float16 (50% storage reduction)"

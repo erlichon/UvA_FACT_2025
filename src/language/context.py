@@ -292,7 +292,10 @@ class LanguageContext:
         n_ctx = self.config.get("sae", {}).get("n_ctx", 256)
         tokenizer = self.model.tokenizer
         
-        if dataset_name == "fineweb":
+        if dataset_name == "fineweb-16k":
+            print("Loading FineWeb-EDU 16k subset...")
+            dataset = load_dataset("tdooms/fineweb-16k", split="train")
+        elif dataset_name == "fineweb":
             print(f"Loading FineWeb-Edu data (streaming)...")
             # FineWeb is large, use streaming
             ds_stream = load_dataset(
@@ -327,18 +330,26 @@ class LanguageContext:
             if n_samples > 0 and len(dataset) > n_samples:
                 dataset = dataset.select(range(n_samples))
         
-        # Tokenize
-        def tokenize(examples):
-            return tokenizer(
-                examples["text"],
-                truncation=True,
-                max_length=n_ctx,
-                padding="max_length",
-                return_tensors="pt",
-            )
-        
-        dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
-        dataset.set_format("torch")
+        # Tokenize if needed
+        if "input_ids" in dataset.column_names:
+            if "attention_mask" not in dataset.column_names:
+                dataset = dataset.map(
+                    lambda ex: {"attention_mask": [1] * len(ex["input_ids"])},
+                    remove_columns=[],
+                )
+            dataset.set_format("torch")
+        else:
+            def tokenize(examples):
+                return tokenizer(
+                    examples["text"],
+                    truncation=True,
+                    max_length=n_ctx,
+                    padding="max_length",
+                    return_tensors="pt",
+                )
+            
+            dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
+            dataset.set_format("torch")
         
         dataloader = DataLoader(
             dataset,
