@@ -3,25 +3,11 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{What was Easy}
+\subsection{Practical Challenges}
 
-\textbf{Vision experiments were straightforward.}
-The bilinear architecture is simple (element-wise multiplication of projections), MNIST trains in $\sim$3 minutes per run, and results were highly consistent (std $<$1\% across 40 runs).
-The eigendecomposition methodology is robust---computing $784 \times 784$ decompositions completes in seconds.
-The paper's codebase provided clear reference implementations.
-
-\subsection{What was Difficult}
-
-\textbf{Hyperparameter disambiguation:} Code defaults (noise 0.4, WD 0.5) differ from Appendix G.1 values (noise 0.5, WD 1.0).
-We used appendix values after verifying they match paper figures.
-
-\textbf{SAE availability:} The paper's \texttt{ts-medium} (``ts-tiny'' in paper) lacks \texttt{mlp-in} SAEs at layer 4 on HuggingFace, requiring pivot to \texttt{fw-medium} for Figure 8 reproduction.
-
-\textbf{Memory constraints:} Interaction matrix computation requires $\mathcal{O}(n_{\text{features}}^2)$ memory.
-At expansion 8$\times$ with $d=1024$, this exceeds 100GB.
-We implemented streaming computation for consumer hardware.
-
-\textbf{Tracing discrepancy:} Determining whether low correlation reflected bugs or limitations required systematic comparison of five SAE checkpoints.
+Vision experiments were straightforward: the bilinear architecture is simple, MNIST trains in $\sim$3 minutes per run, and results were highly consistent (std $<$1\% across 40 runs).
+Challenges included hyperparameter disambiguation (code defaults differ from appendix values), SAE availability gaps (requiring pivot to \texttt{fw-medium} for Figure 8), and memory constraints requiring streaming computation for large interaction matrices.
+Determining whether low correlation reflected bugs or limitations required systematic comparison of five SAE checkpoints.
 
 \subsection{Environmental Impact}
 \label{sec:environmental}
@@ -32,41 +18,15 @@ Low-rank bilinear models offer sustainable alternatives to scaling dense archite
 
 \subsection{Connection to FACT-AI Transparency}
 
-\textbf{Weight-based vs.\ Post-hoc Interpretability.}
-Traditional methods (saliency maps, SHAP) explain predictions after the fact.
-Bilinear MLPs offer intrinsic transparency: eigenvectors \emph{are} the learned features---no auxiliary models needed.
-
-\textbf{Reproducibility as Transparency.}
-Our partial language reproduction highlights an underappreciated dimension: the paper's claims depend on SAE quality, which depends on training duration.
-We recommend future work explicitly document SAE training budgets.
-
-\textbf{Accuracy-Interpretability Trade-off.}
+Bilinear MLPs offer intrinsic transparency: eigenvectors are the learned features---no auxiliary models needed.
+Our partial language reproduction highlights that the paper's claims depend on SAE quality, which depends on training duration, emphasizing the importance of documenting SAE training budgets.
 Weight decay reduces effective rank from 38.5 to 15.5 ($2.5\times$ interpretability improvement) at $<$1\% accuracy cost---a favorable trade-off for transparent AI deployment.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-\textbf{Vision (Section 4): Fully Reproduced.}
-Weight decay reduces effective rank from 38.5 to 15.5; eigenvectors show interpretable digit patterns; accuracy remains 97--98\%; results robust across 5 seeds and generalize to Fashion-MNIST.
-
-\textbf{Language (Section 5): Partially Reproduced.}
-AND-gate circuit confirmed with clear semantic clusters (positive vs.\ negative concepts).
-Low-rank structure is \textbf{Reproducible in Principle, Dependent on Artifact Quality}: correlation improves 2.8$\times$ with SAE training (0.15 $\to$ 0.42), but even the longest-trained public SAEs reach only 32\% vs.\ the paper's 69\% threshold.
-
-\textbf{Key Insight.}
-The bilinear decomposition methodology is sound and reproducible.
-Low-rank approximation quality depends critically on SAE convergence---practitioners should verify SAE quality before drawing conclusions.
-
-\textbf{Extensions.}
-(1) Cross-dataset robustness: regularized models learn transferable geometric circuits (0--O similarity confirmed via Quadratic Form Similarity).
-(2) CP-decomposition: achieves 93.8\% accuracy with disentangled, atomic factors at eff.\ rank 17.5.
-
-\textbf{Limitations.}
-Eigenvector interpretability is qualitative.
-Could not reproduce paper's exact Figure 8 (ts-tiny, layer 4) due to missing \texttt{mlp-in} SAEs.
-Public SAEs appear undertrained compared to paper's internal artifacts.
-
-\textbf{Future Work.}
-Train SAEs with longer duration to test if 69\% threshold is achievable.
-Develop quantitative interpretability metrics for eigenvector quality.
-Extend to larger vision models (ViTs).
+We fully reproduce vision results: weight decay reduces effective rank from 38.5 to 15.5 while maintaining 97--98\% accuracy with interpretable digit patterns.
+Language results are partially reproduced: AND-gate circuits confirmed, but low-rank correlation falls short (32\% vs.\ 69\% threshold) due to SAE quality gaps.
+The bilinear decomposition methodology is sound; low-rank approximation quality depends critically on SAE convergence.
+Extensions demonstrate transferable geometric circuits across datasets and CP-decomposition achieving 93.8\% accuracy with disentangled factors at eff.\ rank 17.5.
+Future work should develop quantitative interpretability metrics and extend to larger vision models.

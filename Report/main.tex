@@ -46,29 +46,16 @@
 \maketitle
 
 \begin{abstract}
-Mechanistic interpretability typically relies on post-hoc analysis of model activations.
-Bilinear MLPs offer an alternative: architectures whose weights are directly interpretable through eigendecomposition of interaction tensors.
+Mechanistic interpretability typically relies on post-hoc analysis of model activations, but bilinear MLPs offer an alternative: architectures whose weights are directly interpretable through eigendecomposition of interaction tensors.
 We reproduce both main experiments from Pearce et al.\ (2024): Section 4 (Vision) on MNIST/Fashion-MNIST, and Section 5 (Language) discovering sentiment negation circuits via Sparse Autoencoder analysis.
-
-\textbf{Vision results (fully reproduced):}
-Weight decay reduces effective rank from 38.5 to 21.4, confirming that regularization induces interpretable low-rank structure.
-Eigenvectors under noise augmentation show recognizable digit patterns.
+In vision, we fully reproduce the core findings: weight decay reduces effective rank from 38.5 to 21.4, confirming that regularization induces interpretable low-rank structure, while eigenvectors under noise augmentation show recognizable digit patterns.
 Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank while noise primarily improves accuracy.
-
-\textbf{Language results (partially reproduced):}
-We confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' form opposing directions (cosine similarity $-0.16$).
+In language, we confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' form opposing directions (cosine similarity $-0.16$).
 However, we do \emph{not} reproduce the low-rank interaction claim: the fraction of features achieving $>$0.75 correlation is significantly lower than the claimed 69\%, and the mean rank-2 correlation saturates at 0.37--0.55.
 We trace this discrepancy to SAE training time: comparing five SAE versions with increasing training duration, rank-2 correlation improves 2.5$\times$ (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that correlation depends on SAE quality.
-We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in the original paper, creating a reproducibility gap.
-
-This finding has practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
-
-\textbf{Extension 1 (Cross-Dataset Robustness):}
-Regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy.
-We propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
-
-\textbf{Extension 2 (CP-Decomposition):}
-We explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5.
+We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in the original paper, creating a reproducibility gap with practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
+In our extensions, we demonstrate that regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy, for which we propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
+Finally, we explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5.
 \end{abstract}
 
 % Modular sections
@@ -84,10 +71,6 @@ We explore explicit low-rank structure via CP factorization, achieving 93.8\% ac
 This work contributes to mechanistic interpretability, aiming to make neural networks more transparent.
 Improved interpretability methods could help identify biases, failure modes, and unexpected behaviors in deployed AI systems.
 Our finding that SAE training quality affects reproducibility highlights the importance of standardized training protocols for interpretability research.
-
-\subsubsection*{Author Contributions}
-All authors contributed equally to this work.
-
 
 \bibliography{main}
 \bibliographystyle{tmlr}

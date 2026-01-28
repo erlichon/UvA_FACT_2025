@@ -8,20 +8,18 @@ We reproduce the main experimental sections of \citet{pearce2024bilinear}: Secti
 \subsection{Claims to Verify}
 
 \paragraph{Section 4: Vision (Image Classification).}
-The paper makes the following testable claims:
-\textbf{V1 (Low-Rank Emergence):} Regularization induces low-rank structure in the bilinear interaction tensor (effective rank $\sim$20--40 with regularization vs.\ $\sim$150--200 without).
-\textbf{V2 (Interpretable Eigenvectors):} Top eigenvectors correspond to interpretable digit-like stroke templates.
-\textbf{V3 (Overfitting Without Regularization):} Without regularization, eigenspectrum is flat and eigenvectors show noise-like patterns.
-\textbf{V4 (Regularization Roles):} Noise augmentation and weight decay have complementary effects.
-\textbf{V5 (Cross-Seed Consistency):} Eigenvectors are consistent across seeds (cosine similarity 0.8--0.9).
-\textbf{V6 (Adversarial Generation):} Adversarial perturbations can be constructed from eigendecomposition.
+The paper makes two main families of claims:
+\begin{itemize}[leftmargin=*,topsep=0pt,itemsep=1pt]
+    \item \textbf{Low-rank, interpretable structure:} Regularization induces low-rank interaction tensors whose top eigenvectors form digit-like templates rather than noise, with consistent spectra across seeds.
+    \item \textbf{Robustness and controllability:} Noise and weight decay play complementary roles, enabling adversarial generation and truncation to a small number of eigenvectors without large accuracy loss.
+\end{itemize}
 
 \paragraph{Section 5: Language (Negation Circuits).}
-\textbf{L1 (SAE Feature Discovery):} SAEs reveal interpretable features for bilinear decomposition.
-\textbf{L2 (Negation Features):} The model learns distinct features for ``not + negative'' and ``not + positive'' forming opposing directions.
-\textbf{L3 (Low-Rank Interactions):} 69\% of SAE output features achieve $>$0.75 correlation with rank-2 approximation.
-\textbf{L4 (Sparse Interaction Matrices):} Top interactions form interpretable AND-gate-like submatrices.
-\textbf{L5 (Cross-Model Generalization):} Negation circuit structure appears across model sizes.
+For language, the paper claims that:
+\begin{itemize}[leftmargin=*,topsep=0pt,itemsep=1pt]
+    \item \textbf{SAE-based circuits:} SAEs reveal interpretable features implementing negation-like AND-gate circuits with opposing eigenvalues for ``not + positive'' vs.\ ``not + negative'' features.
+    \item \textbf{Low-rank interactions across models:} A large fraction of SAE features admit high rank-2 correlation and sparse interaction matrices that generalize across model sizes.
+\end{itemize}
 
 \subsection{Success Criteria}
 
@@ -31,33 +29,33 @@ The paper makes the following testable claims:
 
 \subsection{Results Summary}
 
-Table~\ref{tab:claims_summary} summarizes our reproduction outcomes: all six vision claims (V1--V6) are fully reproduced, while language claims are partially reproduced---AND-gate circuits confirmed but low-rank correlation falls short of the paper's 69\% threshold.
+Table~\ref{tab:claims_summary} summarizes our reproduction outcomes: all six vision claims are fully reproduced, while language claims are partially reproduced---AND-gate circuits are confirmed but low-rank correlation falls short of the paper's 69\% threshold.
 
 \begin{table}[h]
     \caption{Summary of reproduction results. \checkmark = reproduced, $\times$ = not reproduced, $\sim$ = partially reproduced.}
     \label{tab:claims_summary}
     \centering
     \small
-    \begin{tabular}{llcl}
+    \begin{tabular}{lll}
         \toprule
-        Claim & Description & Status & Notes \\
+        Claim & Description & Status \\
         \midrule
-        \multicolumn{4}{c}{\textit{Vision (Section 4)}} \\
+        \multicolumn{3}{c}{\textit{Vision (Section 4)}} \\
         \midrule
-        V1 & Low-rank emergence & \checkmark & Eff.\ rank: 15.5 (WD) vs.\ 38.5 (none) \\
-        V2 & Interpretable eigenvectors & \checkmark & Clear digit patterns with regularization \\
-        V3 & Overfitting without reg. & \checkmark & Diffuse patterns without regularization \\
-        V4 & Regularization roles & \checkmark & WD reduces rank; noise improves accuracy \\
-        V5 & Cross-seed consistency & \checkmark & Std $<$ 1\% across 5 seeds \\
-        V6 & Adversarial generation & \checkmark & Eigenvector-based attacks work \\
+        V1 & Low-rank emergence & \checkmark \\
+        V2 & Interpretable eigenvectors & \checkmark \\
+        V3 & Overfitting without reg. & \checkmark \\
+        V4 & Regularization roles & \checkmark \\
+        V5 & Cross-seed consistency & \checkmark \\
+        V6 & Adversarial generation & \checkmark \\
         \midrule
-        \multicolumn{4}{c}{\textit{Language (Section 5)}} \\
+        \multicolumn{3}{c}{\textit{Language (Section 5)}} \\
         \midrule
-        L1 & SAE feature discovery & \checkmark & Pretrained SAEs work for analysis \\
-        L2 & Negation/AND-gate circuits & \checkmark & Opposing eigenvalues confirmed \\
-        L3 & Low-rank interactions & $\sim$ & 18--32\% $>$0.75 vs.\ paper's 69\% \\
-        L4 & Sparse interactions & \checkmark & Clear block structure in feature 751 \\
-        L5 & Cross-model generalization & $\sim$ & Methodology works; magnitudes differ \\
+        L1 & SAE feature discovery & \checkmark \\
+        L2 & Negation/AND-gate circuits & \checkmark \\
+        L3 & Low-rank interactions & $\sim$ \\
+        L4 & Sparse interactions & \checkmark \\
+        L5 & Cross-model generalization & $\sim$ \\
         \bottomrule
     \end{tabular}
 \end{table}
