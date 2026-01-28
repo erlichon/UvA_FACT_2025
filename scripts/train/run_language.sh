@@ -240,11 +240,11 @@ run_figure9() {
     
     # Default: analyze ALL features; quick mode uses subset
     local n_features="all"
-    local ranks="1-100"
+    local ranks="1-60"
     local n_samples="all"
-    local max_batches=500
+    local max_batches=128
     local target_samples="all"
-    local batch_size=32
+    local batch_size=48
     local chunk_size=256
     local scatter_flag=""
     local exact_flag=""
@@ -252,8 +252,9 @@ run_figure9() {
     
     # MPS optimization: larger batches since Apple Silicon has unified memory
     if [[ "$DEVICE" == "mps" ]]; then
-        batch_size=64
-        chunk_size=512
+        # Keep batch size modest for memory stability on MPS
+        batch_size=48
+        chunk_size=256
     fi
     
     if $QUICK_MODE; then
