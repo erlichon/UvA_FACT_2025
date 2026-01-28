@@ -48,6 +48,33 @@ Weight decay produces the steepest spectral decay, concentrating variance in 10-
 
 Figures~\ref{fig:eigenvectors_noreg} and~\ref{fig:eigenvectors_reg} (Appendix~\ref{app:vision_additional}) confirm that top eigenvectors are interpretable digit-like patterns under regularization, while unregularized models show diffuse, noise-like patterns.
 
+\subsubsection{Model Size and Truncation (Claim V5)}
+\label{sec:model_size_truncation}
+
+We confirm the paper's claim that bilinear MLPs maintain near-full accuracy with a low-rank truncation: truncating to around 20 eigenvectors per class is sufficient even as model size increases.
+Figure~\ref{fig:app_truncation} shows similarity and classification error under eigenvector-rank truncation across model sizes.
+Top eigenvectors are highly consistent across random seeds, especially for larger models, and truncation error decreases with model size; truncating to around 20 eigenvectors per class is sufficient for near-full accuracy.
+In both panels, the shaded envelope denotes a 90\% confidence interval across seeds.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_5a_similarity.pdf}
+        \caption{Eigenvector similarity across seeds}
+        \label{fig:app_similarity}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_5b_truncation.pdf}
+        \caption{Truncation error by model size}
+        \label{fig:app_truncation_error}
+    \end{subfigure}
+    \caption{Paper Figure 5 reproduction.
+    \textbf{(a)} Top eigenvectors are highly consistent across random seeds, especially for larger models, with cosine similarity decreasing smoothly as eigenvector rank increases.
+    \textbf{(b)} Truncation error decreases with model size; keeping $\sim$20 eigenvectors per class is sufficient for near-full accuracy.}
+    \label{fig:app_truncation}
+\end{figure}
+
 \subsubsection{Additional Vision Results}
 \label{sec:additional_vision_results}
 
@@ -55,6 +82,22 @@ We reproduce the original paper's Figures 4, 6, and 7; full visualizations are i
 
 \textbf{Noise effect (original paper Figure 4):}
 Increasing noise improves eigenvector interpretability while trading off with effective rank (Figure~\ref{fig:noise_effect}).
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_rank.pdf}
+        \caption{Effective rank increases with noise std}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.48\textwidth}
+        \includegraphics[width=\linewidth]{figures/vision/figure_4_noise_vs_accuracy.pdf}
+        \caption{Accuracy improves then saturates}
+    \end{subfigure}
+    \caption{Noise augmentation effect on effective rank and accuracy (reproducing paper Figure 4).
+    Higher noise spreads variance across more eigenvectors while improving generalization.}
+    \label{fig:noise_effect}
+\end{figure}
 
 \textbf{Challenge task (original paper Figure 6):}
 On binary similarity classification, the top eigenvector closely resembles the target digit (Figure~\ref{fig:challenge_task}), confirming that bilinear interactions encode task-relevant structure.
