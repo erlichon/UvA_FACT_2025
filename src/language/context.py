@@ -272,46 +272,84 @@ class LanguageContext:
         n_samples: int = 2000, 
         batch_size: int = 32,
         split: str = "validation",
+        dataset_name: str = "tinystories",
     ) -> DataLoader:
         """
-        Create TinyStories validation dataloader.
+        Create validation dataloader for TinyStories or FineWeb.
         
         Args:
-            n_samples: Number of samples to load
+            n_samples: Number of samples to load (-1 for all)
             batch_size: Batch size for DataLoader
             split: Dataset split ("validation" or "train")
+            dataset_name: "tinystories" or "fineweb"
             
         Returns:
             DataLoader yielding batches with input_ids and attention_mask
         """
-        print(f"Loading TinyStories {split} data...")
-        
-        # Load dataset
-        try:
-            dataset = load_dataset("roneneldan/TinyStories", split=split)
-        except Exception:
-            # Fall back to train split if validation doesn't exist
-            dataset = load_dataset("roneneldan/TinyStories", split="train")
-        
-        # Sample if dataset is larger than needed
-        if len(dataset) > n_samples:
-            dataset = dataset.select(range(n_samples))
+        import itertools
+        from datasets import Dataset
         
         n_ctx = self.config.get("sae", {}).get("n_ctx", 256)
         tokenizer = self.model.tokenizer
         
-        # Tokenize
-        def tokenize(examples):
-            return tokenizer(
-                examples["text"],
-                truncation=True,
-                max_length=n_ctx,
-                padding="max_length",
-                return_tensors="pt",
+        if dataset_name == "fineweb-16k":
+            print("Loading FineWeb-EDU 16k subset...")
+            dataset = load_dataset("tdooms/fineweb-16k", split="train")
+        elif dataset_name == "fineweb":
+            print(f"Loading FineWeb-Edu data (streaming)...")
+            # FineWeb is large, use streaming
+            ds_stream = load_dataset(
+                "HuggingFaceFW/fineweb-edu", 
+                "sample-10BT",
+                split="train", 
+                streaming=True
             )
+            
+            # Collect samples from stream
+            if n_samples > 0:
+                samples = list(itertools.islice(ds_stream, n_samples))
+            else:
+                # Load a reasonable amount for "all" - FineWeb is huge
+                samples = list(itertools.islice(ds_stream, 50000))
+            
+            # Convert to Dataset
+            dataset = Dataset.from_list(samples)
+            print(f"  Loaded {len(dataset)} samples from FineWeb-Edu")
+            
+        else:  # tinystories (default)
+            print(f"Loading TinyStories {split} data...")
+            
+            # Load dataset
+            try:
+                dataset = load_dataset("roneneldan/TinyStories", split=split)
+            except Exception:
+                # Fall back to train split if validation doesn't exist
+                dataset = load_dataset("roneneldan/TinyStories", split="train")
+            
+            # Sample if dataset is larger than needed (-1 means use all)
+            if n_samples > 0 and len(dataset) > n_samples:
+                dataset = dataset.select(range(n_samples))
         
-        dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
-        dataset.set_format("torch")
+        # Tokenize if needed
+        if "input_ids" in dataset.column_names:
+            if "attention_mask" not in dataset.column_names:
+                dataset = dataset.map(
+                    lambda ex: {"attention_mask": [1] * len(ex["input_ids"])},
+                    remove_columns=[],
+                )
+            dataset.set_format("torch")
+        else:
+            def tokenize(examples):
+                return tokenizer(
+                    examples["text"],
+                    truncation=True,
+                    max_length=n_ctx,
+                    padding="max_length",
+                    return_tensors="pt",
+                )
+            
+            dataset = dataset.map(tokenize, batched=True, remove_columns=["text"])
+            dataset.set_format("torch")
         
         dataloader = DataLoader(
             dataset,

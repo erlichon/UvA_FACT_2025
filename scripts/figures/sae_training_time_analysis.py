@@ -17,6 +17,7 @@ This script provides empirical evidence for these claims by comparing:
 - v4: 16x training (well-trained)
 
 All checkpoints are from fw-medium layer 12 with expansion=16.
+Default dataset: FineWeb-Edu (sampled).
 
 Usage:
     python scripts/sae_training_time_analysis.py
@@ -27,6 +28,7 @@ import sys
 from pathlib import Path
 import json
 import argparse
+import itertools
 from datetime import datetime
 
 # Add project root to path
@@ -37,7 +39,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 import torch
 import numpy as np
 from tqdm import tqdm
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from transformers import AutoTokenizer
 
 from language.transformer import Transformer
@@ -199,6 +201,7 @@ def run_analysis(args):
     print(f"Device: {args.device}")
     print(f"Metric: {metric_label}")
     print(f"Features per version: {args.n_features}")
+    print(f"Dataset: {args.dataset}")
     print(f"Start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
@@ -223,7 +226,23 @@ def run_analysis(args):
     print("\nLoading dataset...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token
-    dataset = load_dataset('roneneldan/TinyStories', split='train[:2000]')
+    
+    n_samples = max(args.n_batches * args.batch_size, 1)
+    if args.dataset == "fineweb":
+        print("  Using FineWeb-Edu (streaming sample)")
+        ds_stream = load_dataset(
+            "HuggingFaceFW/fineweb-edu",
+            "sample-10BT",
+            split="train",
+            streaming=True,
+        )
+        samples = list(itertools.islice(ds_stream, n_samples))
+        dataset = Dataset.from_list(samples)
+        print(f"  Loaded {len(dataset)} samples from FineWeb-Edu")
+    else:
+        dataset = load_dataset('roneneldan/TinyStories', split='train')
+        if n_samples > 0 and len(dataset) > n_samples:
+            dataset = dataset.select(range(n_samples))
     
     def tokenize_fn(examples):
         return tokenizer(examples['text'], truncation=True, max_length=n_ctx, 
@@ -345,6 +364,13 @@ def main():
                         help='Output JSON file')
     parser.add_argument('--metric', type=str, default='pearson', choices=['pearson', 'cosine'],
                         help="Similarity metric: 'pearson' (default) or 'cosine'")
+    parser.add_argument(
+        '--dataset',
+        type=str,
+        default='fineweb',
+        choices=['fineweb', 'tinystories'],
+        help="Dataset to sample from (default: fineweb)",
+    )
     args = parser.parse_args()
     
     # Adjust output path for cosine metric - put in cosine/ subfolder

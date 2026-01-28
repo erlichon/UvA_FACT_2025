@@ -1,7 +1,0 @@
-Model,Noise,Acc (mean),Acc (std),Eff Rank (mean),Eff Rank (std)
-CP R=8,0.0,18.8%,N/A,2.6,N/A
-CP R=16,0.0,93.4%,N/A,8.7,N/A
-CP R=32,0.0,93.2%,N/A,11.7,N/A
-CP R=64,0.0,91.2%,N/A,3.5,N/A
-CP R=128,0.0,91.6%,N/A,3.7,N/A
-CP R=256,0.0,91.8%,N/A,3.8,N/A

@@ -624,10 +624,12 @@ def main():
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--feature", type=int, default=3834, 
                         help="Output feature index (default: 3834 'not-good')")
+    parser.add_argument("--batch-size", type=int, default=16,
+                        help="Batch size for validation dataloader (default: 16)")
     parser.add_argument("--top-k", type=int, default=15, 
                         help="Number of top interactions for Panel A")
-    parser.add_argument("--n-samples", type=int, default=2000, 
-                        help="Number of validation samples")
+    parser.add_argument("--n-samples", type=str, default="2000", 
+                        help="Number of validation samples ('all' or integer)")
     parser.add_argument("--max-batches", type=int, default=50, 
                         help="Maximum batches for Panel C")
     parser.add_argument("--streaming", action="store_true",
@@ -636,6 +638,9 @@ def main():
                         help="Chunk size for streaming (256=1GB, 128=0.5GB)")
     parser.add_argument("--metric", type=str, default="pearson", choices=["pearson", "cosine"],
                         help="Similarity metric: 'pearson' (default) or 'cosine'")
+    parser.add_argument("--dataset", type=str, default=None, choices=["tinystories", "fineweb", "fineweb-16k"],
+                        help="Validation dataset override ('tinystories', 'fineweb', or 'fineweb-16k'). "
+                             "Defaults to model-appropriate dataset.")
     args = parser.parse_args()
     
     # Adjust output path for cosine metric - put in cosine/ subfolder
@@ -655,6 +660,12 @@ def main():
     # Load config
     config = load_config(args.config)
     
+    # Parse n_samples - support 'all' or integer
+    if args.n_samples.lower() == "all" or args.n_samples == "-1":
+        n_samples = -1  # -1 means all samples from validation set
+    else:
+        n_samples = int(args.n_samples)
+    
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
         # Use LanguageContext for unified model/SAE/Tracer loading
@@ -669,9 +680,15 @@ def main():
         sae_out = ctx.get_sae("mlp-out")
         
         # Create validation dataloader via context
+        model_name = ctx.model_name.lower()
+        if args.dataset is not None:
+            dataset_name = args.dataset
+        else:
+            dataset_name = "fineweb" if "fw-" in model_name else "tinystories"
         dataloader = ctx.get_dataloader(
-            n_samples=args.n_samples,
-            batch_size=32,
+            n_samples=n_samples,
+            batch_size=args.batch_size,
+            dataset_name=dataset_name,
         )
         
         # Generate Figure 8 data

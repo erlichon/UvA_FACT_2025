@@ -56,8 +56,71 @@ from src.language.interaction_utils import (
     get_interaction_eigenpairs,
     get_interaction_eigenpairs_streaming,
     predict_activation_from_eigenpairs,
+    InteractionEigenpairs,
 )
 from src.language.context import LanguageContext
+from src.paths import LANGUAGE_EIGENPAIRS
+
+
+def load_cached_eigenpairs(cache_dir: Path, feat_idx: int) -> InteractionEigenpairs:
+    """
+    Load precomputed eigenpairs from cache.
+    
+    Args:
+        cache_dir: Directory containing cached eigenpair files
+        feat_idx: Feature index to load
+    
+    Returns:
+        InteractionEigenpairs object
+    
+    Raises:
+        FileNotFoundError: If the cached file doesn't exist
+    """
+    cache_file = cache_dir / f"feat_{feat_idx:04d}.pt"
+    if not cache_file.exists():
+        raise FileNotFoundError(f"Cached eigenpairs not found: {cache_file}")
+    
+    data = torch.load(cache_file, map_location='cpu', weights_only=False)
+    
+    return InteractionEigenpairs(
+        eigenvalues=data['eigenvalues'],
+        eigenvectors=data['eigenvectors'],
+        Q_matrix=torch.zeros(1),  # Q not cached, placeholder
+        sort_indices=None,
+    )
+
+
+def resolve_eigenpairs_cache(load_eigenpairs: str, model_name: str, layer: int) -> Path:
+    """
+    Resolve the eigenpairs cache directory from user input.
+    
+    Args:
+        load_eigenpairs: User-provided path or "auto"
+        model_name: Model name (e.g., "tdooms/fw-medium")
+        layer: Layer index
+    
+    Returns:
+        Path to the cache directory
+    
+    Raises:
+        FileNotFoundError: If auto-detection fails
+    """
+    if load_eigenpairs == "auto":
+        # Auto-detect from model name and layer
+        model_short = model_name.split("/")[-1]
+        cache_dir = LANGUAGE_EIGENPAIRS / model_short / str(layer)
+        if not cache_dir.exists():
+            raise FileNotFoundError(
+                f"Auto-detected cache not found: {cache_dir}\n"
+                f"Run precomputation first:\n"
+                f"  python src/language/precompute_eigenpairs.py --model {model_short} --layer {layer}"
+            )
+        return cache_dir
+    else:
+        cache_dir = Path(load_eigenpairs)
+        if not cache_dir.exists():
+            raise FileNotFoundError(f"Eigenpairs cache not found: {cache_dir}")
+        return cache_dir
 
 
 def plot_correlation_vs_rank(summary: dict, output_path: str):
@@ -197,33 +260,67 @@ def get_metric_function(metric: str):
         raise ValueError(f"Unknown metric: {metric}. Use 'pearson' or 'cosine'.")
 
 
-def create_validation_dataloader(tokenizer, config: dict, device: str, n_samples: int = 2000, batch_size: int = 32):
+def create_validation_dataloader(
+    tokenizer, 
+    config: dict, 
+    device: str, 
+    n_samples: int = 2000, 
+    batch_size: int = 32,
+    dataset_name: str = "tinystories",
+):
     """
-    Create a DataLoader for validation data from TinyStories dataset.
+    Create a DataLoader for validation data from TinyStories or FineWeb dataset.
     
     Args:
         tokenizer: Model tokenizer
         config: Experiment config
         device: Device to use
-        n_samples: Number of samples to load
+        n_samples: Number of samples to load (-1 for all)
         batch_size: Batch size for DataLoader
+        dataset_name: "tinystories" or "fineweb"
     
     Returns:
         DataLoader yielding batches with input_ids and attention_mask
     """
-    print("Loading TinyStories validation data...")
-    
-    # Load dataset (use validation split if available, else sample from train)
-    try:
-        dataset = load_dataset("roneneldan/TinyStories", split="validation")
-    except Exception:
-        dataset = load_dataset("roneneldan/TinyStories", split="train")
-    
-    # Sample if dataset is larger than needed
-    if len(dataset) > n_samples:
-        dataset = dataset.select(range(n_samples))
+    import itertools
+    from datasets import Dataset
     
     n_ctx = config.get("sae", {}).get("n_ctx", 256)
+    
+    if dataset_name == "fineweb":
+        print("Loading FineWeb-Edu validation data (streaming)...")
+        
+        # FineWeb is large, use streaming
+        ds_stream = load_dataset(
+            "HuggingFaceFW/fineweb-edu", 
+            "sample-10BT",
+            split="train", 
+            streaming=True
+        )
+        
+        # Collect samples from stream
+        if n_samples > 0:
+            samples = list(itertools.islice(ds_stream, n_samples))
+        else:
+            # Load a reasonable amount for "all" - FineWeb is huge
+            samples = list(itertools.islice(ds_stream, 50000))
+        
+        # Convert to Dataset
+        dataset = Dataset.from_list(samples)
+        print(f"  Loaded {len(dataset)} samples from FineWeb-Edu")
+        
+    else:  # tinystories (default)
+        print("Loading TinyStories validation data...")
+        
+        # Load dataset (use validation split if available, else sample from train)
+        try:
+            dataset = load_dataset("roneneldan/TinyStories", split="validation")
+        except Exception:
+            dataset = load_dataset("roneneldan/TinyStories", split="train")
+        
+        # Sample if dataset is larger than needed (-1 means use all)
+        if n_samples > 0 and len(dataset) > n_samples:
+            dataset = dataset.select(range(n_samples))
     
     # Tokenize
     def tokenize(examples):
@@ -270,6 +367,323 @@ def find_active_features(sae_activations: torch.Tensor, min_active: int = 10) ->
     return active_features.tolist()
 
 
+def estimate_total_tokens(dataloader, max_batches: int, batch_size: int, n_ctx: int):
+    """
+    Estimate total tokens processed for a run.
+    
+    Args:
+        dataloader: DataLoader used for evaluation
+        max_batches: Max batches to process
+        batch_size: Batch size used by DataLoader
+        n_ctx: Sequence length
+    
+    Returns:
+        Tuple of (estimated_tokens or None, total_batches_used)
+    """
+    try:
+        total_batches = min(max_batches, len(dataloader))
+    except TypeError:
+        total_batches = max_batches
+    
+    if batch_size is None or n_ctx is None:
+        return None, total_batches
+    
+    return total_batches * batch_size * n_ctx, total_batches
+
+
+def _select_active_features_exact(
+    sae_out: SAE,
+    sight: Sight,
+    dataloader,
+    layer: int,
+    feature_indices: list,
+    min_active_per_feature: int,
+    device: str,
+    max_batches: int,
+    total_batches: int,
+) -> list:
+    active_counts = torch.zeros(sae_out.d_features, dtype=torch.int64)
+    feature_indices_tensor = None
+    if feature_indices:
+        feature_indices_tensor = torch.tensor(feature_indices, dtype=torch.long, device=device)
+    
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(
+            tqdm(dataloader, desc="Exact pass 1/2: counting actives", total=total_batches)
+        ):
+            if batch_idx >= max_batches:
+                break
+            
+            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+            
+            with sight.trace(batch, validate=False, scan=False):
+                mlp_out = sight["mlp-out", layer].save()
+            
+            mlp_out_flat = mlp_out.flatten(0, 1).float()
+            z_true = sae_out.encode(mlp_out_flat)
+            
+            if feature_indices_tensor is not None:
+                z_true_sel = z_true.index_select(1, feature_indices_tensor)
+                active_counts[feature_indices_tensor.cpu()] += (z_true_sel > 0).sum(dim=0).cpu()
+            else:
+                active_counts += (z_true > 0).sum(dim=0).cpu()
+    
+    if feature_indices:
+        return [f for f in feature_indices if active_counts[f] >= min_active_per_feature]
+    
+    active_mask = active_counts >= min_active_per_feature
+    return active_mask.nonzero(as_tuple=True)[0].tolist()
+
+
+def _build_eigenpairs_for_chunk(
+    chunk: list,
+    model,
+    sae_out: SAE,
+    layer: int,
+    use_streaming: bool,
+    chunk_size: int,
+    device: str,
+    eigenpairs_cache_dir: Path,
+    k_max: int,
+) -> dict:
+    eigenpairs_by_feature = {}
+    for feat_idx in tqdm(chunk, desc="Precomputing eigenpairs (chunk)"):
+        if eigenpairs_cache_dir is not None:
+            try:
+                eigenpairs = load_cached_eigenpairs(eigenpairs_cache_dir, feat_idx)
+            except FileNotFoundError:
+                continue
+        else:
+            out_direction = sae_out.w_enc.weight[feat_idx, :]
+            if use_streaming:
+                eigenpairs = get_interaction_eigenpairs_streaming(
+                    model=model,
+                    layer=layer,
+                    feat_idx=feat_idx,
+                    out_direction=out_direction,
+                    chunk_size=chunk_size,
+                    compute_device=device,
+                )
+            else:
+                eigenpairs = get_interaction_eigenpairs(
+                    model=model,
+                    layer=layer,
+                    feat_idx=feat_idx,
+                    out_direction=out_direction.cpu(),
+                    device="cpu",
+                )
+        
+        eigenpairs_by_feature[feat_idx] = (
+            eigenpairs.eigenvalues[:k_max].cpu(),
+            eigenpairs.eigenvectors[:, :k_max].cpu(),
+        )
+    return eigenpairs_by_feature
+
+
+def _init_exact_accumulators(chunk: list, rank_count: int, save_scatter: bool):
+    accumulators = {}
+    scatter_buffers = {}
+    for feat_idx in chunk:
+        accumulators[feat_idx] = {
+            "count": 0,
+            "sum_z": 0.0,
+            "sum_z2": 0.0,
+            "sum_pred": torch.zeros(rank_count, dtype=torch.float64),
+            "sum_pred2": torch.zeros(rank_count, dtype=torch.float64),
+            "sum_z_pred": torch.zeros(rank_count, dtype=torch.float64),
+        }
+        if save_scatter:
+            scatter_buffers[feat_idx] = {"z_true": [], "z_pred": []}
+    return accumulators, scatter_buffers
+
+
+def _accumulate_exact_chunk(
+    dataloader,
+    sight: Sight,
+    sae_out: SAE,
+    layer: int,
+    chunk: list,
+    chunk_tensor: torch.Tensor,
+    eigenpairs_by_feature: dict,
+    rank_indices: torch.Tensor,
+    ranks: list,
+    max_batches: int,
+    total_batches: int,
+    device: str,
+    save_scatter: bool,
+    max_scatter_samples: int,
+    count_tokens: bool,
+) -> tuple:
+    accumulators, scatter_buffers = _init_exact_accumulators(chunk, len(ranks), save_scatter)
+    rank2_idx = ranks.index(2) if save_scatter and 2 in ranks else None
+    tokens_counted = 0
+    
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(
+            tqdm(dataloader, desc="Exact pass 2/2: accumulating (chunk)", total=total_batches)
+        ):
+            if batch_idx >= max_batches:
+                break
+            
+            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+            
+            with sight.trace(batch, validate=False, scan=False):
+                mlp_in = sight["mlp-in", layer].save()
+                mlp_out = sight["mlp-out", layer].save()
+            
+            mlp_in_flat = mlp_in.flatten(0, 1).float()
+            mlp_out_flat = mlp_out.flatten(0, 1).float()
+            z_true = sae_out.encode(mlp_out_flat)
+            
+            if count_tokens:
+                tokens_counted += mlp_in_flat.shape[0]
+            
+            mlp_in_cpu = mlp_in_flat.cpu()
+            z_true_selected = z_true.index_select(1, chunk_tensor).cpu()
+            
+            for idx, feat_idx in enumerate(chunk):
+                if feat_idx not in eigenpairs_by_feature:
+                    continue
+                
+                z_feat = z_true_selected[:, idx]
+                active_mask = z_feat > 0
+                if not active_mask.any():
+                    continue
+                
+                x_active = mlp_in_cpu[active_mask]
+                z_active = z_feat[active_mask].float()
+                
+                if x_active.shape[0] == 0:
+                    continue
+                
+                eigenvalues_k, eigenvectors_k = eigenpairs_by_feature[feat_idx]
+                
+                projections = x_active @ eigenvectors_k
+                weighted = projections.square() * eigenvalues_k
+                cumsum = weighted.cumsum(dim=1)
+                z_pred_by_rank = cumsum[:, rank_indices]
+                
+                z_active_f64 = z_active.double()
+                z_pred_f64 = z_pred_by_rank.double()
+                
+                acc = accumulators[feat_idx]
+                acc["count"] += z_active_f64.shape[0]
+                acc["sum_z"] += z_active_f64.sum().item()
+                acc["sum_z2"] += (z_active_f64 ** 2).sum().item()
+                acc["sum_pred"] += z_pred_f64.sum(dim=0)
+                acc["sum_pred2"] += (z_pred_f64 ** 2).sum(dim=0)
+                acc["sum_z_pred"] += (z_pred_f64 * z_active_f64.unsqueeze(1)).sum(dim=0)
+                
+                if rank2_idx is not None:
+                    z_pred_rank2 = z_pred_by_rank[:, rank2_idx]
+                    buffer = scatter_buffers[feat_idx]
+                    remaining = max_scatter_samples - len(buffer["z_true"])
+                    if remaining > 0:
+                        take = min(remaining, z_active.shape[0])
+                        buffer["z_true"].extend(z_active[:take].cpu().tolist())
+                        buffer["z_pred"].extend(z_pred_rank2[:take].cpu().tolist())
+    
+    return accumulators, scatter_buffers, tokens_counted
+
+
+def _compute_metric_from_sums(
+    metric: str,
+    n_active: int,
+    sum_z: float,
+    sum_z2: float,
+    sum_pred: float,
+    sum_pred2: float,
+    sum_z_pred: float,
+) -> float:
+    if n_active <= 1:
+        return float("nan")
+    
+    if metric == "cosine":
+        denom = (sum_z2 ** 0.5) * (sum_pred2 ** 0.5)
+        return float("nan") if denom < 1e-10 else sum_z_pred / denom
+    
+    mean_z = sum_z / n_active
+    mean_pred = sum_pred / n_active
+    cov = sum_z_pred - n_active * mean_z * mean_pred
+    var_z = sum_z2 - n_active * (mean_z ** 2)
+    var_pred = sum_pred2 - n_active * (mean_pred ** 2)
+    # Numerical safety: clamp negative variances from round-off to zero
+    if var_z < 0:
+        var_z = 0.0
+    if var_pred < 0:
+        var_pred = 0.0
+    denom = (var_z ** 0.5) * (var_pred ** 0.5)
+    return float("nan") if denom < 1e-10 else cov / denom
+
+
+def _finalize_exact_chunk(
+    chunk: list,
+    accumulators: dict,
+    scatter_buffers: dict,
+    results: dict,
+    feature_results: list,
+    scatter_files_saved: list,
+    ranks: list,
+    metric: str,
+    scatter_dir: Path,
+    model_name: str,
+    max_scatter_samples: int,
+    min_active_per_feature: int,
+):
+    for feat_idx in chunk:
+        acc = accumulators[feat_idx]
+        n_active = acc["count"]
+        if n_active < min_active_per_feature:
+            continue
+        
+        feature_corrs = {}
+        sum_z = acc["sum_z"]
+        sum_z2 = acc["sum_z2"]
+        
+        for rank_idx, k in enumerate(ranks):
+            sum_pred = acc["sum_pred"][rank_idx].item()
+            sum_pred2 = acc["sum_pred2"][rank_idx].item()
+            sum_z_pred = acc["sum_z_pred"][rank_idx].item()
+            
+            corr = _compute_metric_from_sums(
+                metric,
+                n_active,
+                sum_z,
+                sum_z2,
+                sum_pred,
+                sum_pred2,
+                sum_z_pred,
+            )
+            
+            if not np.isnan(corr):
+                results[k].append(corr)
+                feature_corrs[k] = corr
+        
+        result_dict = {
+            "feat_idx": feat_idx,
+            "n_active": int(n_active),
+            "correlations": feature_corrs,
+        }
+        
+        if scatter_dir is not None and 2 in ranks:
+            buffer = scatter_buffers.get(feat_idx, None)
+            if buffer is not None and buffer["z_true"]:
+                scatter_data = {
+                    "feat_idx": feat_idx,
+                    "n_active": int(n_active),
+                    "z_true": buffer["z_true"][:max_scatter_samples],
+                    "z_pred_rank2": buffer["z_pred"][:max_scatter_samples],
+                    "correlation_rank2": feature_corrs.get(2, None),
+                }
+                scatter_file = scatter_dir / f"scatter_{model_name}_feat_{feat_idx}.json"
+                with open(scatter_file, "w") as f:
+                    json.dump(scatter_data, f)
+                scatter_files_saved.append(str(scatter_file))
+                result_dict["scatter_file"] = str(scatter_file)
+        
+        feature_results.append(result_dict)
+
+
 def verify_correlation(
     model,
     sae_out: SAE,
@@ -289,6 +703,16 @@ def verify_correlation(
     use_streaming: bool = True,
     chunk_size: int = 256,
     metric: str = "pearson",
+    eigenpairs_cache_dir: Path = None,
+    batch_size: int = 32,
+    n_ctx: int = 256,
+    streaming_threshold_tokens: int = 500_000,
+    streaming_max_samples: int = 2000,
+    streaming_memory_gb: float = 2.0,
+    force_full_accum: bool = False,
+    discovery_batches: int = 20,
+    exact_streaming: bool = False,
+    exact_chunk_size: int = 64,
 ):
     """
     Compute correlation between weight-based predictions and actual SAE activations.
@@ -324,6 +748,21 @@ def verify_correlation(
         use_streaming: Whether to use GPU-accelerated streaming Q computation (default True)
         chunk_size: Chunk size for streaming computation (default 256)
         metric: Similarity metric to use - 'pearson' or 'cosine' (default: 'pearson')
+        eigenpairs_cache_dir: If provided, load precomputed eigenpairs from this directory
+            instead of computing them on-the-fly. This enables rapid iteration with
+            different metrics/thresholds without recomputation.
+        batch_size: Batch size used by the dataloader (for token estimation)
+        n_ctx: Sequence length used in tokenization (for token estimation)
+        streaming_threshold_tokens: Auto-switch to streaming accumulation when
+            estimated tokens exceed this threshold.
+        streaming_max_samples: Cap per-feature samples in streaming mode.
+        streaming_memory_gb: Approximate memory budget for per-feature samples.
+        force_full_accum: If True, disable auto streaming accumulation.
+        discovery_batches: Batches to scan for active features in streaming mode.
+        exact_streaming: If True, use an exact streaming correlation pass without
+            capping samples/features (memory-safe but slower).
+        exact_chunk_size: Number of features per chunk in exact streaming mode.
+            Smaller chunks reduce memory but increase runtime.
     
     Returns:
         Dict with correlation results per rank
@@ -345,8 +784,402 @@ def verify_correlation(
     sae_out_device = sae_out.to(device)
     
     print(f"\nAccumulating activations for layer {layer} across batches...")
-    print(f"  Target: {target_samples_per_feature} active samples per feature")
+    target_label = "all" if target_samples_per_feature <= 0 else target_samples_per_feature
+    print(f"  Target: {target_label} active samples per feature")
     print(f"  Max batches: {max_batches}")
+    
+    estimated_tokens, total_batches = estimate_total_tokens(
+        dataloader=dataloader,
+        max_batches=max_batches,
+        batch_size=batch_size,
+        n_ctx=n_ctx,
+    )
+    if estimated_tokens is not None:
+        print(f"  Estimated tokens: {estimated_tokens:,}")
+    
+    use_streaming_accum = (
+        not force_full_accum
+        and streaming_threshold_tokens > 0
+        and estimated_tokens is not None
+        and estimated_tokens > streaming_threshold_tokens
+    )
+    
+    if exact_streaming:
+        print("\nExact streaming accumulation enabled:")
+        if estimated_tokens is not None:
+            print(f"  Estimated tokens: {estimated_tokens:,}")
+        else:
+            print("  Estimated tokens: unknown")
+        print("  Mode: exact (no caps, no concatenation)")
+        
+        # Pass 1: count active features across all batches
+        feature_indices = _select_active_features_exact(
+            sae_out=sae_out_device,
+            sight=sight,
+            dataloader=dataloader,
+            layer=layer,
+            feature_indices=feature_indices,
+            min_active_per_feature=min_active_per_feature,
+            device=device,
+            max_batches=max_batches,
+            total_batches=total_batches,
+        )
+        if len(feature_indices) == 0:
+            print("  Warning: None of requested features are active.")
+        
+        # Limit to max_features (if specified, -1 means all)
+        if max_features > 0 and len(feature_indices) > max_features:
+            feature_indices = feature_indices[:max_features]
+        
+        n_features = len(feature_indices)
+        print(f"  Active features selected: {n_features}")
+        
+        if n_features == 0:
+            run_info = {
+                "accumulation_mode": "streaming_exact",
+                "estimated_tokens": estimated_tokens,
+                "total_tokens": 0,
+                "streaming_threshold_tokens": streaming_threshold_tokens,
+            }
+            return results, feature_results, scatter_files_saved, run_info
+        
+        # --- Pass 2: exact correlation accumulation (chunked to limit memory) ---
+        k_max = max(ranks)
+        rank_indices = torch.tensor([k - 1 for k in ranks], dtype=torch.long)
+        
+        if exact_chunk_size <= 0:
+            exact_chunk_size = len(feature_indices)
+        n_chunks = (len(feature_indices) + exact_chunk_size - 1) // exact_chunk_size
+        print(f"  Exact chunk size: {exact_chunk_size} ({n_chunks} chunks)")
+        
+        total_tokens = 0
+        
+        for chunk_idx in range(0, len(feature_indices), exact_chunk_size):
+            chunk = feature_indices[chunk_idx:chunk_idx + exact_chunk_size]
+            print(f"\nExact chunk {chunk_idx // exact_chunk_size + 1}/{n_chunks}: {len(chunk)} features")
+            
+            eigenpairs_by_feature = _build_eigenpairs_for_chunk(
+                chunk=chunk,
+                model=model,
+                sae_out=sae_out_device,
+                layer=layer,
+                use_streaming=use_streaming,
+                chunk_size=chunk_size,
+                device=device,
+                eigenpairs_cache_dir=eigenpairs_cache_dir,
+                k_max=k_max,
+            )
+            chunk_tensor = torch.tensor(chunk, device=device, dtype=torch.long)
+            
+            accumulators, scatter_buffers, tokens_counted = _accumulate_exact_chunk(
+                dataloader=dataloader,
+                sight=sight,
+                sae_out=sae_out_device,
+                layer=layer,
+                chunk=chunk,
+                chunk_tensor=chunk_tensor,
+                eigenpairs_by_feature=eigenpairs_by_feature,
+                rank_indices=rank_indices,
+                ranks=ranks,
+                max_batches=max_batches,
+                total_batches=total_batches,
+                device=device,
+                save_scatter=save_scatter,
+                max_scatter_samples=max_scatter_samples,
+                count_tokens=(chunk_idx == 0),
+            )
+            total_tokens += tokens_counted
+            
+            _finalize_exact_chunk(
+                chunk=chunk,
+                accumulators=accumulators,
+                scatter_buffers=scatter_buffers,
+                results=results,
+                feature_results=feature_results,
+                scatter_files_saved=scatter_files_saved,
+                ranks=ranks,
+                metric=metric,
+                scatter_dir=scatter_dir if save_scatter else None,
+                model_name=model_name,
+                max_scatter_samples=max_scatter_samples,
+                min_active_per_feature=min_active_per_feature,
+            )
+            
+            # Free chunk memory
+            del eigenpairs_by_feature, accumulators, scatter_buffers, chunk_tensor
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        
+        run_info = {
+            "accumulation_mode": "streaming_exact",
+            "estimated_tokens": estimated_tokens,
+            "total_tokens": total_tokens,
+            "streaming_threshold_tokens": streaming_threshold_tokens,
+            "exact_chunk_size": exact_chunk_size,
+        }
+        
+        return results, feature_results, scatter_files_saved, run_info
+    
+    if use_streaming_accum:
+        print("\nAuto streaming accumulation enabled:")
+        print(f"  Estimated tokens ({estimated_tokens:,}) exceed threshold ({streaming_threshold_tokens:,})")
+        
+        # Cap target samples in streaming mode
+        stream_target = target_samples_per_feature
+        if stream_target <= 0 or stream_target > streaming_max_samples:
+            print(
+                f"  Capping target samples per feature from {target_label} to {streaming_max_samples} (streaming mode)"
+            )
+            stream_target = streaming_max_samples
+        
+        # Compute feature cap based on memory budget
+        d_model = getattr(model.config, "d_model", None) or sae_out_device.d_model
+        memory_bytes = int(streaming_memory_gb * (1024 ** 3))
+        bytes_per_feature = max(1, stream_target * d_model * 4)
+        max_features_allowed = max(1, memory_bytes // bytes_per_feature)
+        
+        effective_max_features = max_features
+        if effective_max_features <= 0:
+            effective_max_features = max_features_allowed
+        elif effective_max_features > max_features_allowed:
+            print(
+                f"  Capping max features from {effective_max_features} to {max_features_allowed} (memory budget)"
+            )
+            effective_max_features = max_features_allowed
+        
+        discovery_batches = max(1, min(discovery_batches, max_batches))
+        print(f"  Discovery batches: {discovery_batches}")
+        print(f"  Streaming target samples per feature: {stream_target}")
+        print(f"  Streaming feature cap: {effective_max_features}")
+        
+        # --- Discovery pass: find active features without storing full activations ---
+        active_counts = torch.zeros(sae_out_device.d_features, dtype=torch.int64)
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(
+                tqdm(dataloader, desc="Discovery pass", total=min(discovery_batches, total_batches))
+            ):
+                if batch_idx >= discovery_batches:
+                    break
+                
+                batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                
+                with sight.trace(batch, validate=False, scan=False):
+                    mlp_out = sight["mlp-out", layer].save()
+                
+                mlp_out_flat = mlp_out.flatten(0, 1).float()
+                z_true = sae_out_device.encode(mlp_out_flat)
+                active_counts += (z_true > 0).sum(dim=0).cpu()
+        
+        # Select features to analyze
+        if feature_indices:
+            feature_indices = [f for f in feature_indices if active_counts[f] >= min_active_per_feature]
+            if effective_max_features > 0 and len(feature_indices) > effective_max_features:
+                print(
+                    f"  Warning: Capping requested features from {len(feature_indices)} to {effective_max_features}"
+                )
+                feature_indices = feature_indices[:effective_max_features]
+        else:
+            active_mask = active_counts >= min_active_per_feature
+            active_indices = active_mask.nonzero(as_tuple=True)[0]
+            
+            if effective_max_features > 0 and len(active_indices) > effective_max_features:
+                active_counts_masked = active_counts.clone()
+                active_counts_masked[~active_mask] = -1
+                top_vals, top_idx = torch.topk(active_counts_masked, k=effective_max_features)
+                feature_indices = [
+                    idx.item() for idx, val in zip(top_idx, top_vals) if val.item() >= min_active_per_feature
+                ]
+            else:
+                feature_indices = active_indices.tolist()
+        
+        n_features = len(feature_indices)
+        print(f"  Active features selected: {n_features}")
+        
+        if n_features == 0:
+            run_info = {
+                "accumulation_mode": "streaming",
+                "estimated_tokens": estimated_tokens,
+                "total_tokens": 0,
+                "streaming_threshold_tokens": streaming_threshold_tokens,
+                "streaming_target_samples": stream_target,
+                "streaming_memory_gb": streaming_memory_gb,
+                "streaming_feature_cap": effective_max_features,
+                "discovery_batches": discovery_batches,
+            }
+            return results, feature_results, scatter_files_saved, run_info
+        
+        # --- Streaming accumulation: collect per-feature samples up to target ---
+        sample_store = {feat_idx: {"x": [], "z": []} for feat_idx in feature_indices}
+        sample_counts = {feat_idx: 0 for feat_idx in feature_indices}
+        done_features = set()
+        total_tokens = 0
+        
+        with torch.no_grad():
+            for batch_idx, batch in enumerate(
+                tqdm(dataloader, desc="Processing batches (streaming)", total=total_batches)
+            ):
+                if batch_idx >= max_batches:
+                    break
+                
+                batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+                
+                with sight.trace(batch, validate=False, scan=False):
+                    mlp_in = sight["mlp-in", layer].save()
+                    mlp_out = sight["mlp-out", layer].save()
+                
+                mlp_in_flat = mlp_in.flatten(0, 1).float()
+                mlp_out_flat = mlp_out.flatten(0, 1).float()
+                
+                z_true = sae_out_device.encode(mlp_out_flat)
+                z_true_selected = z_true[:, feature_indices]
+                
+                total_tokens += mlp_in_flat.shape[0]
+                
+                for idx, feat_idx in enumerate(feature_indices):
+                    if stream_target > 0 and sample_counts[feat_idx] >= stream_target:
+                        continue
+                    
+                    z_feat = z_true_selected[:, idx]
+                    active_mask = z_feat > 0
+                    if not active_mask.any():
+                        continue
+                    
+                    x_active = mlp_in_flat[active_mask].cpu()
+                    z_active = z_feat[active_mask].cpu()
+                    
+                    if stream_target > 0:
+                        needed = stream_target - sample_counts[feat_idx]
+                        if needed <= 0:
+                            continue
+                        if x_active.shape[0] > needed:
+                            x_active = x_active[:needed]
+                            z_active = z_active[:needed]
+                    
+                    if x_active.shape[0] == 0:
+                        continue
+                    
+                    sample_store[feat_idx]["x"].append(x_active)
+                    sample_store[feat_idx]["z"].append(z_active)
+                    sample_counts[feat_idx] += x_active.shape[0]
+                    
+                    if stream_target > 0 and sample_counts[feat_idx] >= stream_target:
+                        done_features.add(feat_idx)
+                
+                if stream_target > 0 and len(done_features) == len(feature_indices):
+                    break
+        
+        # Concatenate per-feature samples
+        feature_samples = {}
+        for feat_idx in feature_indices:
+            if sample_store[feat_idx]["x"]:
+                x_concat = torch.cat(sample_store[feat_idx]["x"], dim=0)
+                z_concat = torch.cat(sample_store[feat_idx]["z"], dim=0)
+                feature_samples[feat_idx] = (x_concat, z_concat)
+        
+        # Determine eigenpairs source
+        if eigenpairs_cache_dir is not None:
+            eigenpairs_source = f"cached ({eigenpairs_cache_dir})"
+        elif use_streaming:
+            eigenpairs_source = f"streaming ({device})"
+        else:
+            eigenpairs_source = "standard (CPU)"
+        print(f"\nAnalyzing {len(feature_samples)} features across ranks {ranks} using {eigenpairs_source}...")
+        
+        for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
+            if feat_idx not in feature_samples:
+                continue
+            
+            x_active, z_active = feature_samples[feat_idx]
+            n_active = z_active.shape[0]
+            
+            if n_active < min_active_per_feature:
+                continue
+            
+            # Get eigenpairs - either from cache or compute on-the-fly
+            if eigenpairs_cache_dir is not None:
+                try:
+                    eigenpairs = load_cached_eigenpairs(eigenpairs_cache_dir, feat_idx)
+                except FileNotFoundError:
+                    continue
+            else:
+                out_direction = sae_out_device.w_enc.weight[feat_idx, :]
+                if use_streaming:
+                    eigenpairs = get_interaction_eigenpairs_streaming(
+                        model=model,
+                        layer=layer,
+                        feat_idx=feat_idx,
+                        out_direction=out_direction,
+                        chunk_size=chunk_size,
+                        compute_device=device,
+                    )
+                else:
+                    eigenpairs = get_interaction_eigenpairs(
+                        model=model,
+                        layer=layer,
+                        feat_idx=feat_idx,
+                        out_direction=out_direction.cpu(),
+                        device="cpu",
+                    )
+            
+            feature_corrs = {}
+            z_pred_rank2 = None
+            
+            for k in ranks:
+                k_actual = min(k, len(eigenpairs.eigenvalues))
+                eigenvalues_k = eigenpairs.eigenvalues[:k_actual]
+                eigenvectors_k = eigenpairs.eigenvectors[:, :k_actual]
+                
+                z_pred = predict_activation_from_eigenpairs(
+                    x_active, eigenvalues_k, eigenvectors_k
+                )
+                
+                if k == 2 and save_scatter:
+                    z_pred_rank2 = z_pred
+                
+                corr = metric_fn(z_active, z_pred)
+                
+                if not np.isnan(corr):
+                    results[k].append(corr)
+                    feature_corrs[k] = corr
+            
+            result_dict = {
+                "feat_idx": feat_idx,
+                "n_active": int(n_active),
+                "correlations": feature_corrs,
+            }
+            
+            if save_scatter and z_pred_rank2 is not None and scatter_dir is not None:
+                scatter_limit = max_scatter_samples if max_scatter_samples > 0 else len(z_active)
+                scatter_limit = min(scatter_limit, len(z_active))
+                
+                scatter_data = {
+                    "feat_idx": feat_idx,
+                    "n_active": int(n_active),
+                    "z_true": z_active[:scatter_limit].cpu().tolist(),
+                    "z_pred_rank2": z_pred_rank2[:scatter_limit].cpu().tolist(),
+                    "correlation_rank2": feature_corrs.get(2, None),
+                }
+                
+                scatter_file = scatter_dir / f"scatter_{model_name}_feat_{feat_idx}.json"
+                with open(scatter_file, "w") as f:
+                    json.dump(scatter_data, f)
+                scatter_files_saved.append(str(scatter_file))
+                result_dict["scatter_file"] = str(scatter_file)
+            
+            feature_results.append(result_dict)
+        
+        run_info = {
+            "accumulation_mode": "streaming",
+            "estimated_tokens": estimated_tokens,
+            "total_tokens": total_tokens,
+            "streaming_threshold_tokens": streaming_threshold_tokens,
+            "streaming_target_samples": stream_target,
+            "streaming_memory_gb": streaming_memory_gb,
+            "streaming_feature_cap": effective_max_features,
+            "discovery_batches": discovery_batches,
+        }
+        
+        return results, feature_results, scatter_files_saved, run_info
     
     # Accumulate mlp_in and SAE activations across batches
     all_mlp_in = []
@@ -354,7 +1187,7 @@ def verify_correlation(
     total_tokens = 0
     
     with torch.no_grad():
-        for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches", total=min(max_batches, len(dataloader)))):
+        for batch_idx, batch in enumerate(tqdm(dataloader, desc="Processing batches", total=total_batches)):
             if batch_idx >= max_batches:
                 break
             
@@ -409,34 +1242,51 @@ def verify_correlation(
             feature_indices = feature_indices[:max_features]
         
         n_features = len(feature_indices)
-        streaming_status = f"streaming ({device})" if use_streaming else "standard (CPU)"
-        print(f"\nAnalyzing {n_features} features across ranks {ranks} using {streaming_status}...")
+        
+        # Determine eigenpairs source
+        if eigenpairs_cache_dir is not None:
+            eigenpairs_source = f"cached ({eigenpairs_cache_dir})"
+        elif use_streaming:
+            eigenpairs_source = f"streaming ({device})"
+        else:
+            eigenpairs_source = "standard (CPU)"
+        print(f"\nAnalyzing {n_features} features across ranks {ranks} using {eigenpairs_source}...")
         
         for feat_idx in tqdm(feature_indices, desc="Analyzing features"):
-            # Get encoder direction for this feature (as per paper's Tracer default)
-            # The SAE activation is z_c = ReLU(mlp_out · w_enc[c]), so we need encoder direction
-            out_direction = sae_out_device.w_enc.weight[feat_idx, :]
-            
-            # Get eigenpairs from weights (unprojected Q in residual stream space)
-            if use_streaming:
-                # GPU-accelerated streaming computation
-                eigenpairs = get_interaction_eigenpairs_streaming(
-                    model=model,
-                    layer=layer,
-                    feat_idx=feat_idx,
-                    out_direction=out_direction,
-                    chunk_size=chunk_size,
-                    compute_device=device,
-                )
+            # Get eigenpairs - either from cache or compute on-the-fly
+            if eigenpairs_cache_dir is not None:
+                # Load precomputed eigenpairs from cache (fast path)
+                try:
+                    eigenpairs = load_cached_eigenpairs(eigenpairs_cache_dir, feat_idx)
+                except FileNotFoundError:
+                    # Feature not in cache, skip it
+                    continue
             else:
-                # Standard CPU computation
-                eigenpairs = get_interaction_eigenpairs(
-                    model=model,
-                    layer=layer,
-                    feat_idx=feat_idx,
-                    out_direction=out_direction.cpu(),
-                    device="cpu",
-                )
+                # Compute eigenpairs on-the-fly (slow path)
+                # Get encoder direction for this feature (as per paper's Tracer default)
+                # The SAE activation is z_c = ReLU(mlp_out · w_enc[c]), so we need encoder direction
+                out_direction = sae_out_device.w_enc.weight[feat_idx, :]
+                
+                # Get eigenpairs from weights (unprojected Q in residual stream space)
+                if use_streaming:
+                    # GPU-accelerated streaming computation
+                    eigenpairs = get_interaction_eigenpairs_streaming(
+                        model=model,
+                        layer=layer,
+                        feat_idx=feat_idx,
+                        out_direction=out_direction,
+                        chunk_size=chunk_size,
+                        compute_device=device,
+                    )
+                else:
+                    # Standard CPU computation
+                    eigenpairs = get_interaction_eigenpairs(
+                        model=model,
+                        layer=layer,
+                        feat_idx=feat_idx,
+                        out_direction=out_direction.cpu(),
+                        device="cpu",
+                    )
             
             # True activation for this feature across ALL accumulated tokens
             z_true_feat = z_true_all[:, feat_idx]  # [total_tokens]
@@ -511,7 +1361,14 @@ def verify_correlation(
             
             feature_results.append(result_dict)
     
-    return results, feature_results, scatter_files_saved
+    run_info = {
+        "accumulation_mode": "full",
+        "estimated_tokens": estimated_tokens,
+        "total_tokens": total_tokens,
+        "streaming_threshold_tokens": streaming_threshold_tokens,
+    }
+    
+    return results, feature_results, scatter_files_saved, run_info
 
 
 def main():
@@ -529,17 +1386,59 @@ def main():
     # Analysis parameters
     parser.add_argument("--n-features", type=str, default="all", help="Number of features to analyze ('all' or integer)")
     parser.add_argument("--ranks", type=str, default="1,2,4,8,16", help="Ranks to evaluate (comma-separated or range like 1-60)")
-    parser.add_argument("--n-samples", type=int, default=2000, help="Number of validation samples")
+    parser.add_argument("--n-samples", type=str, default="2000", help="Number of validation samples ('all' or integer)")
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size for DataLoader")
     parser.add_argument("--max-batches", type=int, default=50, help="Maximum batches to process")
     parser.add_argument("--min-active", type=int, default=1, help="Minimum active samples per feature")
-    parser.add_argument("--target-samples", type=int, default=500, help="Target active samples per feature")
+    parser.add_argument("--target-samples", type=str, default="500", help="Target active samples per feature ('all' or integer, default: 500)")
     parser.add_argument("--no-wandb", action="store_true", help="Disable wandb logging")
     parser.add_argument("--plot", type=str, default=None, help="Path to save correlation plot (PNG)")
     
     # Performance options
     parser.add_argument("--no-streaming", action="store_true", help="Disable GPU-accelerated streaming Q computation")
     parser.add_argument("--chunk-size", type=int, default=256, help="Chunk size for streaming Q computation")
+    
+    # Accumulation safety (auto streaming)
+    parser.add_argument(
+        "--streaming-threshold",
+        type=int,
+        default=500_000,
+        help="Auto-switch to streaming accumulation if estimated tokens exceed this",
+    )
+    parser.add_argument(
+        "--streaming-max-samples",
+        type=int,
+        default=2000,
+        help="Cap active samples per feature in streaming mode",
+    )
+    parser.add_argument(
+        "--streaming-memory-gb",
+        type=float,
+        default=2.0,
+        help="Approximate memory budget (GB) for streaming feature samples",
+    )
+    parser.add_argument(
+        "--force-full-accum",
+        action="store_true",
+        help="Disable auto streaming accumulation and always concatenate all batches",
+    )
+    parser.add_argument(
+        "--discovery-batches",
+        type=int,
+        default=20,
+        help="Batches to scan for active features in streaming mode",
+    )
+    parser.add_argument(
+        "--streaming-exact",
+        action="store_true",
+        help="Use exact streaming accumulation (no caps, slower but equivalent)",
+    )
+    parser.add_argument(
+        "--exact-chunk-size",
+        type=int,
+        default=64,
+        help="Feature chunk size for exact streaming (smaller = less memory, slower)",
+    )
     
     # Figure 9C scatter data options
     parser.add_argument("--save-scatter", action="store_true", help="Save scatter data (z_true, z_pred) for Figure 9C")
@@ -549,6 +1448,16 @@ def main():
     parser.add_argument("--metric", type=str, default="pearson", choices=["pearson", "cosine"],
                         help="Similarity metric: 'pearson' (default) or 'cosine'")
     
+    # Dataset selection
+    parser.add_argument("--dataset", type=str, default="tinystories", choices=["tinystories", "fineweb"],
+                        help="Validation dataset: 'tinystories' (default) or 'fineweb'. "
+                             "Use 'fineweb' for fw-small and fw-medium models.")
+    
+    # Eigenpairs caching (Phase 2 - load precomputed)
+    parser.add_argument("--load-eigenpairs", type=str, default=None,
+                        help="Path to precomputed eigenpairs directory, or 'auto' to auto-detect. "
+                             "Enables rapid iteration without recomputation.")
+    
     args = parser.parse_args()
     
     # Parse n_features - support 'all' or integer
@@ -556,6 +1465,18 @@ def main():
         n_features = -1  # -1 means all features
     else:
         n_features = int(args.n_features)
+    
+    # Parse target_samples - support 'all' or integer
+    if args.target_samples.lower() == "all" or args.target_samples == "-1":
+        target_samples = -1  # -1 means use all available (streaming may cap)
+    else:
+        target_samples = int(args.target_samples)
+    
+    # Parse n_samples - support 'all' or integer
+    if args.n_samples.lower() == "all" or args.n_samples == "-1":
+        n_samples = -1  # -1 means all samples from validation set
+    else:
+        n_samples = int(args.n_samples)
     
     # Adjust output path for cosine metric - put in cosine/ subfolder
     if args.metric == "cosine":
@@ -632,8 +1553,9 @@ def main():
         
         # Create validation DataLoader via context
         dataloader = ctx.get_dataloader(
-            n_samples=args.n_samples,
+            n_samples=n_samples,
             batch_size=args.batch_size,
+            dataset_name=args.dataset,
         )
         
         # Select features to analyze
@@ -651,8 +1573,18 @@ def main():
         # Extract model short name for scatter file naming
         model_short = model_name.split("/")[-1] if "/" in model_name else model_name
         
+        # Resolve eigenpairs cache directory if provided
+        eigenpairs_cache_dir = None
+        if args.load_eigenpairs:
+            eigenpairs_cache_dir = resolve_eigenpairs_cache(
+                args.load_eigenpairs, model_name, layer
+            )
+            print(f"Using cached eigenpairs from: {eigenpairs_cache_dir}")
+        
         # Run correlation analysis with batch accumulation
-        results, feature_results, scatter_files = verify_correlation(
+        n_ctx = config.get("sae", {}).get("n_ctx", 256)
+        
+        results, feature_results, scatter_files, run_info = verify_correlation(
             model=model,
             sae_out=sae_out,
             layer=layer,
@@ -661,7 +1593,7 @@ def main():
             ranks=ranks,
             device=device,
             min_active_per_feature=args.min_active,
-            target_samples_per_feature=args.target_samples,
+            target_samples_per_feature=target_samples,
             max_batches=args.max_batches,
             max_features=n_features,
             save_scatter=args.save_scatter,
@@ -671,6 +1603,16 @@ def main():
             use_streaming=not args.no_streaming,
             chunk_size=args.chunk_size,
             metric=args.metric,
+            eigenpairs_cache_dir=eigenpairs_cache_dir,
+            batch_size=args.batch_size,
+            n_ctx=n_ctx,
+            streaming_threshold_tokens=args.streaming_threshold,
+            streaming_max_samples=args.streaming_max_samples,
+            streaming_memory_gb=args.streaming_memory_gb,
+            force_full_accum=args.force_full_accum,
+            discovery_batches=args.discovery_batches,
+            exact_streaming=args.streaming_exact,
+            exact_chunk_size=args.exact_chunk_size,
         )
     
     # Compute summary statistics
@@ -682,6 +1624,7 @@ def main():
         "k": k,
         "metric": args.metric,
         "metric_label": metric_label,
+        "dataset": args.dataset,
         "n_features_requested": "all" if n_features == -1 else n_features,
         "n_features_analyzed": len(feature_results),
         "ranks": ranks,
@@ -692,6 +1635,17 @@ def main():
         "max_scatter_samples": args.max_scatter_samples if args.save_scatter else None,
         "use_streaming": not args.no_streaming,
         "chunk_size": args.chunk_size if not args.no_streaming else None,
+        "eigenpairs_cached": args.load_eigenpairs is not None,
+        "eigenpairs_cache_dir": str(eigenpairs_cache_dir) if eigenpairs_cache_dir else None,
+        "accumulation_mode": run_info.get("accumulation_mode"),
+        "estimated_tokens": run_info.get("estimated_tokens"),
+        "total_tokens": run_info.get("total_tokens"),
+        "streaming_threshold_tokens": run_info.get("streaming_threshold_tokens"),
+        "streaming_target_samples": run_info.get("streaming_target_samples"),
+        "streaming_memory_gb": run_info.get("streaming_memory_gb"),
+        "streaming_feature_cap": run_info.get("streaming_feature_cap"),
+        "discovery_batches": run_info.get("discovery_batches"),
+        "exact_chunk_size": run_info.get("exact_chunk_size"),
         "paper_claim": "69% of features have >0.75 rank-2 correlation",
         "wall_time_seconds": tracker.result.wall_time_seconds,
         "co2_kg": tracker.result.emissions_kg,
@@ -722,10 +1676,18 @@ def main():
             print(f"Rank {k:2d}: No valid correlations computed")
     
     print(f"\nPaper claim: {summary['paper_claim']}")
-    if "2" in summary["correlation_by_rank"]:
-        rank2_corr = summary["correlation_by_rank"]["2"]["mean"]
-        # Calculate percentage above 0.75 from per-feature results
-        rank2_values = [r["correlations"]["2"] for r in feature_results if "2" in r["correlations"]]
+    rank2_stats = summary["correlation_by_rank"].get("2") or summary["correlation_by_rank"].get(2)
+    if rank2_stats:
+        rank2_corr = rank2_stats["mean"]
+        # Calculate percentage above 0.75 from per-feature results (handle int/str keys)
+        rank2_values = []
+        for r in feature_results:
+            corr_map = r.get("correlations", {})
+            corr = corr_map.get("2")
+            if corr is None:
+                corr = corr_map.get(2)
+            if corr is not None:
+                rank2_values.append(corr)
         pct_above_75 = sum(1 for v in rank2_values if v > 0.75) / len(rank2_values) * 100 if rank2_values else 0
         print(f"Our rank-2: mean={rank2_corr:.4f}, {pct_above_75:.1f}% above 0.75 threshold")
     print(f"{'='*60}")

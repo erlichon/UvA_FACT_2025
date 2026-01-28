@@ -5,6 +5,7 @@
 \label{app:figure8_investigation}
 
 This appendix presents our detailed investigation of AND-gate circuits in bilinear transformers.
+Quantitative values and example activations in this appendix reflect a prior run and are marked as (old); updated results and plots are pending rerun.
 
 \subsection{SAE Availability Investigation}
 \label{app:sae_availability}
@@ -71,7 +72,7 @@ Feature 3834 (used in the paper's tutorial) encodes ``not-good'' contexts with w
 diffuse eigenvalue spectrum and less distinct cluster separation.
 
 \subsubsection{Best Circuit: Feature 751}
-Our search identified feature 751 as having the strongest AND-gate structure (Table~\ref{tab:app_circuit_comparison}).
+Our search identified feature 751 as having the strongest AND-gate structure (Table~\ref{tab:app_circuit_comparison}) (old).
 
 \begin{figure}[H]
     \centering
@@ -80,7 +81,7 @@ Our search identified feature 751 as having the strongest AND-gate structure (Ta
     \textbf{Top}: Feature 3834 (tutorial) shows diffuse interaction structure.
     \textbf{Bottom}: Feature 751 shows clear block structure when features are grouped by cluster (black lines).
     The eigenvector projections (middle) separate clusters along opposite axes due to opposing eigenvalues.
-    Scatter plots (right) show rank-2 approximation quality ($r = 0.93$).}
+    Scatter plots (right) show rank-2 approximation quality ($r = 0.93$, old).}
     \label{fig:app_figure8_comparison}
 \end{figure}
 
@@ -104,14 +105,14 @@ The input clusters have clear semantic content based on token analysis:
 \end{itemize}
 
 \textbf{Circuit function:} Feature 751 detects contexts where negative concepts appear \emph{without} positive modulation.
-The AND-gate structure arises because:
+The AND-gate structure arises because (old):
 \begin{enumerate}
     \item $\lambda_1 = -0.46$ (negative): Suppresses activation when positive cluster projects onto $v_1$
     \item $\lambda_2 = +0.18$ (positive): Activates when negative cluster projects onto $v_2$
     \item When both clusters are present, the opposing signs cause partial cancellation
 \end{enumerate}
 
-\textbf{Empirical validation} on test sentences:
+\textbf{Empirical validation} on test sentences (old):
 \begin{itemize}
     \item ``The disease spread quickly'' $\to$ activation 0.88 (negative cluster only)
     \item ``The bad weather made the view beautiful'' $\to$ activation 0.62 (both clusters)
@@ -124,23 +125,23 @@ This confirms the mechanism: high activation requires negative concepts \emph{wi
 
 \begin{table}[H]
     \centering
-    \caption{Comparison of AND-gate circuit properties.}
+    \caption{Comparison of AND-gate circuit properties (old).}
     \label{tab:app_circuit_comparison}
     \begin{tabular}{lcc}
         \toprule
         \textbf{Property} & \textbf{Feature 3834} & \textbf{Feature 751} \\
         \midrule
-        AND-score & Weak & 0.96 \\
-        Top eigenvalue $\lambda_1$ & Diffuse & $-0.46$ \\
-        Second eigenvalue $\lambda_2$ & Diffuse & $+0.18$ \\
-        Eigenvalue ratio $|\lambda_1/\lambda_2|$ & Low & 2.6 \\
-        Cluster separation & Diffuse & Clear (3 pos, 12 neg) \\
+        AND-score & Weak & 0.96 (old) \\
+        Top eigenvalue $\lambda_1$ & Diffuse & $-0.46$ (old) \\
+        Second eigenvalue $\lambda_2$ & Diffuse & $+0.18$ (old) \\
+        Eigenvalue ratio $|\lambda_1/\lambda_2|$ & Low & 2.6 (old) \\
+        Cluster separation & Diffuse & Clear (3 pos, 12 neg) (old) \\
         Semantic interpretation & ``not-good'' & Negative concepts detector \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\textbf{Key findings:}
+\textbf{Key findings (old):}
 (1) Systematic search finds stronger AND-gate circuits than manual inspection---feature 751's AND-score (0.96) exceeds the tutorial feature.
 (2) Feature 751 implements a ``problematic situation'' detector: it activates for negative concepts (disease, unfair) unless positive sentiment (wonderful, excellent) is also present.
 (3) The opposing eigenvalue signs create the AND-gate mechanism through cancellation.
