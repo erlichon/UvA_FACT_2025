@@ -45,27 +45,17 @@ This scale-invariant measure ranges from 1 (single dominant eigenvalue) to $d$ (
 \label{sec:language_method}
 
 For language experiments, we combine bilinear decomposition with Sparse Autoencoders (SAEs)~\citep{bricken2023monosemanticity} to discover interpretable circuits.
-SAEs decompose dense MLP activations into sparse features; we use pretrained SAEs from \citet{pearce2024bilinear} with expansion ratios 4--8$\times$ and TopK sparsity ($k=30$), positioned at both MLP input and output.
-
-For each SAE output feature $o$, we compute the interaction matrix between input features:
-\begin{equation}
-    Q_{ij}^{(o)} = \sum_{\text{tokens}} z_i^{\text{in}} \cdot z_j^{\text{in}} \cdot z_o^{\text{out}}
-    \label{eq:interaction}
-\end{equation}
-where $z_i^{\text{in}}$ are input SAE activations and $z_o^{\text{out}}$ is the output feature activation.
-This weighted outer product captures which input feature \emph{pairs} most strongly activate output feature $o$.
-
-We measure low-rank quality by correlating the true activation with a rank-$k$ approximation:
-\begin{equation}
-    \hat{z}_o^{(k)} = \sum_{r=1}^{k} \lambda_r (\mathbf{z}^{\text{in}} \cdot \mathbf{v}_r)^2
-\end{equation}
+We use pretrained SAEs from \citet{pearce2024bilinear} with expansion ratios 4--8$\times$ and TopK sparsity ($k=30$), positioned at both MLP input and output.
+For each SAE output feature, we form interaction matrices between input features and measure low-rank approximation quality via rank-$k$ correlation, following \citet{pearce2024bilinear}.
 The paper claims 69\% of features achieve $>$0.75 correlation at rank-2.
 
 \subsection{Experimental Setup}
 
-\paragraph{Vision Experiments.}
-We train bilinear MLPs on MNIST~\citep{lecun1998gradient} and Fashion-MNIST~\citep{xiao2017fashion} under four regularization configurations (Table~\ref{tab:reg_configs}), each with 5 random seeds (42--46).
+For vision experiments, we train bilinear MLPs on MNIST~\citep{lecun1998gradient} and Fashion-MNIST~\citep{xiao2017fashion} under four regularization configurations (Table~\ref{tab:reg_configs}), each with 5 random seeds (42--46).
 Architecture: $d_{\text{hidden}} = 256$, 100 epochs, batch size 2048, AdamW optimizer with lr $10^{-3}$ and cosine annealing.
+For language experiments, we analyze pretrained bilinear transformers (Table~\ref{tab:language_configs}, Appendix~\ref{app:language_results}).
+Due to SAE availability constraints (see Section~\ref{sec:discussion}), our primary model is \texttt{fw-medium} rather than the paper's \texttt{ts-medium}.
+We implemented a memory-efficient streaming algorithm for eigendecomposition to handle large interaction tensors.
 
 \begin{table}[h]
     \caption{Regularization configurations (from paper Appendix G.1).}
@@ -82,10 +72,3 @@ Architecture: $d_{\text{hidden}} = 256$, 100 epochs, batch size 2048, AdamW opti
         \bottomrule
     \end{tabular}
 \end{table}
-
-\paragraph{Language Experiments.}
-We analyze pretrained bilinear transformers (Table~\ref{tab:language_configs}, Appendix~\ref{app:language_results}).
-Due to SAE availability constraints (see Section~\ref{sec:discussion}), our primary model is \texttt{fw-medium} rather than the paper's \texttt{ts-medium}.
-Note that \texttt{fw-medium} (16 layers) is deeper than \texttt{ts-medium} (6 layers), potentially making low-rank approximation more challenging.
-Experiments ran on Snellius HPC (A100 GPUs) and Apple M4.
-We implemented a memory-efficient streaming algorithm for eigendecomposition, avoiding instantiation of the full $d_{\text{in}} \times d_{\text{in}} \times d_{\text{out}}$ tensor.
