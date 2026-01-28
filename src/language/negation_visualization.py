@@ -626,8 +626,8 @@ def main():
                         help="Output feature index (default: 3834 'not-good')")
     parser.add_argument("--top-k", type=int, default=15, 
                         help="Number of top interactions for Panel A")
-    parser.add_argument("--n-samples", type=int, default=2000, 
-                        help="Number of validation samples")
+    parser.add_argument("--n-samples", type=str, default="2000", 
+                        help="Number of validation samples ('all' or integer)")
     parser.add_argument("--max-batches", type=int, default=50, 
                         help="Maximum batches for Panel C")
     parser.add_argument("--streaming", action="store_true",
@@ -655,6 +655,12 @@ def main():
     # Load config
     config = load_config(args.config)
     
+    # Parse n_samples - support 'all' or integer
+    if args.n_samples.lower() == "all" or args.n_samples == "-1":
+        n_samples = -1  # -1 means all samples from validation set
+    else:
+        n_samples = int(args.n_samples)
+    
     # Run with emissions tracking
     with track_emissions("fact-bilinear") as tracker:
         # Use LanguageContext for unified model/SAE/Tracer loading
@@ -670,7 +676,7 @@ def main():
         
         # Create validation dataloader via context
         dataloader = ctx.get_dataloader(
-            n_samples=args.n_samples,
+            n_samples=n_samples,
             batch_size=32,
         )
         

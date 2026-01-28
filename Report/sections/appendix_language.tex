@@ -4,27 +4,28 @@
 \label{app:language_results}
 
 \begin{table}[H]
-    \caption{Language model configurations.}
+    \caption{Language model configurations for correlation analysis (Figure 9).}
     \label{tab:language_configs}
     \centering
-    \begin{tabular}{lccccc}
+    \begin{tabular}{lcccccc}
         \toprule
-        Model & Layers & Params & SAE Layer & Expansion & $k$ \\
+        Model & Layers & Params & SAE Layer & Expansion & $k$ & Dataset \\
         \midrule
-        ts-medium & 6 & 29M & 4 & 4 & 30 \\
-        fw-small & 12 & 162M & 8 & 4 & 30 \\
-        fw-medium & 16 & 335M & 7 & 8 & 30 \\
+        ts-medium & 6 & 29M & 4 & 4 & 30 & TinyStories \\
+        fw-small & 12 & 162M & 8 & 4 & 30 & FineWeb-EDU \\
+        fw-medium & 16 & 335M & 10 & 8 & 30 & FineWeb-EDU \\
         \bottomrule
     \end{tabular}
 \end{table}
+Figure 8 uses fw-medium at layer 7 with expansion 8 (public SAEs available at that layer).
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/language/figure_8_final.pdf}
-    \caption{AND-gate circuit comparison (fw-medium, layer 7).
-    \textbf{Top}: Feature 3834 (tutorial) shows diffuse structure.
-    \textbf{Bottom}: Feature 751 (AND-score 0.96) shows clear block structure with opposing eigenvalues ($\lambda_1 < 0$, $\lambda_2 > 0$).
-    Axes in (B) show projection onto top eigenvectors; clusters separate along these directions.}
+\caption{AND-gate circuit comparison (fw-medium, layer 7).
+\textbf{Top}: Feature 3834 (tutorial) shows diffuse structure (old).
+\textbf{Bottom}: Feature 751 (AND-score 0.96, old) shows clear block structure with opposing eigenvalues ($\lambda_1 < 0$, $\lambda_2 > 0$) (old).
+Axes in (B) show projection onto top eigenvectors; clusters separate along these directions. Updated plot pending rerun.}
     \label{fig:negation_circuit}
 \end{figure}
 
@@ -39,10 +40,10 @@
         \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
         \caption{Rank-2 distribution (dashed: 0.75 threshold)}
     \end{subfigure}
-    \caption{Low-rank correlation analysis (Paper Figure 9).
-    Configurations: ts-medium (layer 4, exp=4, n=2,048), fw-small (layer 8, exp=4, n=3,068), fw-medium (layer 7, exp=8, n=3,600).
-    All active output features analyzed (features with $\geq$50 activations).
-    Mean rank-2 correlations range 0.27--0.51; only 18--32\% exceed the 0.75 threshold vs.\ paper's 69\%.}
+\caption{Low-rank correlation analysis (Paper Figure 9, Pearson correlation).
+Configurations: ts-medium (layer 4, exp=4), fw-small (layer 8, exp=4), fw-medium (layer 10, exp=8).
+All active output features analyzed (features with $z_{\text{true}} > 0$ for at least one token).
+Mean rank-2 correlations range 0.27--0.51; only 18--32\% exceed the 0.75 threshold vs.\ paper's 69\% (old). Updated results pending rerun.}
     \label{fig:correlation_analysis}
 \end{figure}
 
@@ -57,7 +58,7 @@
         \includegraphics[width=\linewidth]{figures/language/figure_10b_sae_training_histogram.pdf}
         \caption{Distribution shift with training}
     \end{subfigure}
-    \caption{Effect of SAE training duration on interpretability (fw-medium layer 12, expansion 16, active features only).
-    From v0 to v4: mean rank-2 correlation improves \textbf{2.8$\times$} (0.15 $\to$ 0.42); percentage above 0.75 threshold improves \textbf{2.7$\times$} (12\% $\to$ 32\%).}
+\caption{Effect of SAE training duration on interpretability (fw-medium layer 12, expansion 16, active features only).
+From v0 to v4: mean rank-2 correlation improves \textbf{2.8$\times$} (0.15 $\to$ 0.42); percentage above 0.75 threshold improves \textbf{2.7$\times$} (12\% $\to$ 32\%) (old). Updated results pending rerun.}
     \label{fig:sae_training_effect}
 \end{figure}

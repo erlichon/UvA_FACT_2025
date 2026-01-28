@@ -217,6 +217,25 @@ def main():
                     print(f"  {int_file.name}: {emissions['co2_kg']:.6f} kg CO2")
     
     # ========================================================================
+    # LANGUAGE EIGENPAIRS PRECOMPUTATION
+    # ========================================================================
+    print("\n>>> Collecting eigenpairs precomputation emissions...")
+    
+    eigenpairs_dir = PROJECT_ROOT / "results/language/eigenpairs"
+    if eigenpairs_dir.exists():
+        for model_dir in eigenpairs_dir.iterdir():
+            if model_dir.is_dir():
+                for layer_dir in model_dir.iterdir():
+                    if layer_dir.is_dir():
+                        manifest_file = layer_dir / "manifest.json"
+                        if manifest_file.exists():
+                            emissions = extract_json_emissions(manifest_file)
+                            if emissions:
+                                emissions_by_category['language_eigenpairs'].append(emissions)
+                                if args.verbose:
+                                    print(f"  {model_dir.name}/layer{layer_dir.name}: {emissions['co2_kg']:.6f} kg CO2")
+    
+    # ========================================================================
     # AGGREGATE BY CATEGORY
     # ========================================================================
     print("\n>>> Aggregating by category...")

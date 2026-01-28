@@ -23,11 +23,12 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
+import torch
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 
-from src.paths import LANGUAGE_FIGURES, LANGUAGE_RESULTS
+from src.paths import LANGUAGE_FIGURES, LANGUAGE_RESULTS, LANGUAGE_EIGENPAIRS
 from src.artifact_loader import ensure_artifacts
 
 # Figure 9 and 8 plotting utilities
@@ -686,16 +687,18 @@ def generate_figure_8_side_by_side(results_dir: Path, figure_dir: Path):
 
 def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     """
-    Generate Final Figure 8: Comparison of Feature 3834 (tutorial) vs Feature 751 (paper style).
+    Generate Final Figure 8 in paper style (single feature 3834).
     
-    Layout: 2 rows x 3 columns
-    - Row 1: Feature 3834 (Tutorial - "not-good" feature)
-    - Row 2: Feature 751 (Strong AND-gate)
-    
-    Each row: A) Interaction Submatrix, B) Eigenvector Projections, C) Scatter plot
-    
-    Clean paper style - semantic meanings explained in appendix.
+    Layout: 1 row x 3 columns
+    - A) Interaction Submatrix
+    - B) Eigenvector Projections (paper axis orientation)
+    - C) Scatter plot (true vs predicted activation)
     """
+    return generate_figure_8_paper_style(
+        results_dir,
+        figure_dir,
+        output_name="figure_8_final.pdf",
+    )
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
     
@@ -970,6 +973,195 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     print(f"  Row 2: Feature 751 (AND-gate), r = {corr_751:.3f}")
     print(f"  Clusters (751): {type_counts_751['positive']} positive, {type_counts_751['negative']} negative")
     print(f"  Style: Clean paper format")
+    
+    return True
+
+
+def generate_figure_8_paper_style(results_dir: Path, figure_dir: Path, output_name: str = "figure_8_final.pdf"):
+    """
+    Generate Figure 8 in exact paper style: single feature (3834) with semantic labels.
+    
+    Layout: 1 row x 3 columns (matching paper's sentiment_negation_interaction_and_eigenvectors.pdf)
+    - A) Interaction submatrix with colored symbols (squares, triangles)
+    - B) Eigenvector projection with semantic labels and correct +/- orientation
+    - C) Scatter plot (true vs approximated activation)
+    
+    Key differences from generate_figure_8_final:
+    - Single feature (not 2 rows)
+    - Paper's axis orientation: Y="Top positive eigenvector" (pointing up with + at top)
+    - Paper's axis orientation: X="Top negative eigenvector" (pointing right with + at right)
+    - Semantic labels: "bad"-"good" unembed, "not" input, etc.
+    """
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+    
+    print("\n" + "="*60)
+    print("FIGURE 8 PAPER STYLE: Feature 3834 (not-good)")
+    print("="*60)
+    
+    # Load data for feature 3834
+    feature_3834_file = results_dir / "figure_8_data_fw_medium.json"
+    
+    if not feature_3834_file.exists():
+        print(f"Feature 3834 data not found: {feature_3834_file}")
+        print("Run: ./scripts/train/run_language.sh figure8")
+        return False
+    
+    with open(feature_3834_file) as f:
+        data_3834 = json.load(f)
+    
+    # Get feature types for coloring
+    feature_types = data_3834.get("feature_types", {})
+    
+    # Paper-style colors and markers
+    # Blue squares = negative sentiment features (sad, bad, hurt)
+    # Green triangles = negation features (not, never, wasn't)  
+    # Orange downward triangle = positive sentiment (good, safe, nice)
+    color_map = {
+        'negative_sentiment': '#1f77b4',  # Blue
+        'negation': '#2ca02c',            # Green
+        'positive_sentiment': '#ff7f0e',   # Orange
+        'structural': '#1f77b4',          # Map old names
+        'contrast': '#ff7f0e',
+        'other': '#7f7f7f',
+    }
+    marker_map = {
+        'negative_sentiment': 's',         # Square
+        'negation': '^',                   # Triangle up
+        'positive_sentiment': 'v',         # Triangle down
+        'structural': 's',
+        'contrast': 'D',
+        'other': 'o',
+    }
+    
+    # Create figure: 1 row x 3 columns
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    ax_Q, ax_proj, ax_scatter = axes
+    
+    # ==================== Panel A: Interaction Submatrix ====================
+    Q = np.array(data_3834["panel_a"]["Q_submatrix"])
+    feature_ids = data_3834["panel_a"]["feature_indices"]
+    
+    vmax = np.abs(Q).max()
+    im = ax_Q.imshow(Q, cmap="RdBu_r", vmin=-vmax, vmax=vmax, aspect='auto')
+    
+    n_feats = len(feature_ids)
+    ax_Q.set_xticks(range(n_feats))
+    ax_Q.set_yticks(range(n_feats))
+    ax_Q.set_xticklabels(feature_ids, rotation=45, ha='right', fontsize=7)
+    ax_Q.set_yticklabels(feature_ids, fontsize=7)
+    
+    # Add colored markers and tick labels by feature type
+    for i, fid in enumerate(feature_ids):
+        ftype = feature_types.get(str(fid), 'other')
+        color = color_map.get(ftype, '#7f7f7f')
+        marker = marker_map.get(ftype, 'o')
+        ax_Q.get_xticklabels()[i].set_color(color)
+        ax_Q.get_yticklabels()[i].set_color(color)
+        # Markers on axes
+        ax_Q.scatter(i, -0.8, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+        ax_Q.scatter(-0.8, i, marker=marker, c=color, s=40, clip_on=False, zorder=10, edgecolors='black', linewidths=0.3)
+    
+    ax_Q.set_title("A)", fontsize=12, fontweight='bold', loc='left')
+    ax_Q.set_xlabel("Input Feature", fontsize=10)
+    ax_Q.set_ylabel("Input Feature", fontsize=10)
+    plt.colorbar(im, ax=ax_Q, fraction=0.046, pad=0.04)
+    
+    # ==================== Panel B: Eigenvector Projections (Paper Style) ====================
+    projs = data_3834["panel_b"].get("feature_projections", {})
+    
+    # Paper's axis orientation:
+    # X-axis: Top NEGATIVE eigenvector (- on left, + on right)
+    # Y-axis: Top POSITIVE eigenvector (- on bottom, + on top)
+    # Our data has [v1, v2] where v1=positive eigenvector, v2=negative eigenvector
+    # Paper swaps: X=negative (v2), Y=positive (v1)
+    
+    type_counts = {}
+    for feat_str, coords in projs.items():
+        v_pos, v_neg = coords[0], coords[1]  # v1=positive, v2=negative
+        ftype = feature_types.get(feat_str, 'other')
+        color = color_map.get(ftype, '#7f7f7f')
+        marker = marker_map.get(ftype, 'o')
+        
+        # Paper style: X = negative eigenvector, Y = positive eigenvector
+        ax_proj.scatter(v_neg, v_pos, marker=marker, c=color, s=80, alpha=0.85, 
+                       edgecolors='black', linewidths=0.5, zorder=5)
+        type_counts[ftype] = type_counts.get(ftype, 0) + 1
+    
+    ax_proj.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    ax_proj.axvline(x=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
+    
+    # Add directional arrows and +/- labels (paper style)
+    xlim = ax_proj.get_xlim()
+    ylim = ax_proj.get_ylim()
+    
+    # X-axis: negative eigenvector (blue color in paper)
+    ax_proj.annotate('', xy=(xlim[1]*0.95, 0), xytext=(xlim[0]*0.95, 0),
+                    arrowprops=dict(arrowstyle='<->', color='#1f77b4', lw=2))
+    ax_proj.text(xlim[1]*0.85, ylim[0]*0.15, '+', fontsize=14, color='#1f77b4', fontweight='bold')
+    ax_proj.text(xlim[0]*0.85, ylim[0]*0.15, '−', fontsize=14, color='#1f77b4', fontweight='bold')
+    
+    # Y-axis: positive eigenvector (red/maroon color in paper)
+    ax_proj.annotate('', xy=(0, ylim[1]*0.95), xytext=(0, ylim[0]*0.95),
+                    arrowprops=dict(arrowstyle='<->', color='#8B0000', lw=2))
+    ax_proj.text(xlim[0]*0.15, ylim[1]*0.85, '+', fontsize=14, color='#8B0000', fontweight='bold')
+    ax_proj.text(xlim[0]*0.15, ylim[0]*0.85, '−', fontsize=14, color='#8B0000', fontweight='bold')
+    
+    # Semantic direction labels (as in paper)
+    # These are approximate - showing key semantic directions
+    ax_proj.text(xlim[0]*0.7, ylim[1]*0.7, '"not-bad"\nfeature', fontsize=8, ha='center', va='center')
+    ax_proj.text(xlim[1]*0.5, ylim[0]*0.7, '"not-good"\nfeature', fontsize=8, ha='center', va='center')
+    ax_proj.text(xlim[0]*0.6, ylim[1]*0.3, '"bad"-"good"\nunembed', fontsize=8, ha='center', va='center')
+    ax_proj.text(xlim[1]*0.6, ylim[0]*0.3, '"good"-"bad"\nunembed', fontsize=8, ha='center', va='center')
+    ax_proj.text(0, ylim[0]*0.5, '"not"\ninput', fontsize=8, ha='center', va='center')
+    
+    ax_proj.set_xlabel("Top negative eigenvector", fontsize=10, color='#1f77b4')
+    ax_proj.set_ylabel("Top positive eigenvector", fontsize=10, color='#8B0000')
+    ax_proj.set_title("B)", fontsize=12, fontweight='bold', loc='left')
+    
+    # Legend
+    legend_handles = [
+        Line2D([0], [0], marker='s', color='w', markerfacecolor='#1f77b4', 
+               markersize=8, markeredgecolor='black', label='Neg. sentiment'),
+        Line2D([0], [0], marker='^', color='w', markerfacecolor='#2ca02c', 
+               markersize=8, markeredgecolor='black', label='Negation'),
+        Line2D([0], [0], marker='v', color='w', markerfacecolor='#ff7f0e', 
+               markersize=8, markeredgecolor='black', label='Pos. sentiment'),
+    ]
+    ax_proj.legend(handles=legend_handles, loc='upper right', fontsize=8)
+    
+    # ==================== Panel C: Scatter Plot ====================
+    panel_c = data_3834.get("panel_c", {})
+    z_true = np.array(panel_c.get("z_true", []))
+    z_pred = np.array(panel_c.get("z_pred_rank2", []))
+    corr = panel_c.get("correlation", 0)
+    
+    if len(z_true) > 0 and len(z_pred) > 0:
+        n_samples = min(2000, len(z_true))
+        np.random.seed(42)
+        idx = np.random.choice(len(z_true), n_samples, replace=False)
+        ax_scatter.scatter(z_true[idx], z_pred[idx], alpha=0.25, s=6, c='#2E86AB', edgecolors='none')
+        max_val = max(z_true.max(), z_pred.max()) * 1.1
+        ax_scatter.plot([0, max_val], [0, max_val], '--', color='orange', alpha=0.8, linewidth=1.5)
+        ax_scatter.set_xlim(0, max_val)
+        ax_scatter.set_ylim(0, max_val)
+    
+    ax_scatter.set_xlabel("Output feature activation", fontsize=10)
+    ax_scatter.set_ylabel("Eigenvector-based activation", fontsize=10)
+    ax_scatter.set_title("C)", fontsize=12, fontweight='bold', loc='left')
+    
+    # Add correlation annotation
+    ax_scatter.text(0.95, 0.05, f'{corr:.2f}', transform=ax_scatter.transAxes, 
+                   fontsize=12, ha='right', va='bottom')
+    
+    plt.tight_layout()
+    
+    save_figure(fig, output_name, figure_dir)
+    
+    print(f"\nFigure 8 (Paper Style) generated!")
+    print(f"  Feature: 3834 (not-good)")
+    print(f"  Correlation: r = {corr:.3f}")
+    print(f"  Output: {figure_dir / output_name}")
     
     return True
 
@@ -1336,6 +1528,227 @@ def generate_figure_8_final_cosine(results_dir: Path, figure_dir: Path):
     return True
 
 
+# ============================================================================
+# HIERARCHICAL MODEL-LAYER FIGURE GENERATION
+# ============================================================================
+
+# Model-layer configurations for hierarchical figure generation
+MODEL_LAYER_CONFIGS = {
+    "ts-medium": {
+        4: {"expansion": 4, "purpose": "Figure 9 (paper's ts-tiny)"},
+        5: {"expansion": 4, "purpose": "Figure 8 (only layer with mlp-in SAE)"},
+    },
+    "fw-small": {
+        8: {"expansion": 4, "purpose": "Figure 9"},
+    },
+    "fw-medium": {
+        7: {"expansion": 8, "purpose": "Figure 9 (primary model)"},
+    },
+}
+
+
+def get_hierarchical_figure_dir(base_dir: Path, model: str, layer: int) -> Path:
+    """Get hierarchical figure directory for a model/layer combination."""
+    model_short = model.split("/")[-1] if "/" in model else model
+    return base_dir / model_short / f"layer{layer}"
+
+
+def generate_model_layer_figures(
+    model: str,
+    layer: int,
+    results_dir: Path,
+    figure_dir: Path,
+    eigenpairs_cache_dir: Path = None,
+):
+    """
+    Generate all figures for a specific model-layer combination.
+    
+    Saves figures in hierarchical structure:
+        figure_dir/{model}/layer{N}/...
+    
+    Args:
+        model: Model name (e.g., "ts-medium", "fw-medium")
+        layer: Layer index
+        results_dir: Base results directory
+        figure_dir: Base figure directory
+        eigenpairs_cache_dir: Optional precomputed eigenpairs directory
+    """
+    model_short = model.split("/")[-1] if "/" in model else model
+    
+    # Create hierarchical output directories
+    model_fig_dir = get_hierarchical_figure_dir(figure_dir, model_short, layer)
+    model_fig_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"\n{'='*60}")
+    print(f"Generating figures for {model_short} layer {layer}")
+    print(f"{'='*60}")
+    print(f"Output directory: {model_fig_dir}")
+    
+    # Check for model-specific results
+    model_results_dir = results_dir
+    
+    # 1. Check for correlation results
+    correlation_file = model_results_dir / f"correlation_{model_short}.json"
+    if correlation_file.exists():
+        print(f"\nLoading correlation results from {correlation_file}")
+        with open(correlation_file) as f:
+            corr_data = json.load(f)
+        
+        # Generate correlation-specific figures
+        if "correlation_by_rank" in corr_data:
+            print("  Generating correlation progression plot...")
+            # Simple rank vs correlation plot for this model
+            ranks = sorted([int(r) for r in corr_data["correlation_by_rank"].keys()])
+            means = [corr_data["correlation_by_rank"][str(r)]["mean"] for r in ranks]
+            
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.plot(ranks, means, 'o-', linewidth=2, markersize=6, color='#2E86AB')
+            ax.axhline(y=0.75, color='red', linestyle='--', alpha=0.6, label='Paper threshold (0.75)')
+            ax.set_xlabel("Approximation Rank")
+            ax.set_ylabel("Mean Correlation")
+            ax.set_title(f"{model_short} Layer {layer} - Correlation vs Rank")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            save_figure(fig, f"correlation_vs_rank.pdf", model_fig_dir)
+    else:
+        print(f"  No correlation results found: {correlation_file}")
+    
+    # 2. Check for AND-score / circuit analysis results (ts-medium layer 5 specific)
+    and_scores_file = model_results_dir / f"{model_short.replace('-', '_')}_layer{layer}_and_scores.json"
+    if and_scores_file.exists():
+        print(f"\nLoading AND-scores from {and_scores_file}")
+        with open(and_scores_file) as f:
+            and_data = json.load(f)
+        
+        # Generate AND-score distribution
+        if "top_by_and_score" in and_data:
+            scores = [item.get("and_score", 0) for item in and_data["top_by_and_score"]]
+            
+            fig, ax = plt.subplots(figsize=(8, 5))
+            ax.bar(range(len(scores)), scores, color='#2E86AB', alpha=0.8)
+            ax.set_xlabel("Feature Rank")
+            ax.set_ylabel("AND-score")
+            ax.set_title(f"{model_short} Layer {layer} - Top AND-gate Features")
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            save_figure(fig, f"and_score_distribution.pdf", model_fig_dir)
+    
+    # 3. Check for circuit analysis (detailed feature analysis)
+    for circuit_file in model_results_dir.glob(f"{model_short.replace('-', '_')}_layer{layer}_circuit_*.json"):
+        print(f"\nLoading circuit analysis from {circuit_file}")
+        with open(circuit_file) as f:
+            circuit_data = json.load(f)
+        
+        feat_idx = circuit_data.get("feature", "unknown")
+        
+        # Import the generate_figure function from the standalone script
+        try:
+            from scripts.figures.generate_ts_medium_layer5 import generate_figure as generate_ts_figure
+            output_path = model_fig_dir / f"figure_8_{model_short}_layer{layer}_feat{feat_idx}.pdf"
+            generate_ts_figure(circuit_data, output_path)
+        except ImportError:
+            print("  Note: Could not import generate_ts_medium_layer5 for figure generation")
+    
+    # 4. Check for eigenpairs cache and generate eigenspectrum summary
+    if eigenpairs_cache_dir is not None:
+        cache_model_dir = eigenpairs_cache_dir / model_short / str(layer)
+        manifest_file = cache_model_dir / "manifest.json"
+        
+        if manifest_file.exists():
+            print(f"\nLoading eigenpairs manifest from {manifest_file}")
+            with open(manifest_file) as f:
+                manifest = json.load(f)
+            
+            # Generate eigenspectrum summary from cached eigenpairs
+            print("  Generating eigenspectrum summary from cached eigenpairs...")
+            
+            # Load a sample of eigenpairs for spectrum analysis
+            eigenpair_files = sorted(cache_model_dir.glob("feat_*.pt"))[:100]
+            
+            if eigenpair_files:
+                all_eigenvalues = []
+                for ef in eigenpair_files[:50]:  # Sample 50 features
+                    data = torch.load(ef, map_location='cpu', weights_only=False)
+                    all_eigenvalues.append(data['eigenvalues'][:10].detach().numpy())  # Top 10 per feature
+                
+                all_eigenvalues = np.array(all_eigenvalues)  # [n_features, 10]
+                
+                fig, ax = plt.subplots(figsize=(8, 5))
+                
+                # Plot mean eigenvalue spectrum with std
+                mean_spectrum = np.mean(np.abs(all_eigenvalues), axis=0)
+                std_spectrum = np.std(np.abs(all_eigenvalues), axis=0)
+                
+                ranks = np.arange(1, len(mean_spectrum) + 1)
+                ax.fill_between(ranks, mean_spectrum - std_spectrum, mean_spectrum + std_spectrum,
+                                alpha=0.3, color='#2E86AB')
+                ax.plot(ranks, mean_spectrum, 'o-', linewidth=2, markersize=6, color='#2E86AB')
+                
+                ax.set_xlabel("Eigenvalue Rank")
+                ax.set_ylabel("Mean |λ|")
+                ax.set_title(f"{model_short} Layer {layer} - Eigenvalue Spectrum (n={len(eigenpair_files)} features)")
+                ax.grid(True, alpha=0.3)
+                ax.set_yscale('log')
+                
+                save_figure(fig, f"eigenspectrum_summary.pdf", model_fig_dir)
+        else:
+            print(f"  No eigenpairs cache found at {cache_model_dir}")
+    
+    print(f"\nCompleted: {model_short} layer {layer}")
+    print(f"Figures saved to: {model_fig_dir}")
+    
+    return True
+
+
+def generate_all_hierarchical_figures(
+    results_dir: Path,
+    figure_dir: Path,
+    eigenpairs_cache_dir: Path = None,
+    model_filter: str = None,
+    layer_filter: int = None,
+):
+    """
+    Generate figures for all configured model-layer combinations.
+    
+    Args:
+        results_dir: Base results directory
+        figure_dir: Base figure directory  
+        eigenpairs_cache_dir: Optional precomputed eigenpairs directory
+        model_filter: Optional model name to filter (e.g., "ts-medium")
+        layer_filter: Optional layer to filter
+    """
+    print("\n" + "="*60)
+    print("HIERARCHICAL MODEL-LAYER FIGURE GENERATION")
+    print("="*60)
+    
+    for model, layers in MODEL_LAYER_CONFIGS.items():
+        if model_filter and model != model_filter:
+            continue
+        
+        for layer, config in layers.items():
+            if layer_filter is not None and layer != layer_filter:
+                continue
+            
+            print(f"\n>>> {model} layer {layer}: {config['purpose']}")
+            
+            try:
+                generate_model_layer_figures(
+                    model=model,
+                    layer=layer,
+                    results_dir=results_dir,
+                    figure_dir=figure_dir,
+                    eigenpairs_cache_dir=eigenpairs_cache_dir,
+                )
+            except Exception as e:
+                print(f"  Error generating figures: {e}")
+                continue
+    
+    print("\n" + "="*60)
+    print("Hierarchical figure generation complete!")
+    print("="*60)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate language experiment figures")
     parser.add_argument("--figure8-only", action="store_true",
@@ -1346,6 +1759,14 @@ def main():
                         help="Only generate Figure 10 variants")
     parser.add_argument("--cosine", action="store_true",
                         help="Generate cosine similarity versions from results/language/cosine/")
+    parser.add_argument("--hierarchical", action="store_true",
+                        help="Generate hierarchical model/layer figures")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Filter by model name (e.g., ts-medium, fw-medium)")
+    parser.add_argument("--layer", type=int, default=None,
+                        help="Filter by layer number")
+    parser.add_argument("--load-eigenpairs", type=str, default=None,
+                        help="Path to cached eigenpairs directory or 'auto'")
     args = parser.parse_args()
     
     # Ensure artifacts are available (downloads from Google Drive if missing)
@@ -1360,11 +1781,40 @@ def main():
     REPORT_FIG_DIR.mkdir(parents=True, exist_ok=True)
 
     print("="*60)
-    if args.cosine:
+    if args.hierarchical:
+        print("Language Figure Generation (HIERARCHICAL)")
+    elif args.cosine:
         print("Language Figure Generation (COSINE SIMILARITY)")
     else:
         print("Language Figure Generation")
     print("="*60)
+    
+    # Resolve eigenpairs cache directory
+    eigenpairs_cache_dir = None
+    if args.load_eigenpairs:
+        if args.load_eigenpairs == "auto":
+            eigenpairs_cache_dir = LANGUAGE_EIGENPAIRS
+        else:
+            eigenpairs_cache_dir = Path(args.load_eigenpairs)
+        
+        if eigenpairs_cache_dir.exists():
+            print(f"Using eigenpairs cache: {eigenpairs_cache_dir}")
+        else:
+            print(f"Warning: Eigenpairs cache not found: {eigenpairs_cache_dir}")
+            eigenpairs_cache_dir = None
+    
+    # ==========================================================
+    # HIERARCHICAL MODEL-LAYER FIGURES
+    # ==========================================================
+    if args.hierarchical:
+        generate_all_hierarchical_figures(
+            results_dir=RESULTS_DIR,
+            figure_dir=REPORT_FIG_DIR,
+            eigenpairs_cache_dir=eigenpairs_cache_dir,
+            model_filter=args.model,
+            layer_filter=args.layer,
+        )
+        return
     
     # Determine which figures to generate
     generate_all = not (args.figure8_only or args.figure9_only or args.figure10_only)
@@ -1436,6 +1886,7 @@ def main():
             # 7. FINAL Figure 8: Comprehensive comparison (single definitive figure)
             generate_figure_8_final(RESULTS_DIR, FIGURE_DIR)
             generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR)
+            
         else:
             print("\nNote: Skipping Figure 8 variants 2-6 (no search results)")
             print("  Run: ./scripts/train/run_language.sh figure8 search")

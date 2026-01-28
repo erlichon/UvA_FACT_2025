@@ -56,6 +56,9 @@ RESULTS_ROOT = PROJECT_ROOT / "results"
 # Language results (JSON data files, NOT figures)
 LANGUAGE_RESULTS = RESULTS_ROOT / "language"
 
+# Language eigenpairs cache (precomputed eigendecompositions)
+LANGUAGE_EIGENPAIRS = RESULTS_ROOT / "language" / "eigenpairs"
+
 # Extension 2 results (JSON data files)
 EXTENSION2_RESULTS = RESULTS_ROOT / "extension2"
 

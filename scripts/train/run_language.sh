@@ -28,6 +28,9 @@
 #   --sequential  Run figure9 sequentially (memory-safe)
 #   --streaming   Use streaming Q computation for CUDA (Figure 8)
 #   --chunk-size  Chunk size for streaming (256=1GB, 128=0.5GB)
+#   --exact-accum Use exact streaming accumulation for Figure 9
+#   --precompute  Precompute eigenpairs in 'all' pipeline
+#   --exact-chunk Feature chunk size for exact streaming
 
 set -e  # Exit on error
 
@@ -48,7 +51,12 @@ FEATURE=3834
 NO_CONDA=false
 STREAMING=false
 CHUNK_SIZE=256
+EXACT_ACCUM=false
+PRECOMPUTE=false
+EXACT_CHUNK=""
 METRIC="pearson"
+LOAD_EIGENPAIRS=""
+LAYER=""
 
 # Parse global options and extract command
 COMMAND=""
@@ -92,11 +100,35 @@ while [[ $# -gt 0 ]]; do
             CHUNK_SIZE="$2"
             shift 2
             ;;
+        --exact-accum)
+            EXACT_ACCUM=true
+            shift
+            ;;
+        --exact-chunk)
+            EXACT_CHUNK="$2"
+            shift 2
+            ;;
+        --precompute)
+            PRECOMPUTE=true
+            shift
+            ;;
         --metric)
             METRIC="$2"
             shift 2
             ;;
-        figure9|correlation|figure8|negation-viz|figure10|sae-training|negation|interaction|figures|test|all|help)
+        --load-eigenpairs)
+            LOAD_EIGENPAIRS="$2"
+            shift 2
+            ;;
+        --layer)
+            LAYER="$2"
+            shift 2
+            ;;
+        --float16)
+            REMAINING_ARGS+=("$1")
+            shift
+            ;;
+        precompute|figure9|correlation|figure8|negation-viz|figure10|sae-training|negation|interaction|figures|test|all|help)
             if [ -z "$COMMAND" ]; then
                 COMMAND=$1
             else
@@ -136,6 +168,26 @@ activate_conda() {
     fi
 }
 
+# Best-effort device memory cleanup between stages
+cleanup_memory() {
+    local stage="${1:-stage}"
+    echo "Clearing device memory after ${stage}..."
+    python - <<'PY'
+import gc
+try:
+    import torch
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+except Exception as e:
+    print(f"Memory cleanup warning: {e}")
+gc.collect()
+PY
+    # Give allocator/driver a moment to release
+    sleep 3
+}
+
 # Print header
 print_header() {
     echo "=========================================="
@@ -158,24 +210,25 @@ run_figure9() {
     
     mkdir -p results/language
     
-    # Model configurations: "model layer expansion"
+    # Model configurations: "model layer expansion dataset"
+    # ts-medium trained on TinyStories, fw-* trained on FineWeb
     declare -a MODELS=(
-        "ts-medium 4 4"
-        "fw-small 8 4"
-        "fw-medium 7 8"
+        "ts-medium 4 4 tinystories"
+        "fw-small 8 4 fineweb"
+        "fw-medium 10 8 fineweb"  # Layer 10 = 2/3 depth for 16-layer model
     )
     
     # Filter by model if specified
     if [ -n "$MODEL" ] && [ "$MODEL" != "all" ]; then
         case $MODEL in
             ts-medium|tdooms/ts-medium)
-                MODELS=("ts-medium 4 4")
+                MODELS=("ts-medium 4 4 tinystories")
                 ;;
             fw-small|tdooms/fw-small)
-                MODELS=("fw-small 8 4")
+                MODELS=("fw-small 8 4 fineweb")
                 ;;
             fw-medium|tdooms/fw-medium)
-                MODELS=("fw-medium 7 8")
+                MODELS=("fw-medium 10 8 fineweb")
                 ;;
             *)
                 echo "Unknown model: $MODEL"
@@ -187,12 +240,15 @@ run_figure9() {
     
     # Default: analyze ALL features; quick mode uses subset
     local n_features="all"
-    local ranks="1,2,4,8,16"
-    local n_samples=3000
-    local max_batches=60
+    local ranks="1-100"
+    local n_samples="all"
+    local max_batches=500
+    local target_samples="all"
     local batch_size=32
     local chunk_size=256
     local scatter_flag=""
+    local exact_flag=""
+    local exact_chunk_flag=""
     
     # MPS optimization: larger batches since Apple Silicon has unified memory
     if [[ "$DEVICE" == "mps" ]]; then
@@ -204,26 +260,61 @@ run_figure9() {
         n_features=50
         n_samples=1000
         max_batches=30
+        target_samples=500
     else
         scatter_flag="--save-scatter --max-scatter-samples 1000"
     fi
     
-    echo ">>> Running Figure 9 Correlation Sweep"
+    if $EXACT_ACCUM; then
+        exact_flag="--streaming-exact"
+    fi
+    if [ -n "$EXACT_CHUNK" ]; then
+        exact_chunk_flag="--exact-chunk-size $EXACT_CHUNK"
+    fi
+    
+    # Build eigenpairs flag
+    local eigenpairs_flag=""
+    if [ -n "$LOAD_EIGENPAIRS" ]; then
+        eigenpairs_flag="--load-eigenpairs $LOAD_EIGENPAIRS"
+        echo ">>> Running Figure 9 Correlation Sweep (CACHED EIGENPAIRS)"
+        echo "    Using cached eigenpairs: $LOAD_EIGENPAIRS"
+    else
+        echo ">>> Running Figure 9 Correlation Sweep"
+    fi
     echo "    Models: ${#MODELS[@]}"
     echo "    Features: $n_features"
     echo "    Ranks: $ranks"
     echo "    Metric: $METRIC"
+    echo "    Samples: $n_samples, Target: $target_samples per feature"
     echo "    Batch size: $batch_size, Chunk size: $chunk_size"
     echo ""
     
     for model_config in "${MODELS[@]}"; do
-        read -r model layer expansion <<< "$model_config"
+        read -r model layer expansion dataset <<< "$model_config"
         
         echo ""
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Running: $model (layer=$layer, expansion=$expansion, metric=$METRIC)"
+        echo "Running: $model (layer=$layer, expansion=$expansion, dataset=$dataset, metric=$METRIC)"
+        if [ -n "$eigenpairs_flag" ]; then
+            echo "Mode: CACHED (fast iteration)"
+        fi
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
+        # Model-specific memory tuning (keeps token counts unchanged)
+        local model_chunk_size="$chunk_size"
+        local model_exact_chunk_size="$EXACT_CHUNK"
+        if $EXACT_ACCUM && [[ "$model" == "fw-medium" ]]; then
+            # fw-medium is the largest model; smaller chunks reduce peak memory
+            model_chunk_size=128
+            if [ -z "$model_exact_chunk_size" ]; then
+                model_exact_chunk_size=32
+            fi
+        fi
+        local model_exact_chunk_flag=""
+        if [ -n "$model_exact_chunk_size" ]; then
+            model_exact_chunk_flag="--exact-chunk-size $model_exact_chunk_size"
+        fi
+
         python src/language/verify_correlation.py \
             --config "configs/language_correlation_fw.yaml" \
             --model "tdooms/$model" \
@@ -238,12 +329,18 @@ run_figure9() {
             --ranks "$ranks" \
             --n-samples "$n_samples" \
             --max-batches "$max_batches" \
+            --target-samples "$target_samples" \
             --batch-size "$batch_size" \
-            --chunk-size "$chunk_size" \
+            --chunk-size "$model_chunk_size" \
             --metric "$METRIC" \
-            $scatter_flag
+            --dataset "$dataset" \
+            $eigenpairs_flag \
+            $scatter_flag \
+            $exact_flag \
+            $model_exact_chunk_flag
         
         echo "Completed: $model"
+        cleanup_memory "figure9/$model"
         
         if $SEQUENTIAL; then
             echo "Waiting 5s for memory cleanup..."
@@ -257,6 +354,157 @@ run_figure9() {
     echo ""
     echo "To generate combined figures:"
     echo "  python scripts/figures/generate_language_figures.py"
+}
+
+# --- PRECOMPUTE: Eigenpairs Precomputation ---
+# Precomputes eigendecompositions for rapid iteration with different metrics/thresholds
+
+run_precompute() {
+    print_header
+    activate_conda
+    
+    mkdir -p results/language/eigenpairs
+    
+    # Model configurations: "model layer expansion"
+    # Note: fw-medium layer 7 removed (Figure 8 computes on-the-fly for 2 features)
+    declare -a PRECOMPUTE_MODELS=(
+        "ts-medium 4 4"   # Figure 9 (paper's ts-tiny)
+        "ts-medium 5 4"   # Figure 8 (only layer with mlp-in SAE)
+        "fw-small 8 4"    # Figure 9
+        "fw-medium 10 8"  # Figure 9 (2/3 depth for 16-layer model)
+    )
+    
+    # Figure 10 SAE versions (fw-medium layer 12, expansion 16)
+    declare -a FIGURE_10_SAE_VERSIONS=("v0" "v1" "v2" "v3" "v4")
+    
+    # Check for subcommand
+    local subcmd="${REMAINING_ARGS[0]:-}"
+    
+    local float16_flag=""
+    if [[ "${REMAINING_ARGS[*]}" == *"--float16"* ]]; then
+        float16_flag="--float16"
+    fi
+    
+    local max_features=""
+    if $QUICK_MODE; then
+        max_features="--max-features 100"
+    fi
+    
+    # Filter by model if specified
+    if [ -n "$MODEL" ] && [ "$MODEL" != "all" ]; then
+        # Parse layer from --layer argument if provided (global or remaining args)
+        local layer_arg="${LAYER:-}"
+        if [ -z "$layer_arg" ]; then
+            for i in "${!REMAINING_ARGS[@]}"; do
+                if [[ "${REMAINING_ARGS[$i]}" == "--layer" ]]; then
+                    layer_arg="${REMAINING_ARGS[$((i+1))]}"
+                fi
+            done
+        fi
+        
+        case $MODEL in
+            ts-medium|tdooms/ts-medium)
+                if [ -n "$layer_arg" ]; then
+                    PRECOMPUTE_MODELS=("ts-medium $layer_arg 4")
+                else
+                    # Default to layer 4 for ts-medium
+                    PRECOMPUTE_MODELS=("ts-medium 4 4")
+                fi
+                ;;
+            fw-small|tdooms/fw-small)
+                PRECOMPUTE_MODELS=("fw-small 8 4")
+                ;;
+            fw-medium|tdooms/fw-medium)
+                if [ -n "$layer_arg" ]; then
+                    PRECOMPUTE_MODELS=("fw-medium $layer_arg 8")
+                else
+                    PRECOMPUTE_MODELS=("fw-medium 10 8")
+                fi
+                ;;
+            *)
+                echo "Unknown model: $MODEL"
+                echo "Valid models: ts-medium, fw-small, fw-medium, all"
+                exit 1
+                ;;
+        esac
+    fi
+    
+    # Handle Figure 10 precomputation (SAE versions v0-v4)
+    if [ "$subcmd" == "figure10" ]; then
+        echo ">>> Running Figure 10 Eigenpairs Precomputation"
+        echo "    Model: fw-medium layer 12 (expansion=16)"
+        echo "    SAE versions: ${FIGURE_10_SAE_VERSIONS[*]}"
+        echo "    Device: $DEVICE"
+        if [ -n "$float16_flag" ]; then
+            echo "    Storage: float16 (50% reduction)"
+        fi
+        echo ""
+        echo "    Estimated storage: ~180 GB total (5 versions × ~36 GB each)"
+        echo "    Or ~90 GB with --float16"
+        echo ""
+        
+        python src/language/precompute_eigenpairs.py \
+            --figure10 \
+            --device "$DEVICE" \
+            --chunk-size "$CHUNK_SIZE" \
+            $float16_flag \
+            $max_features
+        
+        echo ""
+        echo "Figure 10 precomputation complete!"
+        echo "Eigenpairs saved to: results/language/eigenpairs/fw-medium/12/{v0,v1,v2,v3,v4}/"
+        return
+    fi
+    
+    if [ "$subcmd" == "all" ] || [ -z "$subcmd" ]; then
+        echo ">>> Running Eigenpairs Precomputation"
+        echo "    Models: ${#PRECOMPUTE_MODELS[@]}"
+        echo "    Device: $DEVICE"
+        if [ -n "$float16_flag" ]; then
+            echo "    Storage: float16 (50% reduction)"
+        fi
+        echo ""
+        echo "    Estimated storage:"
+        echo "      ts-medium (layer 4/5): ~2 GB each"
+        echo "      fw-small (layer 8): ~7 GB"
+        echo "      fw-medium (layer 10): ~34 GB"
+        echo "      Figure 10 (fw-medium layer 12, 5 SAE versions): ~180 GB"
+        echo "      Total: ~225 GB (or ~113 GB with --float16)"
+        echo ""
+        echo "    Note: Run 'precompute figure10' separately for Figure 10 SAE versions"
+        echo ""
+        
+        for model_config in "${PRECOMPUTE_MODELS[@]}"; do
+            read -r model layer expansion <<< "$model_config"
+            
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Precomputing: $model (layer=$layer, expansion=$expansion)"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            python src/language/precompute_eigenpairs.py \
+                --model "tdooms/$model" \
+                --layer "$layer" \
+                --expansion "$expansion" \
+                --device "$DEVICE" \
+                --chunk-size "$CHUNK_SIZE" \
+                $float16_flag \
+                $max_features
+            
+            echo "Completed: $model layer $layer"
+        done
+        
+        echo ""
+        echo "Precomputation complete!"
+        echo "Eigenpairs saved to: results/language/eigenpairs/"
+        echo ""
+        echo "To use cached eigenpairs:"
+        echo "  ./scripts/train/run_language.sh figure9 --load-eigenpairs auto"
+    else
+        echo "Unknown precompute subcommand: $subcmd"
+        echo "Usage: ./scripts/train/run_language.sh precompute [all]"
+        exit 1
+    fi
 }
 
 # --- FIGURE 8: Negation Circuit Visualization ---
@@ -426,10 +674,10 @@ run_figure8_legacy() {
     # Best run on MPS (unified memory) or CUDA with streaming
     local fig8_device="$DEVICE"
     
-    local n_samples=1500
+    local n_samples="all"
     local streaming_flag=""
     if $QUICK_MODE; then
-        n_samples=500
+        n_samples=1000
     fi
     if $STREAMING; then
         streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
@@ -516,6 +764,7 @@ run_figure10() {
     echo "    Features: $n_features (-1 = all)"
     echo "    Device: $DEVICE"
     echo "    Metric: $METRIC"
+    echo "    Dataset: fineweb"
     echo ""
     
     PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH" python scripts/figures/sae_training_time_analysis.py \
@@ -523,6 +772,7 @@ run_figure10() {
         --n-features "$n_features" \
         --n-batches "$n_batches" \
         --metric "$METRIC" \
+        --dataset "fineweb" \
         --output "results/language/sae_training_time_comparison.json"
     
     echo ""
@@ -700,19 +950,77 @@ EOF
 
 # --- ALL ---
 run_all() {
+    print_header
+    activate_conda
+    
     echo ">>> Running full language pipeline..."
     echo ""
+    
+    # Model configurations for Figure 9: "model layer expansion dataset"
+    declare -a FIGURE9_MODELS=(
+        "ts-medium 4 4 tinystories"
+        "fw-small 8 4 fineweb"
+        "fw-medium 10 8 fineweb"
+    )
+    
+    if $PRECOMPUTE; then
+        # Step 1: Check and precompute missing eigenpairs caches
+        echo "Step 1: Checking eigenpairs caches..."
+        for model_config in "${FIGURE9_MODELS[@]}"; do
+            read -r model layer expansion dataset <<< "$model_config"
+            cache_dir="results/language/eigenpairs/$model/$layer"
+            
+            if [ ! -d "$cache_dir" ] || [ -z "$(ls -A "$cache_dir" 2>/dev/null)" ]; then
+                echo "  Cache missing for $model layer $layer, precomputing..."
+                python src/language/precompute_eigenpairs.py \
+                    --model "tdooms/$model" \
+                    --layer "$layer" \
+                    --expansion "$expansion" \
+                    --device "$DEVICE"
+            else
+                echo "  Cache exists for $model layer $layer, skipping precompute"
+            fi
+        done
+        echo ""
+        
+        # Step 2: Run experiments with cached eigenpairs
+        echo "Step 2: Running correlation analysis with cached eigenpairs..."
+        LOAD_EIGENPAIRS="auto"
+    else
+        echo "Step 1: Skipping eigenpairs precompute (use --precompute to enable)"
+        echo "Step 2: Running correlation analysis without cached eigenpairs..."
+        LOAD_EIGENPAIRS=""
+    fi
+    
     run_figure9
     echo ""
+    cleanup_memory "figure9"
+    
+    # Step 3: Figure 8 data generation (needed for paper-style Figure 8)
+    echo "Step 3: Generating Figure 8 data..."
+    run_figure8
+    echo ""
+    cleanup_memory "figure8"
+    
+    # Step 4: Other experiments
+    echo "Step 4: Running negation discovery..."
     run_negation
     echo ""
+    cleanup_memory "negation"
+    
+    echo "Step 5: Running interaction analysis..."
     run_interaction
     echo ""
+    cleanup_memory "interaction"
+    
+    # Step 6: Generate figures
+    echo "Step 6: Generating figures..."
     generate_figures
     echo ""
+    cleanup_memory "figures"
+    
     echo "Full pipeline complete!"
     echo ""
-    echo "Note: Figure 8 was skipped (run separately with: ./scripts/train/run_language.sh figure8 --device cpu)"
 }
 
 # --- HELP ---
@@ -720,6 +1028,7 @@ show_help() {
     echo "Usage: ./scripts/train/run_language.sh <command> [options]"
     echo ""
     echo "Commands:"
+    echo "  precompute    Precompute eigenpairs for fast iteration (Phase 1)"
     echo "  figure9       Correlation sweep for Figure 9 (all 3 models)"
     echo "  figure8       Negation circuit visualization (Figure 8)"
     echo "  figure10      SAE training time analysis (Figure 10)"
@@ -730,6 +1039,12 @@ show_help() {
     echo "  all           Full language pipeline (except Figure 8)"
     echo "  help          Show this help message"
     echo ""
+    echo "Precompute Subcommands:"
+    echo "  precompute all              Precompute all Figure 9 models (~8-10 hours)"
+    echo "  precompute figure10         Precompute Figure 10 SAE versions v0-v4"
+    echo "  precompute --model X        Precompute specific model"
+    echo "  precompute --model X --layer Y  Specific model and layer"
+    echo ""
     echo "Figure 8 Subcommands:"
     echo "  figure8 search    Run comprehensive circuit search (~8-10 hours)"
     echo "  figure8 analyze   Analyze top circuits from search results"
@@ -738,35 +1053,49 @@ show_help() {
     echo "  figure8 legacy    Single feature visualization (default)"
     echo ""
     echo "Options:"
-    echo "  --quick       Reduced samples/features for testing"
-    echo "  --device      cpu|mps|cuda (default: auto-detect)"
-    echo "  --no-wandb    Disable wandb logging"
-    echo "  --model       Specific model: ts-medium, fw-small, fw-medium, all"
-    echo "  --sequential  Run models sequentially (memory-safe for figure9)"
-    echo "  --feature     Feature index for figure8 legacy (default: 3834)"
-    echo "  --streaming   Use streaming Q computation for CUDA (Figure 8)"
-    echo "  --chunk-size  Chunk size for streaming (default: 256, 128 for smaller GPUs)"
-    echo "  --metric      pearson|cosine (default: pearson)"
+    echo "  --quick           Reduced samples/features for testing"
+    echo "  --device          cpu|mps|cuda (default: auto-detect)"
+    echo "  --no-wandb        Disable wandb logging"
+    echo "  --model           Specific model: ts-medium, fw-small, fw-medium, all"
+    echo "  --layer           Layer index (for precompute)"
+    echo "  --sequential      Run models sequentially (memory-safe for figure9)"
+    echo "  --feature         Feature index for figure8 legacy (default: 3834)"
+    echo "  --streaming       Use streaming Q computation for CUDA (Figure 8)"
+    echo "  --chunk-size      Chunk size for streaming (default: 256)"
+    echo "  --metric          pearson|cosine (default: pearson)"
+    echo "  --load-eigenpairs Path to cached eigenpairs or 'auto' (fast iteration)"
+    echo "  --float16         Save eigenpairs in float16 (50% storage reduction)"
+    echo "  --exact-accum     Exact streaming accumulation for Figure 9"
+    echo "  --precompute      Precompute eigenpairs in 'all' pipeline"
     echo ""
     echo "Examples:"
+    echo "  # Precompute eigenpairs (one-time, slow)"
+    echo "  ./scripts/train/run_language.sh precompute all         # Figure 9 models"
+    echo "  ./scripts/train/run_language.sh precompute figure10    # Figure 10 SAE versions"
+    echo "  ./scripts/train/run_language.sh precompute --model ts-medium --layer 5"
+    echo ""
+    echo "  # Use cached eigenpairs (fast iteration)"
+    echo "  ./scripts/train/run_language.sh figure9 --load-eigenpairs auto --metric pearson"
+    echo "  ./scripts/train/run_language.sh figure9 --load-eigenpairs auto --metric cosine"
+    echo ""
+    echo "  # Standard usage (without caching)"
     echo "  ./scripts/train/run_language.sh test                      # Quick tests"
     echo "  ./scripts/train/run_language.sh figure9 --quick           # Quick correlation sweep"
     echo "  ./scripts/train/run_language.sh figure9 --model fw-medium # Single model"
-    echo "  ./scripts/train/run_language.sh figure9 --metric cosine   # Use cosine similarity"
     echo "  ./scripts/train/run_language.sh figure8 all               # Full Figure 8 pipeline"
-    echo "  ./scripts/train/run_language.sh figure8 search --quick    # Quick search (100 features)"
-    echo "  ./scripts/train/run_language.sh figure8 all --streaming --device cuda  # CUDA with streaming"
-    echo "  ./scripts/train/run_language.sh figure10 --metric cosine  # SAE training with cosine"
     echo "  ./scripts/train/run_language.sh all                       # Full pipeline"
     echo ""
-    echo "Models for Figure 9:"
-    echo "  ts-medium  (6 layers, layer 4, expansion 4) - Paper's 'ts-tiny'"
-    echo "  fw-small   (12 layers, layer 8, expansion 4)"
-    echo "  fw-medium  (16 layers, layer 7, expansion 8) - Primary model"
+    echo "Models (with correct validation datasets):"
+    echo "  ts-medium  (6L, layer 4/5, expansion 4, tinystories) - Paper's 'ts-tiny'"
+    echo "  fw-small   (12L, layer 8, expansion 4, fineweb)"
+    echo "  fw-medium  (16L, layer 10, expansion 8, fineweb) - 2/3 depth"
 }
 
 # --- MAIN ---
 case $COMMAND in
+    precompute)
+        run_precompute
+        ;;
     figure9|correlation)
         run_figure9
         ;;
