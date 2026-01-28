@@ -1,7 +1,42 @@
+# Python
 *.pyc
+__pycache__/
+
+# System files
 **/.DS_Store
+__MACOSX/
+results/Thumbs.db
+
+# Documentation in subdirectories (keep root README.md clean)
+**/*.md
+!README.md
+!bilinear-decomposition-main/readme.md
+!results/language/README.md
+
+# Temporary/generated files
+*_context.zip
+texput.log
+powermetrics_log.txt
+
+# Data and checkpoints (too large for git)
 /data/
+checkpoints/
+*.pt
+checkpoints.zip
+results.zip
+
+# SLURM job files
 jobs/
+
+# Experiment logs
+wandb/
+logs/
+
+# Results subdirectories
+results/language/scatter_data/
+scripts/figures/archive/
+
+# Report LaTeX auxiliary files
 Report/*.aux
 Report/*.log
 Report/*.out
@@ -11,12 +46,16 @@ Report/*.fls
 Report/*.bbl
 Report/*.blg
 Report/*.fdb_latexmk
-results/language/scatter_data/
-scripts/figures/archive/
-checkpoints/
-checkpoints.zip
-results.zip
 
+# Presentation LaTeX auxiliary files
+presentation*/*.aux
+presentation*/*.log
+presentation*/*.nav
+presentation*/*.out
+presentation*/*.snm
+presentation*/*.toc
+
+# arXiv source auxiliary files
 arXiv-2410.08417v2/*.aux
 arXiv-2410.08417v2/*.log
 arXiv-2410.08417v2/*.out
@@ -30,18 +69,6 @@ arXiv-2410.08417v2/*.synctex(busy).gz
 arXiv-2410.08417v2/*.synctex.gz(busy).gz
 arXiv-2410.08417v2/*.bbl
 arXiv-2410.08417v2/*.blg
-.DS_Store
-__pycache__/
-wandb/
-logs/
-results/Thumbs.db
 
-# Checkpoints (too large for git)
-checkpoints/
-*.pt
-Report/main.bbl
-Report/main.blg
-.DS_Store
-__MACOSX/
-Report/main.bbl
-Report/main.blg
+# IDE folders
+.cursor/
