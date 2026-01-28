@@ -45,8 +45,16 @@ This scale-invariant measure ranges from 1 (single dominant eigenvalue) to $d$ (
 \label{sec:language_method}
 
 For language experiments, we combine bilinear decomposition with Sparse Autoencoders (SAEs)~\citep{bricken2023monosemanticity} to discover interpretable circuits.
-We use pretrained SAEs from \citet{pearce2024bilinear} with expansion ratios 4--8$\times$ and TopK sparsity ($k=30$), positioned at both MLP input and output.
-For each SAE output feature, we form interaction matrices between input features and measure low-rank approximation quality via rank-$k$ correlation, following \citet{pearce2024bilinear}.
+Bilinear transformers use the same gated structure (Eq.~\ref{eq:bilinear}) in their MLP layers, enabling decomposition of how input features interact to produce outputs.
+
+\textbf{Input/Output Decomposition.}
+We position SAEs at both MLP input (\texttt{mlp-in}) and output (\texttt{mlp-out}).
+Let $\mathbf{z}^{\text{in}} \in \mathbb{R}^{d_{\text{sae}}}$ be the sparse input feature activations and $z^{\text{out}}_f$ be the activation of output feature $f$.
+The bilinear structure implies $z^{\text{out}}_f \approx (\mathbf{z}^{\text{in}})^\top Q_f \, \mathbf{z}^{\text{in}}$, where $Q_f$ is the interaction matrix for feature $f$.
+We eigendecompose $Q_f$ to find dominant input directions: if rank-2 captures most variance, the output feature depends on just two input directions---revealing interpretable circuits (e.g., ``negation $\otimes$ sentiment $\to$ negated-sentiment'').
+
+We use pretrained SAEs from \citet{pearce2024bilinear} with expansion 4--8$\times$ and TopK sparsity ($k=30$).
+Low-rank quality is measured via Pearson correlation between true activations and rank-$k$ predictions.
 The paper claims 69\% of features achieve $>$0.75 correlation at rank-2.
 
 \subsection{Experimental Setup}

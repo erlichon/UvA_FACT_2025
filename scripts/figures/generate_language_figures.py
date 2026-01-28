@@ -307,6 +307,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     meaningful_dirs_3834 = data_3834["panel_b"].get("meaningful_directions", {})
     
     # Plot semantic direction indicators - scale to axis range (paper style)
+    # Use two separate arrows with different colors for "bad" and "good" directions
     if "bad-good" in meaningful_dirs_3834:
         bg_v1, bg_v2 = meaningful_dirs_3834["bad-good"]
         bg_norm = np.sqrt(bg_v1**2 + bg_v2**2)
@@ -314,9 +315,12 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
             scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.4
             bg_v1_scaled = (bg_v1 / bg_norm) * scale
             bg_v2_scaled = (bg_v2 / bg_norm) * scale
-            # Draw double-headed arrow for sentiment direction (purple)
-            ax_proj_3834.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(-bg_v1_scaled, -bg_v2_scaled),
-                                 arrowprops=dict(arrowstyle='<->', color='#9467bd', lw=2.5, alpha=0.8))
+            # "good" direction arrow (green)
+            ax_proj_3834.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(0, 0),
+                                 arrowprops=dict(arrowstyle='->', color='#2ca02c', lw=2.5, alpha=0.8))
+            # "bad" direction arrow (red)
+            ax_proj_3834.annotate('', xy=(-bg_v1_scaled, -bg_v2_scaled), xytext=(0, 0),
+                                 arrowprops=dict(arrowstyle='->', color='#d62728', lw=2.5, alpha=0.8))
     
     if "[BOS] not" in meaningful_dirs_3834:
         not_v1, not_v2 = meaningful_dirs_3834["[BOS] not"]
@@ -325,11 +329,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
             scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.3
             not_v1_scaled = (not_v1 / not_norm) * scale
             not_v2_scaled = (not_v2 / not_norm) * scale
-            ax_proj_3834.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#2ca02c', s=200, 
+            ax_proj_3834.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#9467bd', s=200, 
                                 edgecolors='black', linewidths=1, zorder=10)
-            ax_proj_3834.annotate('"not"\ninput', xy=(not_v1_scaled, not_v2_scaled), fontsize=7, 
-                                 ha='left', va='top', color='#2ca02c', fontweight='bold',
-                                 xytext=(5, -3), textcoords='offset points')
     
     # Add axis arrows with direction (paper style - arrows on axes showing +/- direction)
     # X-axis: blue double-headed arrow
@@ -349,13 +350,14 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     
     # Legend for feature 3834 clusters - upper left
     legend_elements_3834 = [
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='#1f77b4', 
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#1f77b4', 
                markersize=8, markeredgecolor='black', label='Neg. sentiment'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='#2ca02c', 
-               markersize=8, markeredgecolor='black', label='Negation'),
-        Line2D([0], [0], marker='v', color='w', markerfacecolor='#ff7f0e', 
+        Line2D([0], [0], marker='^', color='w', markerfacecolor='#ff7f0e', 
                markersize=8, markeredgecolor='black', label='Pos. sentiment'),
-        Line2D([0], [0], color='#9467bd', lw=2.5, label='"bad"↔"good" unembed'),
+        Line2D([0], [0], marker='*', color='w', markerfacecolor='#9467bd', 
+               markersize=10, markeredgecolor='black', label='"not" input'),
+        Line2D([0], [0], color='#2ca02c', lw=2.5, marker='>', markersize=6, label='"good" unembed'),
+        Line2D([0], [0], color='#d62728', lw=2.5, marker='>', markersize=6, label='"bad" unembed'),
     ]
     ax_proj_3834.legend(handles=legend_elements_3834, loc='upper left', fontsize=7)
     
@@ -479,6 +481,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
         meaningful_dirs_751 = data_751.get("meaningful_directions", {})
     
     # Plot semantic direction indicators for feature 751 - scale to axis range (paper style)
+    # Use two separate arrows with different colors for "bad" and "good" directions
     if "bad-good" in meaningful_dirs_751:
         bg_v1, bg_v2 = meaningful_dirs_751["bad-good"]
         bg_norm = np.sqrt(bg_v1**2 + bg_v2**2)
@@ -486,9 +489,12 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
             scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.4
             bg_v1_scaled = (bg_v1 / bg_norm) * scale
             bg_v2_scaled = (bg_v2 / bg_norm) * scale
-            # Draw double-headed arrow for sentiment direction (purple)
-            ax_proj_751.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(-bg_v1_scaled, -bg_v2_scaled),
-                                arrowprops=dict(arrowstyle='<->', color='#9467bd', lw=2.5, alpha=0.8))
+            # "good" direction arrow (green)
+            ax_proj_751.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(0, 0),
+                                arrowprops=dict(arrowstyle='->', color='#2ca02c', lw=2.5, alpha=0.8))
+            # "bad" direction arrow (red)
+            ax_proj_751.annotate('', xy=(-bg_v1_scaled, -bg_v2_scaled), xytext=(0, 0),
+                                arrowprops=dict(arrowstyle='->', color='#d62728', lw=2.5, alpha=0.8))
     
     if "[BOS] not" in meaningful_dirs_751:
         not_v1, not_v2 = meaningful_dirs_751["[BOS] not"]
@@ -497,11 +503,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
             scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.3
             not_v1_scaled = (not_v1 / not_norm) * scale
             not_v2_scaled = (not_v2 / not_norm) * scale
-            ax_proj_751.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#2ca02c', s=200, 
+            ax_proj_751.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#9467bd', s=200, 
                                edgecolors='black', linewidths=1, zorder=10)
-            ax_proj_751.annotate('"not"\ninput', xy=(not_v1_scaled, not_v2_scaled), fontsize=7, 
-                                ha='left', va='top', color='#2ca02c', fontweight='bold',
-                                xytext=(5, -3), textcoords='offset points')
     
     # Add axis arrows with direction (paper style - arrows on axes showing +/- direction)
     # X-axis: blue double-headed arrow
@@ -521,13 +524,14 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     
     # Legend for feature 751 - lower right
     legend_elements_751 = [
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='#1f77b4', 
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='#1f77b4', 
                markersize=8, markeredgecolor='black', label='Neg. sentiment'),
-        Line2D([0], [0], marker='^', color='w', markerfacecolor='#2ca02c', 
-               markersize=8, markeredgecolor='black', label='Negation'),
-        Line2D([0], [0], marker='v', color='w', markerfacecolor='#ff7f0e', 
+        Line2D([0], [0], marker='^', color='w', markerfacecolor='#ff7f0e', 
                markersize=8, markeredgecolor='black', label='Pos. sentiment'),
-        Line2D([0], [0], color='#9467bd', lw=2.5, label='"bad"↔"good" unembed'),
+        Line2D([0], [0], marker='*', color='w', markerfacecolor='#9467bd', 
+               markersize=10, markeredgecolor='black', label='"not" input'),
+        Line2D([0], [0], color='#2ca02c', lw=2.5, marker='>', markersize=6, label='"good" unembed'),
+        Line2D([0], [0], color='#d62728', lw=2.5, marker='>', markersize=6, label='"bad" unembed'),
     ]
     ax_proj_751.legend(handles=legend_elements_751, loc='lower right', fontsize=7)
     
@@ -554,16 +558,6 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     # Main title
     fig.suptitle("Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad)", 
                 fontsize=13, fontweight='bold', y=0.98)
-    
-    # Add text explanation boxes describing the AND-gate circuit behavior
-    # Place them in the figure margins, not overlapping with axes
-    # Feature 3834 explanation (Row 1) - place below the row title
-    fig.text(0.17, 0.91, "AND-gate: Neg. sentiment ⊗ Negation → not-good", 
-             fontsize=8, ha='center', va='top', style='italic', color='#555555')
-    
-    # Feature 751 explanation (Row 2) - place below the row title
-    fig.text(0.17, 0.45, "AND-gate: Pos. sentiment ⊗ Negation → not-bad", 
-             fontsize=8, ha='center', va='top', style='italic', color='#555555')
     
     plt.tight_layout()
     plt.subplots_adjust(top=0.93, hspace=0.3)

@@ -118,14 +118,19 @@ We compute correlations with ranks 1--60: ts-medium uses $\sim$1.57M tokens (204
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}{0.44\textwidth}
+    \begin{subfigure}{0.32\textwidth}
         \includegraphics[width=\linewidth]{figures/language/figure_9a_correlation_progression.pdf}
         \caption{Correlation vs.\ rank}
     \end{subfigure}
     \hfill
-    \begin{subfigure}{0.44\textwidth}
+    \begin{subfigure}{0.32\textwidth}
         \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
         \caption{Rank-2 distribution}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.32\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_9c_scatter_plots.pdf}
+        \caption{True vs.\ predicted (fw-medium)}
     \end{subfigure}
     \caption{Low-rank correlation (Paper Figure 9). ts-medium (L4, exp=4), fw-small (L8, exp=4), fw-medium (L10, exp=8).}
     \label{fig:correlation_analysis}
