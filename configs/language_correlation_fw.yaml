@@ -8,15 +8,15 @@ experiment_id: L5.2
 #  ('fw-small' and 'fw-medium')."
 
 model:
-  # FineWeb-EDU bilinear transformer (335M params, 16 layers)
-  # Paper uses layer 7 (approximately 2/3 depth: 7/16 ≈ 0.44, but close to middle)
+# FineWeb-EDU bilinear transformer (335M params, 16 layers)
+# Figure 9 uses layer 10 (≈2/3 depth: 10/16 = 0.625)
   pretrained: "tdooms/fw-medium"
 
 sae:
   # Paper Appendix D: SAE training with expansion 8 for larger models
   # "quite narrow dictionaries (4x expansion) for simplicity" refers to ts-tiny
   # fw-medium uses 8x expansion
-  layer: 7
+  layer: 10
   input:
     name: "mlp-in"
     expansion: 8

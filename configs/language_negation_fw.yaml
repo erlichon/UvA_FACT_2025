@@ -22,10 +22,20 @@ model:
 
 sae:
   use_pretrained: true
-  point: "mlp-out"
   layer: 7           # Paper uses layer 7 (middle of 16-layer model)
+  # Keep flat fields for backward compatibility in scripts that read `point/expansion/k`.
+  point: "mlp-out"
   expansion: 8       # Paper uses expansion 8
   k: 30
+  # Figure 8 requires BOTH input and output SAEs (Tracer uses both).
+  input:
+    name: "mlp-in"
+    expansion: 8
+    k: 30
+  output:
+    name: "mlp-out"
+    expansion: 8
+    k: 30
 
 analysis:
   n_samples: 50000   # Number of text samples to analyze

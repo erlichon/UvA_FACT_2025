@@ -298,50 +298,56 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     ax_proj_3834.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
     ax_proj_3834.axvline(x=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
     
+    # Get axis limits first for proper scaling
+    ax_proj_3834.autoscale()
+    xlim = ax_proj_3834.get_xlim()
+    ylim = ax_proj_3834.get_ylim()
+    
     # Add meaningful directions (paper style: "bad-good" unembed, "not" input)
     meaningful_dirs_3834 = data_3834["panel_b"].get("meaningful_directions", {})
     
-    # Plot semantic direction indicators
+    # Plot semantic direction indicators - scale to axis range (paper style)
     if "bad-good" in meaningful_dirs_3834:
         bg_v1, bg_v2 = meaningful_dirs_3834["bad-good"]
-        # "bad"-"good" unembed on left side, "good"-"bad" on right (opposite)
-        ax_proj_3834.annotate('"bad"-"good"\nunembed', xy=(bg_v1, bg_v2), fontsize=7, 
-                             ha='center', va='bottom', color='#1f77b4')
-        ax_proj_3834.annotate('"good"-"bad"\nunembed', xy=(-bg_v1, -bg_v2), fontsize=7, 
-                             ha='center', va='top', color='#1f77b4')
-        # Draw arrow for direction
-        ax_proj_3834.annotate('', xy=(-bg_v1*0.8, -bg_v2*0.8), xytext=(bg_v1*0.8, bg_v2*0.8),
-                             arrowprops=dict(arrowstyle='<->', color='#1f77b4', lw=1.5))
+        bg_norm = np.sqrt(bg_v1**2 + bg_v2**2)
+        if bg_norm > 0:
+            scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.4
+            bg_v1_scaled = (bg_v1 / bg_norm) * scale
+            bg_v2_scaled = (bg_v2 / bg_norm) * scale
+            # Draw double-headed arrow for sentiment direction (purple)
+            ax_proj_3834.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(-bg_v1_scaled, -bg_v2_scaled),
+                                 arrowprops=dict(arrowstyle='<->', color='#9467bd', lw=2.5, alpha=0.8))
     
     if "[BOS] not" in meaningful_dirs_3834:
         not_v1, not_v2 = meaningful_dirs_3834["[BOS] not"]
-        ax_proj_3834.scatter(not_v1, not_v2, marker='^', c='#2ca02c', s=120, 
-                            edgecolors='black', linewidths=1, zorder=10)
-        ax_proj_3834.annotate('"not"\ninput', xy=(not_v1, not_v2), fontsize=7, 
-                             ha='left', va='top', color='#2ca02c',
-                             xytext=(5, -5), textcoords='offset points')
+        not_norm = np.sqrt(not_v1**2 + not_v2**2)
+        if not_norm > 0:
+            scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.3
+            not_v1_scaled = (not_v1 / not_norm) * scale
+            not_v2_scaled = (not_v2 / not_norm) * scale
+            ax_proj_3834.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#2ca02c', s=200, 
+                                edgecolors='black', linewidths=1, zorder=10)
+            ax_proj_3834.annotate('"not"\ninput', xy=(not_v1_scaled, not_v2_scaled), fontsize=7, 
+                                 ha='left', va='top', color='#2ca02c', fontweight='bold',
+                                 xytext=(5, -3), textcoords='offset points')
     
-    # Label the output feature position (center of its cluster)
-    ax_proj_3834.annotate('"not-good"\nfeature', xy=(0.02, -0.15), fontsize=7, 
-                         ha='left', va='top', color='#333333', fontweight='bold')
-    
-    # Add directional arrows (paper style)
-    xlim = ax_proj_3834.get_xlim()
-    ylim = ax_proj_3834.get_ylim()
+    # Add axis arrows with direction (paper style - arrows on axes showing +/- direction)
+    # X-axis: blue double-headed arrow
     ax_proj_3834.annotate('', xy=(xlim[1]*0.95, 0), xytext=(xlim[0]*0.95, 0),
-                         arrowprops=dict(arrowstyle='<->', color='#d62728', lw=2))
+                         arrowprops=dict(arrowstyle='<->', color='#1f77b4', lw=2))
+    ax_proj_3834.text(xlim[1]*0.9, ylim[0]*0.15, '+', fontsize=12, color='#1f77b4', fontweight='bold')
+    ax_proj_3834.text(xlim[0]*0.9, ylim[0]*0.15, '−', fontsize=12, color='#1f77b4', fontweight='bold')
+    # Y-axis: red double-headed arrow
     ax_proj_3834.annotate('', xy=(0, ylim[1]*0.95), xytext=(0, ylim[0]*0.95),
-                         arrowprops=dict(arrowstyle='<->', color='#2ca02c', lw=2))
-    ax_proj_3834.text(xlim[1]*0.85, ylim[0]*0.12, '+', fontsize=12, color='#d62728', fontweight='bold')
-    ax_proj_3834.text(xlim[0]*0.85, ylim[0]*0.12, '−', fontsize=12, color='#d62728', fontweight='bold')
-    ax_proj_3834.text(xlim[0]*0.12, ylim[1]*0.85, '+', fontsize=12, color='#2ca02c', fontweight='bold')
-    ax_proj_3834.text(xlim[0]*0.12, ylim[0]*0.85, '−', fontsize=12, color='#2ca02c', fontweight='bold')
+                         arrowprops=dict(arrowstyle='<->', color='#d62728', lw=2))
+    ax_proj_3834.text(xlim[0]*0.15, ylim[1]*0.85, '+', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_3834.text(xlim[0]*0.15, ylim[0]*0.85, '−', fontsize=12, color='#d62728', fontweight='bold')
     
-    ax_proj_3834.set_xlabel("Top positive eigenvector", fontsize=9, color='#d62728')
-    ax_proj_3834.set_ylabel("Top negative eigenvector", fontsize=9, color='#2ca02c')
+    ax_proj_3834.set_xlabel("Top positive eigenvector", fontsize=9, color='#1f77b4')
+    ax_proj_3834.set_ylabel("Top negative eigenvector", fontsize=9, color='#d62728')
     ax_proj_3834.set_title("B) Eigenvector Projections", fontsize=10, fontweight='bold')
     
-    # Legend for feature 3834 clusters
+    # Legend for feature 3834 clusters - upper left
     legend_elements_3834 = [
         Line2D([0], [0], marker='s', color='w', markerfacecolor='#1f77b4', 
                markersize=8, markeredgecolor='black', label='Neg. sentiment'),
@@ -349,8 +355,9 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
                markersize=8, markeredgecolor='black', label='Negation'),
         Line2D([0], [0], marker='v', color='w', markerfacecolor='#ff7f0e', 
                markersize=8, markeredgecolor='black', label='Pos. sentiment'),
+        Line2D([0], [0], color='#9467bd', lw=2.5, label='"bad"↔"good" unembed'),
     ]
-    ax_proj_3834.legend(handles=legend_elements_3834, loc='upper right', fontsize=7)
+    ax_proj_3834.legend(handles=legend_elements_3834, loc='upper left', fontsize=7)
     
     # --- Panel C: Scatter Plot ---
     panel_c_3834 = data_3834.get("panel_c", {})
@@ -460,51 +467,59 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     ax_proj_751.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
     ax_proj_751.axvline(x=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
     
+    # Get axis limits first for proper scaling
+    ax_proj_751.autoscale()
+    xlim = ax_proj_751.get_xlim()
+    ylim = ax_proj_751.get_ylim()
+    
     # Add meaningful directions (paper style: "bad-good" unembed, "not" input)
     if "panel_b" in data_751:
         meaningful_dirs_751 = data_751["panel_b"].get("meaningful_directions", {})
     else:
         meaningful_dirs_751 = data_751.get("meaningful_directions", {})
     
-    # Plot semantic direction indicators for feature 751
+    # Plot semantic direction indicators for feature 751 - scale to axis range (paper style)
     if "bad-good" in meaningful_dirs_751:
         bg_v1, bg_v2 = meaningful_dirs_751["bad-good"]
-        ax_proj_751.annotate('"bad"-"good"\nunembed', xy=(bg_v1, bg_v2), fontsize=7, 
-                            ha='center', va='bottom', color='#1f77b4')
-        ax_proj_751.annotate('"good"-"bad"\nunembed', xy=(-bg_v1, -bg_v2), fontsize=7, 
-                            ha='center', va='top', color='#1f77b4')
-        ax_proj_751.annotate('', xy=(-bg_v1*0.8, -bg_v2*0.8), xytext=(bg_v1*0.8, bg_v2*0.8),
-                            arrowprops=dict(arrowstyle='<->', color='#1f77b4', lw=1.5))
+        bg_norm = np.sqrt(bg_v1**2 + bg_v2**2)
+        if bg_norm > 0:
+            scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.4
+            bg_v1_scaled = (bg_v1 / bg_norm) * scale
+            bg_v2_scaled = (bg_v2 / bg_norm) * scale
+            # Draw double-headed arrow for sentiment direction (purple)
+            ax_proj_751.annotate('', xy=(bg_v1_scaled, bg_v2_scaled), xytext=(-bg_v1_scaled, -bg_v2_scaled),
+                                arrowprops=dict(arrowstyle='<->', color='#9467bd', lw=2.5, alpha=0.8))
     
     if "[BOS] not" in meaningful_dirs_751:
         not_v1, not_v2 = meaningful_dirs_751["[BOS] not"]
-        ax_proj_751.scatter(not_v1, not_v2, marker='^', c='#2ca02c', s=120, 
-                           edgecolors='black', linewidths=1, zorder=10)
-        ax_proj_751.annotate('"not"\ninput', xy=(not_v1, not_v2), fontsize=7, 
-                            ha='left', va='top', color='#2ca02c',
-                            xytext=(5, -5), textcoords='offset points')
+        not_norm = np.sqrt(not_v1**2 + not_v2**2)
+        if not_norm > 0:
+            scale = min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0])) * 0.3
+            not_v1_scaled = (not_v1 / not_norm) * scale
+            not_v2_scaled = (not_v2 / not_norm) * scale
+            ax_proj_751.scatter(not_v1_scaled, not_v2_scaled, marker='*', c='#2ca02c', s=200, 
+                               edgecolors='black', linewidths=1, zorder=10)
+            ax_proj_751.annotate('"not"\ninput', xy=(not_v1_scaled, not_v2_scaled), fontsize=7, 
+                                ha='left', va='top', color='#2ca02c', fontweight='bold',
+                                xytext=(5, -3), textcoords='offset points')
     
-    # Label the output feature position
-    ax_proj_751.annotate('"not-bad"\nfeature', xy=(0.02, 0.15), fontsize=7, 
-                        ha='left', va='bottom', color='#333333', fontweight='bold')
-    
-    # Directional arrows
-    xlim = ax_proj_751.get_xlim()
-    ylim = ax_proj_751.get_ylim()
+    # Add axis arrows with direction (paper style - arrows on axes showing +/- direction)
+    # X-axis: blue double-headed arrow
     ax_proj_751.annotate('', xy=(xlim[1]*0.95, 0), xytext=(xlim[0]*0.95, 0),
-                        arrowprops=dict(arrowstyle='<->', color='#d62728', lw=2))
+                        arrowprops=dict(arrowstyle='<->', color='#1f77b4', lw=2))
+    ax_proj_751.text(xlim[1]*0.9, ylim[0]*0.15, '+', fontsize=12, color='#1f77b4', fontweight='bold')
+    ax_proj_751.text(xlim[0]*0.9, ylim[0]*0.15, '−', fontsize=12, color='#1f77b4', fontweight='bold')
+    # Y-axis: red double-headed arrow
     ax_proj_751.annotate('', xy=(0, ylim[1]*0.95), xytext=(0, ylim[0]*0.95),
-                        arrowprops=dict(arrowstyle='<->', color='#2ca02c', lw=2))
-    ax_proj_751.text(xlim[1]*0.85, ylim[0]*0.12, '+', fontsize=12, color='#d62728', fontweight='bold')
-    ax_proj_751.text(xlim[0]*0.85, ylim[0]*0.12, '−', fontsize=12, color='#d62728', fontweight='bold')
-    ax_proj_751.text(xlim[0]*0.12, ylim[1]*0.85, '+', fontsize=12, color='#2ca02c', fontweight='bold')
-    ax_proj_751.text(xlim[0]*0.12, ylim[0]*0.85, '−', fontsize=12, color='#2ca02c', fontweight='bold')
+                        arrowprops=dict(arrowstyle='<->', color='#d62728', lw=2))
+    ax_proj_751.text(xlim[0]*0.15, ylim[1]*0.85, '+', fontsize=12, color='#d62728', fontweight='bold')
+    ax_proj_751.text(xlim[0]*0.15, ylim[0]*0.85, '−', fontsize=12, color='#d62728', fontweight='bold')
     
-    ax_proj_751.set_xlabel("Top positive eigenvector", fontsize=9, color='#d62728')
-    ax_proj_751.set_ylabel("Top negative eigenvector", fontsize=9, color='#2ca02c')
+    ax_proj_751.set_xlabel("Top positive eigenvector", fontsize=9, color='#1f77b4')
+    ax_proj_751.set_ylabel("Top negative eigenvector", fontsize=9, color='#d62728')
     ax_proj_751.set_title("B) Eigenvector Projections", fontsize=10, fontweight='bold')
     
-    # Legend for feature 751 (same style as paper)
+    # Legend for feature 751 - lower right
     legend_elements_751 = [
         Line2D([0], [0], marker='s', color='w', markerfacecolor='#1f77b4', 
                markersize=8, markeredgecolor='black', label='Neg. sentiment'),
@@ -512,8 +527,9 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
                markersize=8, markeredgecolor='black', label='Negation'),
         Line2D([0], [0], marker='v', color='w', markerfacecolor='#ff7f0e', 
                markersize=8, markeredgecolor='black', label='Pos. sentiment'),
+        Line2D([0], [0], color='#9467bd', lw=2.5, label='"bad"↔"good" unembed'),
     ]
-    ax_proj_751.legend(handles=legend_elements_751, loc='upper right', fontsize=7)
+    ax_proj_751.legend(handles=legend_elements_751, loc='lower right', fontsize=7)
     
     # --- Panel C: Scatter Plot ---
     panel_c_751 = data_751.get("panel_c", {})
@@ -538,6 +554,16 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     # Main title
     fig.suptitle("Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad)", 
                 fontsize=13, fontweight='bold', y=0.98)
+    
+    # Add text explanation boxes describing the AND-gate circuit behavior
+    # Place them in the figure margins, not overlapping with axes
+    # Feature 3834 explanation (Row 1) - place below the row title
+    fig.text(0.17, 0.91, "AND-gate: Neg. sentiment ⊗ Negation → not-good", 
+             fontsize=8, ha='center', va='top', style='italic', color='#555555')
+    
+    # Feature 751 explanation (Row 2) - place below the row title
+    fig.text(0.17, 0.45, "AND-gate: Pos. sentiment ⊗ Negation → not-bad", 
+             fontsize=8, ha='center', va='top', style='italic', color='#555555')
     
     plt.tight_layout()
     plt.subplots_adjust(top=0.93, hspace=0.3)

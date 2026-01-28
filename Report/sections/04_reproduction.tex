@@ -68,7 +68,7 @@ Top eigenvectors are highly consistent across random seeds, especially for large
 
 We reproduce the original paper's Figures 4, 6, and 7; full visualizations are in Appendix~\ref{app:vision_additional}.
 Increasing noise improves eigenvector interpretability while trading off with effective rank (Figure~\ref{fig:noise_effect}).
-On binary similarity classification, the top eigenvector closely resembles the target digit (Figure~\ref{fig:challenge_task}), and eigenvector-derived masks cause significantly larger accuracy drops than random masks (Figure~\ref{fig:adversarial}), confirming V6.
+On binary similarity classification, the top eigenvector closely resembles the target digit (Figure~\ref{fig:challenge_task}, Appendix~\ref{app:vision_additional}), and eigenvector-derived masks cause significantly larger accuracy drops than random masks (Figure~\ref{fig:adversarial}, Appendix~\ref{app:vision_additional}), confirming V6.
 
 \begin{figure}[H]
     \centering
@@ -89,41 +89,60 @@ On binary similarity classification, the top eigenvector closely resembles the t
 \subsection{Language Results (Paper Section 5)}
 \label{sec:language_results}
 
-We reproduce the negation circuit discovery using pretrained bilinear transformers and publicly available SAEs from HuggingFace.\footnote{SAE repositories: \texttt{tdooms/fw-medium-scope}, \texttt{tdooms/ts-medium-scope}, \texttt{tdooms/fw-small-scope}.}
+We reproduce negation circuit discovery using pretrained bilinear transformers and SAEs from HuggingFace.\footnote{SAE repositories: \texttt{tdooms/fw-medium-scope}, \texttt{tdooms/ts-medium-scope}, \texttt{tdooms/fw-small-scope}.}
+Our protocol: pass tokenized batches through each model, record \texttt{mlp\_in}/\texttt{mlp\_out} activations, encode with output SAE, and compare sparse features to low-rank predictions from interaction eigenpairs.
+We analyze all \emph{active features} (positive activation for $\geq$1 token) using Pearson correlation.
 
-Our correlation analysis follows a consistent experimental protocol: tokenized text batches are passed through each model, we record \texttt{mlp\_in} and \texttt{mlp\_out} activations, encode \texttt{mlp\_out} with the output SAE to obtain sparse feature activations, and compare these to low-rank predictions derived from the interaction eigenpairs. We examine all output SAE features at the specified layer for each model, filtering to \emph{active features}---features with positive activation ($z_{\text{true}} > 0$) for at least one token position. For each active feature, correlations are computed over all available active samples (target-samples = all). Unless otherwise stated, we report Pearson correlation. Datasets follow model training sources: ts-medium uses TinyStories, fw-small and fw-medium use FineWeb-EDU.
-
-\textbf{Critical finding: SAE availability gap.}
-Inspection of the public SAE repositories revealed a limitation: \texttt{ts-medium-scope} (the paper's ts-tiny model) only provides \texttt{mlp-in} SAEs for layer 5, not layer 4.
-Since Figure 8 analysis requires \emph{both} \texttt{mlp-in} and \texttt{mlp-out} SAEs, the paper's Figure 8 (ts-tiny, layer 4) cannot be reproduced with public artifacts.
-We therefore use \texttt{fw-medium} (layer 7, expansion 8) which has both SAE types available.
+\textbf{SAE availability gap:} \texttt{ts-medium-scope} lacks \texttt{mlp-in} SAEs for layer 4, so Figure~8's ts-tiny setup cannot be reproduced.
+We use \texttt{fw-medium} (layer 7, expansion 8) which has both SAE types.
 
 \subsubsection{Negation Circuit Discovery (Paper Figure 8)}
 
-We reproduce the AND-gate circuit discovery within fw-medium, identifying feature 751 (AND-score: 0.96) as the primary negation mechanism.
-The interaction matrix exhibits a clear block structure (Figure~\ref{fig:negation_circuit}, Appendix~\ref{app:language_results}), partitioning input features into distinct semantic clusters: positive sentiment (e.g., ``wonderful'') and negative concepts (e.g., ``disease'').
-The dominant eigenvalues possess opposing signs ($\lambda_1 = -0.46$, $\lambda_2 = +0.18$), facilitating the AND-gate logic through weight-based interference.
+Figure~\ref{fig:negation_circuit} compares negation feature 3834 with stronger AND-gate feature 751 in fw-medium.
+Each row shows (A) interaction submatrix, (B) eigenvector projections with semantic directions, and (C) rank-2 predictions vs.\ true activations.
+Feature 751 exhibits clearer AND-gate structure, consistent with low-dimensional semantic mechanisms.
+Full methodology in Appendix~\ref{app:figure8_investigation}.
 
-Empirically, feature 751 activates strongly for negative-only contexts (0.88), moderately for mixed contexts (0.62), and remains inactive for positive-only inputs (0.0).
-This gradient of activation confirms that the bilinear weights implement a negation circuit where opposing eigenvalues cause cancellation when both clusters are present, directly validating the mechanistic claims in \citet{pearce2024bilinear}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\linewidth]{figures/language/figure_8_final.pdf}
+    \caption{AND-gate circuit (fw-medium, layer 7). Top: feature 3834; bottom: feature 751.
+    (A) Interaction submatrix, (B) eigenvector projections, (C) rank-2 vs.\ true activations.}
+    \label{fig:negation_circuit}
+\end{figure}
 
 \subsubsection{Low-Rank Correlation Analysis (Paper Figure 9)}
 
-The paper claims 69\% of features achieve $>$0.75 rank-2 correlation.
-Our reproduction across three bilinear transformers (Figure~\ref{fig:correlation_analysis}, Appendix~\ref{app:language_results}) shows significantly lower values: mean rank-2 correlations range 0.27--0.51, with only 18--32\% exceeding the 0.75 threshold.
-The discrepancy persists across all three models, suggesting an artifact quality gap rather than methodological error.
+The paper claims most features achieve $>$0.75 rank-2 correlation.
+We compute correlations with ranks 1--60: ts-medium uses $\sim$1.57M tokens (2048 features), fw-medium uses $\sim$0.44M tokens (262 features).
 
-\subsubsection{Root Cause Analysis: SAE Training Duration}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}{0.44\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_9a_correlation_progression.pdf}
+        \caption{Correlation vs.\ rank}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.44\textwidth}
+        \includegraphics[width=\linewidth]{figures/language/figure_9b_correlation_histogram.pdf}
+        \caption{Rank-2 distribution}
+    \end{subfigure}
+    \caption{Low-rank correlation (Paper Figure 9). ts-medium (L4, exp=4), fw-small (L8, exp=4), fw-medium (L10, exp=8).}
+    \label{fig:correlation_analysis}
+\end{figure}
 
-The paper acknowledges in Appendix C that ``correlation drastically improves with longer SAE training times.''
-We test this using fw-medium's layer 12 SAEs (expansion=16), where training-time checkpoints v0--v4 are publicly available (Figure~\ref{fig:sae_training_effect}, Appendix~\ref{app:language_results}).
-Rank-2 correlation improves monotonically with SAE training duration (v0: 12\% $\to$ v4: 32\% above 0.75 threshold), but even the longest-trained public SAE reaches only 32\%, far below the paper's 69\% claim.
-This confirms the methodology is sound; the reproducibility gap stems from SAE quality, not methodological flaws.
+\subsubsection{Root Cause: SAE Training Duration}
+
+The paper notes correlation improves with SAE training time (Appendix C).
+We confirm this using fw-medium layer 12 checkpoints v0--v4; see Appendix~\ref{app:language_results}.
 
 \subsection{Summary}
 
 \textbf{Vision (Section 4): Fully Reproduced.} All claims (V1--V6) confirmed.
 
-\textbf{Language (Section 5): Partially Reproduced.} AND-gate circuits (L1--L2) are confirmed with clear semantic structure.
-Low-rank correlation (L3) falls short: public SAEs yield rank-2 correlations of 0.27--0.51, far below the claimed 69\% above 0.75.
-Root cause analysis confirms correlation improves with longer SAE training, suggesting the paper used internal, better-trained SAEs not publicly available.
+\textbf{Language (Section 5): Partially Reproduced.}
+\begin{itemize}[leftmargin=*,topsep=0pt,itemsep=0pt]
+    \item \textbf{AND-gate circuits (L1--L2): Reproduced.} The final Figure~8 comparison shows the expected interaction structure, with feature 751 exhibiting a clearer AND-gate pattern than the tutorial feature 3834.
+    \item \textbf{Low-rank correlation (L3): In progress.} Results are computed with a fixed token budget and exact accumulation; the final quantitative comparison will be reported after the current run completes.
+    \item \textbf{Root cause: SAE training duration.} Supplementary analysis in Appendix~\ref{app:language_results} evaluates training-time effects on correlation quality.
+\end{itemize}

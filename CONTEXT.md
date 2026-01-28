@@ -108,7 +108,7 @@ After verifying model specifications and SAE availability, we discovered:
 - `scripts/figures/find_best_interactions.py` - Interaction-based feature discovery
 
 #### Section 5.2: Low-Rank Correlation (Figure 9)
-- **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 7)
+- **Models**: ts-medium (layer 4), fw-small (layer 8), fw-medium (layer 10)
 - **Expansion**: 4 for ts-medium/fw-small, 8 for fw-medium
 - **Claim**: 69% of features have >0.75 rank-2 correlation
 - **Config**: `configs/language_correlation_fw.yaml`
@@ -127,7 +127,7 @@ After verifying model specifications and SAE availability, we discovered:
 |-------|--------|---------|--------|-----------|-----------|--------|---------|-----|
 | ts-medium | 6 | 512 | 29.4M | 4 | 4 | ❌ | ✅ | Figure 9 only |
 | fw-small | 12 | - | 162M | 8 | 4 | ❌ | ✅ | Figure 9 |
-| fw-medium | 16 | 1024 | 335M | 7 | 8 | ✅ | ✅ | **Figure 8 + Figure 9** |
+| fw-medium | 16 | 1024 | 335M | 7 (Fig8) / 10 (Fig9) | 8 | ✅ | ✅ | **Figure 8 + Figure 9** |
 
 **Notes**:
 - ✅ ts-medium verified as paper's ts-tiny (same specs: 6L, 512d, ~29M params)

@@ -1,26 +1,25 @@
 name: language_negation_ts
 experiment_id: L5.1_PAPER
 
-# Paper Section 5.1: Sentiment Negation Circuit (EXACT REPRODUCTION)
+# Paper Section 5.1: Sentiment Negation Circuit
 # "...for a 6-layer bilinear transformer trained on TinyStories"
-# "...two opposing output features in layer 4 (index 1882 and 1179)"
 #
-# VERIFIED (2026-01-14): tdooms/ts-medium IS the paper's "ts-tiny"
-# - 6 layers, 512d_model, 29.4M params, TinyStories dataset
-# - Features: 1882 (not-good), 1179 (not-bad)
-# - Expected cosine similarity: -0.975
+# IMPORTANT: Paper used layer 4 with internal SAE checkpoints.
+# HuggingFace only has both mlp-in and mlp-out SAEs for layer 5.
+# Layer 5 is at 5/6 = 83% depth (slightly later than paper's 4/6 = 67%)
+#
+# ts-medium: 6 layers, 512d_model, 29.4M params, TinyStories dataset
+# TinyStories produces cleaner semantic clustering than FineWeb-EDU
 
 model:
-  # Paper's Figure 8 model
   pretrained: "tdooms/ts-medium"
 
 sae:
-  # Use pretrained SAEs from HuggingFace (tdooms/ts-medium-scope)
-  # Paper Section 5.1 uses layer 4 of 6-layer model
-  # Paper Table 3: expansion=4, k=30 for TinyStories experiments
+  # Use layer 5 - the ONLY layer with both mlp-in and mlp-out SAEs
+  # Available on HuggingFace: 5-mlp-in-x4-k30, 5-mlp-out-x4-k30
   use_pretrained: true
   point: "mlp-out"
-  layer: 4
+  layer: 5
   expansion: 4
   k: 30
 
@@ -30,9 +29,9 @@ analysis:
   # Number of top features to report
   top_k: 20
   
-  # Paper's EXACT features for Figure 8 (Section 5.1)
-  expected_not_good_feature: 1882   # "not + negative words"
-  expected_not_bad_feature: 1179    # "not + positive words"
+  # Note: Paper's features (1882/1179) are for layer 4.
+  # Layer 5 features need to be discovered via search.
+  # Run: ./scripts/train/run_language.sh figure8 search --model ts-medium
   
-  # For Figure 8 visualization
-  figure_8_feature: 1882  # Primary feature for detailed analysis
+  # For Figure 8 visualization (will be updated after search)
+  figure_8_feature: -1  # Placeholder - run search to discover
