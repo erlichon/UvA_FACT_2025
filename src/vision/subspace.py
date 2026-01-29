@@ -447,9 +447,9 @@ def compute_eigenvalue_weighted_cosine(
     """
     Compute eigenvalue-weighted cosine similarity between two sets of eigenvectors.
     
-    Formula: sim = Σᵢ Σⱼ |λᵢᴬ| · |λⱼᴮ| · cos²(vᵢᴬ, vⱼᴮ) / Z
+    Formula: sim = sigmaᵢ sigmaⱼ |λᵢᴬ| · |λⱼᴮ| · cos²(vᵢᴬ, vⱼᴮ) / Z
     
-    Where Z = (Σᵢ|λᵢᴬ|) · (Σⱼ|λⱼᴮ|) normalizes the result.
+    Where Z = (sigmaᵢ|λᵢᴬ|) · (sigmaⱼ|λⱼᴮ|) normalizes the result.
     
     This metric only counts similarity when:
     1. Eigenvectors align (high cos²)
@@ -493,14 +493,14 @@ def compute_quadratic_form_similarity(
     Compute quadratic form similarity by comparing weight matrices directly.
     
     For a bilinear model, the class-specific weight matrix is:
-        A_c = Σᵢ λᵢ · vᵢ · vᵢᵀ (low-rank approximation)
+        A_c = sigmaᵢ λᵢ · vᵢ · vᵢᵀ (low-rank approximation)
     
     This metric computes:
         sim = trace(A · B) / (||A||_F · ||B||_F)
     
     Mathematical simplification (for orthonormal eigenvectors):
-        trace(A · B) = Σᵢ Σⱼ λᵢᴬ · λⱼᴮ · (vᵢᴬ · vⱼᴮ)²
-        ||A||_F² = Σᵢ (λᵢ)²
+        trace(A · B) = sigmaᵢ sigmaⱼ λᵢᴬ · λⱼᴮ · (vᵢᴬ · vⱼᴮ)²
+        ||A||_F² = sigmaᵢ (λᵢ)²
     
     Key properties:
     - Directly compares what the model computes (x^T A x)
@@ -524,11 +524,11 @@ def compute_quadratic_form_similarity(
     # Cosine similarities squared: [k, k]
     cos_sq = (vecs_A_norm @ vecs_B_norm.T) ** 2
     
-    # Inner product: Σᵢ Σⱼ λᵢᴬ · λⱼᴮ · cos²(vᵢ, vⱼ)
+    # Inner product: sigmaᵢ sigmaⱼ λᵢᴬ · λⱼᴮ · cos²(vᵢ, vⱼ)
     # Note: Using actual eigenvalues (not absolute), so sign matters
     inner_product = (vals_A.unsqueeze(1) * vals_B.unsqueeze(0) * cos_sq).sum()
     
-    # Frobenius norms: ||A||_F = sqrt(Σᵢ λᵢ²)
+    # Frobenius norms: ||A||_F = sqrt(sigmaᵢ λᵢ²)
     norm_A = (vals_A ** 2).sum().sqrt()
     norm_B = (vals_B ** 2).sum().sqrt()
     

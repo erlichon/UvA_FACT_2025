@@ -102,62 +102,50 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
 
     Note:
     - Missing PDFs will be disabled automatically.
+    - Only references figures that actually exist in Report/figures/
     """
     sections: Dict[str, List[Dict[str, str]]] = {
         # -----------------------------
-        # Vision (existing hub content)
+        # Vision (Section 4)
         # -----------------------------
         "Vision / Regularization": [
             {"label": "Eigenspectrum comparison", "path": _fig_rel_path("eigenspectrum_comparison.pdf")},
+            {"label": "Eigenspectrum per class", "path": _fig_rel_path("eigenspectrum_per_class.pdf")},
             {"label": "Eigenvalue decay", "path": _fig_rel_path("eigenvalue_decay.pdf")},
             {"label": "Eigenvectors (no reg)", "path": _fig_rel_path("eigenvectors_noreg.pdf")},
-            {"label": "Update: Eigenvectors (noise only, σ=0.5)", "path": _fig_rel_path("eigenvectors_noise.pdf")},
+            {"label": "Eigenvectors (noise only, sigma=0.5)", "path": _fig_rel_path("eigenvectors_noise.pdf")},
             {"label": "Eigenvectors (full reg)", "path": _fig_rel_path("eigenvectors_reg.pdf")},
-            {"label": "Update: Fashion eigenvectors (noise only, σ=0.5)", "path": _fig_rel_path("fashion_eigenvectors_noise.pdf")},
+            {"label": "Fashion eigenvectors (noise only, sigma=0.5)", "path": _fig_rel_path("fashion_eigenvectors_noise.pdf")},
+        ],
+        "Vision / Ablation & Tradeoffs": [
             {"label": "Ablation (MNIST)", "path": _fig_rel_path("mnist_ablation.pdf")},
-            {"label": "Tradeoff (MNIST)", "path": _fig_rel_path("accuracy_vs_effrank_mnist.pdf")},
+            {"label": "Ablation (Fashion-MNIST)", "path": _fig_rel_path("fashion_ablation.pdf")},
+            {"label": "Accuracy vs Effective Rank (MNIST)", "path": _fig_rel_path("accuracy_vs_effrank_mnist.pdf")},
+            {"label": "Accuracy vs Effective Rank (Fashion)", "path": _fig_rel_path("accuracy_vs_effrank_fashion.pdf")},
+        ],
+        "Vision / Cross-Dataset": [
+            {"label": "Cross-Dataset Accuracy", "path": _fig_rel_path("cross_dataset_accuracy.pdf")},
+            {"label": "Cross-Dataset Effective Rank", "path": _fig_rel_path("cross_dataset_effrank.pdf")},
         ],
         "Vision / Noise sweep (Figure 4)": [
             {"label": "Figure 4a: noise eigenvectors", "path": _fig_rel_path("figure_4_noise_eigenvectors.pdf")},
             {"label": "Figure 4b: noise vs rank", "path": _fig_rel_path("figure_4_noise_vs_rank.pdf")},
             {"label": "Figure 4c: noise vs accuracy", "path": _fig_rel_path("figure_4_noise_vs_accuracy.pdf")},
         ],
-        "Vision / Truncation & similarity": [
+        "Vision / Truncation & similarity (Figure 5)": [
             {"label": "Figure 5a: similarity", "path": _fig_rel_path("figure_5a_similarity.pdf")},
             {"label": "Figure 5b: truncation", "path": _fig_rel_path("figure_5b_truncation.pdf")},
         ],
-        "Vision / Challenge task": [
-            {"label": "Figure 6: challenge", "path": _fig_rel_path("figure_6_challenge.pdf")},
-            {
-                "label": "Update: Challenge decay by regularization (none/noise/wd/full)",
-                "path": _fig_rel_path("figure_6_challenge_eigenvalue_decay_by_reg.pdf"),
-            },
-            {"label": "Figure 6 (no reg)", "path": _fig_rel_path("figure_6_challenge_none.pdf")},
-            {"label": "Figure 6 (noise only σ=0.5)", "path": _fig_rel_path("figure_6_challenge_noise.pdf")},
-            {"label": "Figure 6 (weight decay only λ=1.0)", "path": _fig_rel_path("figure_6_challenge_wd.pdf")},
-            {"label": "Figure 6 (full reg σ=0.5, λ=1.0)", "path": _fig_rel_path("figure_6_challenge_full.pdf")},
+        "Vision / Challenge task (Figure 6)": [
+            {"label": "Challenge decay by regularization", "path": _fig_rel_path("figure_6_challenge_eigenvalue_decay_by_reg.pdf")},
+            {"label": "Figure 6 (full reg sigma=0.5, λ=1.0)", "path": _fig_rel_path("figure_6_challenge_full.pdf")},
         ],
-        "Vision / Adversarial masks": [
+        "Vision / Adversarial masks (Figure 7)": [
             {"label": "Figure 7: adversarial masks", "path": _fig_rel_path("figure_7_adversarial.pdf")},
-        ],
-        "Vision / Explanations (per digit)": [
-            {"label": f"Sample explanation: Digit {i}", "path": _fig_rel_path(f"sample_explanation_digit_{i}.pdf")}
-            for i in range(10)
         ],
         "Vision / Interactive Eigenspectrum (per digit)": [
             {"label": f"Digit {i}: eigenspectrum + eigenvectors", "path": f"assets/eigenspectrum_digit_{i}.html"}
             for i in range(10)
-        ],
-        "Vision / Appendix": [
-            {"label": "Appendix: eigenspectrum digit 2", "path": _fig_rel_path("appendix_mnist_eigenspectrum_digit2.pdf")},
-            {"label": "Appendix: eigenspectrum digit 4", "path": _fig_rel_path("appendix_mnist_eigenspectrum_digit4.pdf")},
-            {"label": "Appendix: eigenspectrum digit 6", "path": _fig_rel_path("appendix_mnist_eigenspectrum_digit6.pdf")},
-            {"label": "Appendix: truncation acc drop", "path": _fig_rel_path("appendix_mnist_acc_drop.pdf")},
-            {"label": "Appendix: inter-size similarity (ref=300, top-1)", "path": _fig_rel_path("appendix_mnist_inter_similarity.pdf")},
-            {"label": "Appendix: inter-size similarity matrix", "path": _fig_rel_path("appendix_mnist_inter_size_similarity.pdf")},
-            {"label": "Appendix: eigenvector sparsity", "path": _fig_rel_path("appendix_mnist_eigenvec_sparsity.pdf")},
-            {"label": "Appendix: eigenvalue sparsity", "path": _fig_rel_path("appendix_mnist_eigenval_sparsity.pdf")},
-            {"label": "Appendix: adversarial masks (more examples)", "path": _fig_rel_path("appendix_adversarial_encoders.pdf")},
         ],
         # -----------------------------
         # Extension 2: Cross-Dataset Robustness
@@ -170,30 +158,15 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension2_3way_comparison.pdf")},
             {"label": "3-way: MNIST 0 vs EMNIST O vs EMNIST X", "path": _fig_rel_path("extension2_3way_comparison_0_O_X.pdf")},
         ],
-        "Extension 2 / Similarity vs k (Subspace Metrics)": [
-            {"label": "Mean Cosine (original)", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
-            {"label": "Selection method comparison", "path": _fig_rel_path("extension2_selection_comparison.pdf")},
-        ],
-        "Extension 2 / Similarity vs k (Weighted Metrics)": [
-            {"label": "Eigenvalue-Weighted Cosine", "path": _fig_rel_path("extension2_similarity_vs_k_eigenvalue_weighted.pdf")},
+        "Extension 2 / Similarity vs k": [
+            {"label": "Mean Cosine Similarity", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
             {"label": "Quadratic Form Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_quadratic_form.pdf")},
         ],
-        "Extension 2 / Heatmaps (10x26 matrices)": [
+        "Extension 2 / Heatmaps": [
             {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
-            {"label": "Eigenvalue-Weighted Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_eigenvalue_weighted.pdf")},
             {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
             {"label": "Absolute Cosine Similarity Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_abs_cosine_similarity.pdf")},
-        ],
-        "Extension 2 / Heatmaps (10x10 matrices)": [
-            {"label": "Quadratic Form: MNIST Digits vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
-        ],
-        "Extension 2 / Metric Analysis": [
-            {"label": "3-way Metric Comparison", "path": _fig_rel_path("extension2_metric_comparison_4way.pdf")},
-            {"label": "Ranking Analysis (k=20)", "path": _fig_rel_path("extension2_ranking_analysis.pdf")},
-            {"label": "Statistical Comparison", "path": _fig_rel_path("extension2_statistical_comparison_all_metrics.pdf")},
-        ],
-        "Extension 2 / Principal Angles": [
-            {"label": "Principal angles", "path": _fig_rel_path("extension2_principal_angles.pdf")},
+            {"label": "Quadratic Form: MNIST vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
         ],
         "Extension 2 / Eigenvalue Distributions": [
             {"label": "Eigenvalues: 0 vs O", "path": _fig_rel_path("extension2_eigenval_0_O.pdf")},
@@ -202,22 +175,23 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
             {"label": "Eigenvalues: 5 vs S", "path": _fig_rel_path("extension2_eigenval_5_S.pdf")},
         ],
         # -----------------------------
-        # Language (Figures 8, 9, 10)
+        # Extension CP: CP Decomposition
+        # -----------------------------
+        "Extension CP / CP Factorization": [
+            {"label": "CP Rank vs Accuracy Tradeoff", "path": _fig_rel_path("cp_rank_accuracy_tradeoff.pdf")},
+            {"label": "CP Top-5 Eigenvectors Comparison", "path": _fig_rel_path("cp_top5_eigenvectors_comparison.pdf")},
+        ],
+        # -----------------------------
+        # Language (Section 5: Figures 8, 9, 10)
         # -----------------------------
         "Language / Negation Circuit (Figure 8)": [
-            {"label": "Figure 8: Sentiment negation circuit (tutorial feature 3834)", "path": _fig_rel_path("figure_8_negation_circuit.pdf")},
-            {"label": "Figure 8: Best AND-gate circuit (from search)", "path": _fig_rel_path("figure_8_best_circuit.pdf")},
-            {"label": "Figure 8: Sentiment-labeled circuit", "path": _fig_rel_path("figure_8_sentiment.pdf")},
-            {"label": "Figure 8: Weak vs Strong comparison (3834 vs best)", "path": _fig_rel_path("figure_8_comparison.pdf")},
-            {"label": "Figure 8: Circuit with per-word activation examples", "path": _fig_rel_path("figure_8_with_examples.pdf")},
+            {"label": "Figure 8: Negation circuit (final)", "path": _fig_rel_path("figure_8_final.pdf")},
+            {"label": "Figure 8: Negation circuit (FineWeb 16k)", "path": _fig_rel_path("figure_8_final_fineweb16k.pdf")},
         ],
         "Language / Correlation (Figure 9)": [
             {"label": "Figure 9A: correlation progression", "path": _fig_rel_path("figure_9a_correlation_progression.pdf")},
             {"label": "Figure 9B: correlation histogram", "path": _fig_rel_path("figure_9b_correlation_histogram.pdf")},
-            {
-                "label": "Figure 9C: scatter plots (fw-medium)",
-                "path": _fig_rel_path("figure_9c_scatter_plots.pdf"),
-            },
+            {"label": "Figure 9C: scatter plots (fw-medium)", "path": _fig_rel_path("figure_9c_scatter_plots.pdf")},
         ],
         "Language / SAE Training (Figure 10)": [
             {"label": "Figure 10A: SAE training effect", "path": _fig_rel_path("figure_10a_sae_training_effect.pdf")},

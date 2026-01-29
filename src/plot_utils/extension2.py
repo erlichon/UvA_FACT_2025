@@ -65,7 +65,7 @@ def plot_usps_transfer_comparison(
     bars1 = ax.bar(x - width/2, baseline_accs, width, 
                    label='Baseline (no noise)', color='#d62728')
     bars2 = ax.bar(x + width/2, reg_accs, width, 
-                   label='Regularized (σ=0.15)', color='#1f77b4')
+                   label='Regularized (sigma=0.15)', color='#1f77b4')
     
     ax.set_xlabel('Digit Class', fontsize=12)
     ax.set_ylabel('Accuracy on USPS', fontsize=12)
@@ -251,7 +251,7 @@ def plot_eigenspectra_side_by_side(
     axes[0].set_ylabel('|Eigenvalue| (log scale)')
     
     axes[1].set_title(
-        f'Regularized (σ=0.15)\nMean Eff. Rank: {eff_rank_regularized.mean():.1f}', 
+        f'Regularized (sigma=0.15)\nMean Eff. Rank: {eff_rank_regularized.mean():.1f}', 
         fontsize=12
     )
     axes[1].set_xlabel('Eigenvalue Index')

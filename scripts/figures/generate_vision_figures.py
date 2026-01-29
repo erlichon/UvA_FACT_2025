@@ -162,7 +162,7 @@ def generate_regularization_section(d: Dirs) -> None:
         vecs_reg,
         vals_reg,
         n_top=5,
-        title="MNIST (Full Regularization: σ=0.5, λ=1.0): Top Eigenvectors",
+        title="MNIST (Full Regularization: sigma=0.5, λ=1.0): Top Eigenvectors",
         show_both_signs=True,
     )
     _save_figure(fig, d.figure_out / "eigenvectors_reg.pdf")
@@ -173,7 +173,7 @@ def generate_regularization_section(d: Dirs) -> None:
         vecs_noise,
         vals_noise,
         n_top=5,
-        title="MNIST (Noise only: σ=0.5, λ=0.0): Top Eigenvectors",
+        title="MNIST (Noise only: sigma=0.5, λ=0.0): Top Eigenvectors",
         show_both_signs=True,
     )
     _save_figure(fig, d.figure_out / "eigenvectors_noise.pdf")
@@ -191,7 +191,7 @@ def generate_regularization_section(d: Dirs) -> None:
             vecs_fashion_noise,
             vals_fashion_noise,
             n_top=5,
-            title="Fashion-MNIST (Noise only: σ=0.5, λ=0.0): Top Eigenvectors",
+            title="Fashion-MNIST (Noise only: sigma=0.5, λ=0.0): Top Eigenvectors",
             class_names=fashion_classes,
             show_both_signs=True,
         )
@@ -294,7 +294,7 @@ def generate_regularization_section(d: Dirs) -> None:
             img = vecs[idx].reshape(28, 28).numpy()
             vmax = float(np.abs(img).max() or 1.0)
             ax.imshow(img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
-            ax.set_title(f"σ={nl}\nacc={accs[nl]*100:.1f}%", fontsize=9)
+            ax.set_title(f"sigma={nl}\nacc={accs[nl]*100:.1f}%", fontsize=9)
             ax.axis("off")
         # Avoid tight_layout warnings with grids of image axes; bbox_inches='tight' handles cropping.
         _save_figure(fig, d.figure_out / "figure_4_noise_eigenvectors.pdf")
@@ -305,7 +305,7 @@ def generate_regularization_section(d: Dirs) -> None:
         xs = sorted(found)
         ys = [effranks[nl] for nl in xs]
         ax.plot(xs, ys, "o-", linewidth=2, markersize=6)
-        ax.set_xlabel("Input noise std (σ)")
+        ax.set_xlabel("Input noise std (sigma)")
         ax.set_ylabel("Effective rank")
         ax.set_title("Effect of input noise on effective rank")
         ax.grid(True, alpha=0.3)
@@ -316,7 +316,7 @@ def generate_regularization_section(d: Dirs) -> None:
         # (c) Accuracy vs noise (useful but not strictly required)
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.plot(xs, [accs[nl] * 100 for nl in xs], "s-", linewidth=2, markersize=6)
-        ax.set_xlabel("Input noise std (σ)")
+        ax.set_xlabel("Input noise std (sigma)")
         ax.set_ylabel("Validation accuracy (%)")
         ax.set_title("Effect of input noise on accuracy")
         ax.grid(True, alpha=0.3)
@@ -690,9 +690,9 @@ def generate_challenge_section(d: Dirs, device: str = "cpu", seed: int = 42) -> 
     # not challenge task models, so we use the "none" variant as the main Figure 6.
     variants = [
         ("none", "Challenge task (no reg): eigendecomposition (True − False)", True),
-        ("noise", "Challenge task (noise only σ=0.5): eigendecomposition (True − False)", False),
+        ("noise", "Challenge task (noise only sigma=0.5): eigendecomposition (True − False)", False),
         ("wd", "Challenge task (weight decay only λ=1.0): eigendecomposition (True − False)", False),
-        ("full", "Challenge task (full reg σ=0.5, λ=1.0): eigendecomposition (True − False)", False),
+        ("full", "Challenge task (full reg sigma=0.5, λ=1.0): eigendecomposition (True − False)", False),
     ]
     
     found_any = False
@@ -983,7 +983,7 @@ def generate_adversarial_section(d: Dirs, device: str = "cpu", target_class: int
         )
 
     rows = [
-        ("A) Noise\n(σ=0.15)", agg_noise, viz_eig_noise, viz_adv_noise, viz_rand_noise, viz_mis_noise),
+        ("A) Noise\n(sigma=0.15)", agg_noise, viz_eig_noise, viz_adv_noise, viz_rand_noise, viz_mis_noise),
         ("B) No reg", agg_noreg, viz_eig_noreg, viz_adv_noreg, viz_rand_noreg, viz_mis_noreg),
     ]
 
@@ -1676,9 +1676,9 @@ def generate_paper_hub(d: Dirs) -> None:
             {"label": "Eigenspectrum comparison", "path": fig_rel_path("eigenspectrum_comparison.pdf")},
             {"label": "Eigenvalue decay", "path": fig_rel_path("eigenvalue_decay.pdf")},
             {"label": "Eigenvectors (no reg)", "path": fig_rel_path("eigenvectors_noreg.pdf")},
-            {"label": "Update: Eigenvectors (noise only, σ=0.5)", "path": fig_rel_path("eigenvectors_noise.pdf")},
+            {"label": "Update: Eigenvectors (noise only, sigma=0.5)", "path": fig_rel_path("eigenvectors_noise.pdf")},
             {"label": "Eigenvectors (full reg)", "path": fig_rel_path("eigenvectors_reg.pdf")},
-            {"label": "Update: Fashion eigenvectors (noise only, σ=0.5)", "path": fig_rel_path("fashion_eigenvectors_noise.pdf")},
+            {"label": "Update: Fashion eigenvectors (noise only, sigma=0.5)", "path": fig_rel_path("fashion_eigenvectors_noise.pdf")},
             {"label": "Ablation (MNIST)", "path": fig_rel_path("mnist_ablation.pdf")},
             {"label": "Tradeoff (MNIST)", "path": fig_rel_path("accuracy_vs_effrank_mnist.pdf")},
         ],
@@ -1690,9 +1690,9 @@ def generate_paper_hub(d: Dirs) -> None:
             {"label": "Figure 6: challenge", "path": fig_rel_path("figure_6_challenge.pdf")},
             {"label": "Update: Challenge decay by regularization (none/noise/wd/full)", "path": fig_rel_path("figure_6_challenge_eigenvalue_decay_by_reg.pdf")},
             {"label": "Figure 6 (no reg)", "path": fig_rel_path("figure_6_challenge_none.pdf")},
-            {"label": "Figure 6 (noise only σ=0.5)", "path": fig_rel_path("figure_6_challenge_noise.pdf")},
+            {"label": "Figure 6 (noise only sigma=0.5)", "path": fig_rel_path("figure_6_challenge_noise.pdf")},
             {"label": "Figure 6 (weight decay only λ=1.0)", "path": fig_rel_path("figure_6_challenge_wd.pdf")},
-            {"label": "Figure 6 (full reg σ=0.5, λ=1.0)", "path": fig_rel_path("figure_6_challenge_full.pdf")},
+            {"label": "Figure 6 (full reg sigma=0.5, λ=1.0)", "path": fig_rel_path("figure_6_challenge_full.pdf")},
         ],
         "Vision / Adversarial masks": [
             {"label": "Figure 7: adversarial masks", "path": fig_rel_path("figure_7_adversarial.pdf")},
@@ -1945,10 +1945,10 @@ def main() -> int:
         # Optional: if the user has already trained challenge variants (in a separate training script),
         # we can plot the eigenvalue decay comparison.
         variants_spec = {
-            "none (σ=0.0, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_none_seed{args.seed}.pt",
-            "noise (σ=0.5, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_noise_seed{args.seed}.pt",
-            "wd (σ=0.0, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_wd_seed{args.seed}.pt",
-            "full (σ=0.5, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_full_seed{args.seed}.pt",
+            "none (sigma=0.0, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_none_seed{args.seed}.pt",
+            "noise (sigma=0.5, λ=0.0)": d.challenge_ckpts / f"mnist_challenge_noise_seed{args.seed}.pt",
+            "wd (sigma=0.0, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_wd_seed{args.seed}.pt",
+            "full (sigma=0.5, λ=1.0)": d.challenge_ckpts / f"mnist_challenge_full_seed{args.seed}.pt",
         }
         variants = {}
         for name, path in variants_spec.items():
