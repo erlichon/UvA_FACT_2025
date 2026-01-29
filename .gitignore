@@ -11,7 +11,6 @@ results/Thumbs.db
 **/*.md
 !README.md
 !bilinear-decomposition-main/readme.md
-!results/language/README.md
 
 # Temporary/generated files
 *_context.zip
@@ -32,8 +31,9 @@ jobs/
 wandb/
 logs/
 
-# Results subdirectories
-results/language/scatter_data/
+# Results (all generated outputs, kept locally only)
+results/
+# Archive folders
 scripts/figures/archive/
 
 # Report LaTeX auxiliary files
@@ -60,3 +60,4 @@ arXiv-2410.08417v2/
 
 # IDE folders
 .cursor/
+.vscode/
