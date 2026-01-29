@@ -21,6 +21,30 @@
 \usepackage{cleveref}
 \usepackage{enumitem}
 \usepackage{float}  % For [H] placement to keep figures in place
+\usepackage[skip=4pt]{caption}  % Reduce caption spacing
+\usepackage{titlesec}  % For section spacing control
+
+% === Space reduction settings for 10-page limit ===
+% Float spacing
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+
+% List spacing (enumitem)
+\setlist{topsep=2pt,itemsep=1pt,parsep=0pt}
+
+% Section spacing
+\titlespacing*{\section}{0pt}{8pt plus 2pt minus 2pt}{4pt plus 2pt minus 2pt}
+\titlespacing*{\subsection}{0pt}{6pt plus 2pt minus 2pt}{3pt plus 1pt minus 1pt}
+\titlespacing*{\subsubsection}{0pt}{4pt plus 1pt minus 1pt}{2pt plus 1pt minus 1pt}
+
+% Equation spacing
+\setlength{\abovedisplayskip}{6pt}
+\setlength{\belowdisplayskip}{6pt}
+
+% Table rule spacing
+\setlength{\aboverulesep}{0.5ex}
+\setlength{\belowrulesep}{0.5ex}
 
 \title{Reproducing ``Bilinear MLPs Enable Weight-Based Mechanistic Interpretability''}
 
@@ -39,7 +63,7 @@
 
 \def\month{01}
 \def\year{2026}
-\def\openreview{\url{https://github.com/YOUR_REPO}} % Update with actual repo
+\def\openreview{\url{https://github.com/erlichon/UvA_FACT_2025}}
 
 \begin{document}
 
@@ -50,10 +74,11 @@ Mechanistic interpretability typically relies on post-hoc analysis of model acti
 We reproduce both main experiments from Pearce et al.\ (2024): Section 4 (Vision) on MNIST/Fashion-MNIST, and Section 5 (Language) discovering sentiment negation circuits via Sparse Autoencoder analysis.
 In vision, we fully reproduce the core findings: weight decay reduces effective rank from 38.5 to 21.4, confirming that regularization induces interpretable low-rank structure, while eigenvectors under noise augmentation show recognizable digit patterns.
 Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank while noise primarily improves accuracy.
-In language, we confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' form opposing directions (cosine similarity $-0.16$).
-However, we do \emph{not} reproduce the low-rank interaction claim: the fraction of features achieving $>$0.75 correlation is significantly lower than the claimed 69\%, and the mean rank-2 correlation saturates at 0.37--0.55.
-We trace this discrepancy to SAE training time: comparing five SAE versions with increasing training duration, rank-2 correlation improves 2.5$\times$ (0.15 $\to$ 0.39), consistent with the paper's acknowledgment that correlation depends on SAE quality.
-We provide evidence that the publicly available SAE artifacts have not reached the convergence levels of the internal checkpoints used in the original paper, creating a reproducibility gap with practical implications: while the bilinear decomposition methodology is sound, low-rank approximation quality depends critically on SAE convergence---a factor warranting explicit attention in future applications.
+In language, we confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' emerge as semantic opposites (cosine similarity $-0.16$).
+However, we do \emph{not} fully reproduce the low-rank interaction claim: the fraction of features achieving $>$0.75 correlation varies from 32\% (ts-medium) to 65\% (fw-small), with fw-small approaching the paper's ``most features'' claim while ts-medium falls short.
+We trace this discrepancy to both SAE training time and model training compute (tokens/parameter): comparing five SAE versions, correlation improves 2.5$\times$ with longer training, while models with higher tokens/param show better low-rank behavior.
+Additionally, the paper's 4x expansion SAEs are unavailable at the specified layer for fw-medium, requiring use of 8x expansion (more sparse features).
+The bilinear decomposition methodology is sound; low-rank approximation quality depends on both SAE and model convergence.
 In our extensions, we demonstrate that regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy, for which we propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
 Finally, we explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5.
 \end{abstract}
@@ -216,7 +241,7 @@ This enables discrimination between geometrically similar pairs (0--O: 0.400) an
 
 All experiments tracked using \texttt{codecarbon} with Netherlands grid intensity.
 Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
-Total compute: 2.02 GPU-hours.
-Total emissions: 0.098 kg CO2eq ($\approx$ 0.6 km driving).
+Total compute: 1.74 GPU-hours.
+Total emissions: 0.168 kg CO2eq ($\approx$ 1 km driving).
 
 \end{document}

@@ -32,8 +32,11 @@ SIZE_SWEEP_CHECKPOINTS = VISION_CHECKPOINTS / "size_sweep"
 CHALLENGE_CHECKPOINTS = VISION_CHECKPOINTS / "challenge"
 
 # Extension checkpoints
-EXTENSION2_CHECKPOINTS = CHECKPOINTS_ROOT / "extension2"
+EXTENSION_CROSS_DATASET_CHECKPOINTS = CHECKPOINTS_ROOT / "extension2"  # Cross-dataset robustness
 EXTENSION_CP_CHECKPOINTS = CHECKPOINTS_ROOT / "extension_cp"
+
+# Backward compatibility alias
+EXTENSION2_CHECKPOINTS = EXTENSION_CROSS_DATASET_CHECKPOINTS
 
 # =============================================================================
 # Figures
@@ -44,8 +47,11 @@ FIGURES_ROOT = PROJECT_ROOT / "Report" / "figures"
 # Figure subdirectories by paper section
 VISION_FIGURES = FIGURES_ROOT / "vision"
 LANGUAGE_FIGURES = FIGURES_ROOT / "language"
-EXTENSION2_FIGURES = FIGURES_ROOT / "extension2"
+EXTENSION_CROSS_DATASET_FIGURES = FIGURES_ROOT / "extension2"  # Cross-dataset robustness
 EXTENSION_CP_FIGURES = FIGURES_ROOT / "extension_cp"
+
+# Backward compatibility alias
+EXTENSION2_FIGURES = EXTENSION_CROSS_DATASET_FIGURES
 
 # =============================================================================
 # Results (intermediate data, JSON outputs, etc.)
@@ -59,8 +65,11 @@ LANGUAGE_RESULTS = RESULTS_ROOT / "language"
 # Language eigenpairs cache (precomputed eigendecompositions)
 LANGUAGE_EIGENPAIRS = RESULTS_ROOT / "language" / "eigenpairs"
 
-# Extension 2 results (JSON data files)
-EXTENSION2_RESULTS = RESULTS_ROOT / "extension2"
+# Extension Cross-Dataset results (JSON data files)
+EXTENSION_CROSS_DATASET_RESULTS = RESULTS_ROOT / "extension2"
+
+# Backward compatibility alias
+EXTENSION2_RESULTS = EXTENSION_CROSS_DATASET_RESULTS
 
 # =============================================================================
 # Paper Hub
@@ -116,7 +125,7 @@ def get_checkpoint_path(
         dataset: "mnist", "fashion", "emnist_digits", "emnist_letters"
         config: "none", "noise", "wd", "full", "regularized", etc.
         seed: Random seed (42, 43, 44, 45, 46)
-        extension: Optional extension type ("cp", "extension2", None for vision)
+        extension: Optional extension type ("cp", "cross_dataset"/"extension2", None for vision)
     
     Returns:
         Path to the checkpoint file
@@ -128,14 +137,14 @@ def get_checkpoint_path(
     if extension == "cp":
         base = EXTENSION_CP_CHECKPOINTS
         filename = f"{dataset}_{config}_seed{seed}.pt"
-    elif extension == "extension2":
-        base = EXTENSION2_CHECKPOINTS
+    elif extension in ("cross_dataset", "extension2"):
+        base = EXTENSION_CROSS_DATASET_CHECKPOINTS
         filename = f"{dataset}_{config}_seed{seed}.pt"
     elif dataset == "fashion":
         base = FASHION_CHECKPOINTS
         filename = f"fashion_dense_{config}_seed{seed}.pt"
     elif dataset in ("emnist_digits", "emnist_letters"):
-        base = EXTENSION2_CHECKPOINTS
+        base = EXTENSION_CROSS_DATASET_CHECKPOINTS
         filename = f"{dataset}_{config}_seed{seed}.pt"
     else:
         base = MNIST_CHECKPOINTS
@@ -150,7 +159,7 @@ def get_figure_path(name: str, section: str) -> Path:
     
     Args:
         name: Figure filename (e.g., "figure_5a_similarity.pdf")
-        section: "vision", "language", "extension2", "extension_cp"
+        section: "vision", "language", "cross_dataset"/"extension2", "extension_cp"
     
     Returns:
         Path to the figure file
@@ -158,7 +167,8 @@ def get_figure_path(name: str, section: str) -> Path:
     section_map = {
         "vision": VISION_FIGURES,
         "language": LANGUAGE_FIGURES,
-        "extension2": EXTENSION2_FIGURES,
+        "cross_dataset": EXTENSION_CROSS_DATASET_FIGURES,
+        "extension2": EXTENSION_CROSS_DATASET_FIGURES,  # backward compatibility
         "extension_cp": EXTENSION_CP_FIGURES,
     }
     return section_map[section] / name

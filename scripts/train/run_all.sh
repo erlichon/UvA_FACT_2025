@@ -170,11 +170,11 @@ if ! $SKIP_EXTENSION2; then
     echo "========================================================================"
     
     if $TEST_MODE; then
-        echo ">>> Running extension 2 in test mode (2 epochs, MNIST only)"
-        ./scripts/train/run_extension2.sh test
+        echo ">>> Running cross-dataset in test mode (2 epochs, MNIST only)"
+        ./scripts/train/run_extension_cross_dataset.sh test
     else
-        echo ">>> Running all extension 2 experiments"
-        ./scripts/train/run_extension2.sh train all
+        echo ">>> Running all cross-dataset experiments"
+        ./scripts/train/run_extension_cross_dataset.sh train all
     fi
     
     echo ">>> Extension 2 experiments complete"
@@ -292,8 +292,8 @@ if ! $SKIP_FIGURES; then
     echo ">>> Generating language figures"
     ./scripts/train/run_language.sh figures $CONDA_FLAG
     
-    echo ">>> Generating extension 2 figures"
-    ./scripts/train/run_extension2.sh figures
+    echo ">>> Generating cross-dataset figures"
+    ./scripts/train/run_extension_cross_dataset.sh figures
     
     echo ">>> Generating extension CP figures"
     if [ -f "./scripts/train/run_extension_cp.sh" ]; then

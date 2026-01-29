@@ -18,8 +18,8 @@ These commands verify the environment and run minimal tests.
 # Language (quick tests)
 ./scripts/train/run_language.sh test
 
-# Extension 2 (2 epochs, MNIST only)
-./scripts/train/run_extension2.sh test
+# Cross-dataset robustness (2 epochs, MNIST only)
+./scripts/train/run_extension_cross_dataset.sh test
 ```
 
 ## Environment Setup
@@ -46,18 +46,30 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 # Model size sweep (Figure 5)
 ./scripts/train/run_vision.sh train size
 
+# Challenge task (Figure 6)
+./scripts/train/run_vision.sh train challenge
+
+# Adversarial robustness (Figure 7) - uses existing checkpoints
+./scripts/train/run_vision.sh figures  # Generates Figure 7 from noise sweep
+
 # Generate all vision figures
 ./scripts/train/run_vision.sh figures
+
+# Run all vision experiments
+./scripts/train/run_vision.sh all
 ```
 
 ### Language (Section 5)
 
 ```bash
+# Figure 8 negation circuit visualization
+./scripts/train/run_language.sh figure8 --device mps
+
 # Figure 9 correlation sweep (all 3 models)
 ./scripts/train/run_language.sh figure9
 
-# Figure 8 negation circuit visualization
-./scripts/train/run_language.sh figure8 --device mps
+# Figure 10 SAE training time analysis
+./scripts/train/run_language.sh figure10
 
 # Negation discovery
 ./scripts/train/run_language.sh negation
@@ -67,16 +79,38 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 
 # Generate all language figures
 ./scripts/train/run_language.sh figures
+
+# Run all language experiments
+./scripts/train/run_language.sh all
 ```
 
-### Extension 2: Cross-Dataset Robustness
+### Extension 1: Cross-Dataset Robustness
 
 ```bash
-# Train all extension2 models (MNIST + EMNIST, CoM enabled)
-./scripts/train/run_extension2.sh train all
+# Train all cross-dataset models (MNIST + EMNIST, CoM enabled)
+./scripts/train/run_extension_cross_dataset.sh train all
 
-# Generate all extension2 figures
-./scripts/train/run_extension2.sh figures
+# Generate all cross-dataset figures
+./scripts/train/run_extension_cross_dataset.sh figures
+
+# Run full pipeline (train + figures)
+./scripts/train/run_extension_cross_dataset.sh all
+```
+
+### Extension 2: CP Decomposition
+
+```bash
+# Train CP models (rank sweep, all modes)
+./scripts/train/run_extension_cp.sh train all
+
+# Generate all CP figures
+./scripts/train/run_extension_cp.sh figures
+
+# Run full pipeline (train + figures)
+./scripts/train/run_extension_cp.sh all
+
+# Quick test (2 epochs)
+./scripts/train/run_extension_cp.sh test
 ```
 
 ## Outputs and Expected Artifacts
@@ -125,7 +159,7 @@ cd presentation
 pdflatex main.tex
 ```
 
-## Reproducibility Requirements (Must-Have)
+## Reproducibility Requirements
 
 These are enforced project conventions:
 
@@ -140,7 +174,6 @@ These are enforced project conventions:
 
 - **Language on MPS is slow** (4–6 hours). Prefer GPU if available.
 - **Figure 8 SAE limitation**: ts-medium lacks mlp-in SAE checkpoints. Use fw-medium (features 3834/751).
-- **CO2 placeholder**: `scripts/figures/generate_extension_cp_figures.py` has a TODO for final CO2 values.
 
 ## Tests
 

@@ -355,8 +355,8 @@ def generate_latex_table_mnist_emnist_digits(results: Dict, output_path: Path):
         raise RuntimeError(
             f"Missing cross-dataset accuracy statistics for: {missing_str}. "
             "This usually means no valid checkpoints were found for these runs. "
-            "Make sure Extension 2 models are trained (run `run_extension2.sh train all` "
-            "or `run_extension2.sh all`) before generating accuracy tables."
+            "Make sure cross-dataset models are trained (run `run_extension_cross_dataset.sh train all` "
+            "or `run_extension_cross_dataset.sh all`) before generating accuracy tables."
         )
 
     content = """% Extension 2: MNIST ↔ EMNIST-Digits Cross-Dataset Accuracy

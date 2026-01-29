@@ -1,17 +1,17 @@
 #!/bin/bash
-# Extension 2: Cross-Dataset Robustness Runner
+# Cross-Dataset Robustness Runner (Extension 1)
 #
-# Consolidated script for Extension 2 experiments.
+# Consolidated script for cross-dataset robustness experiments.
 # Uses Phase 1 regularization settings (noise=0.5, wd=1.0) with CoM normalization.
 #
 # Usage:
-#   ./scripts/train/run_extension2.sh train emnist-letters [--seeds 42,43,44,45,46]
-#   ./scripts/train/run_extension2.sh train emnist-digits [--seeds ...]
-#   ./scripts/train/run_extension2.sh train all [--seeds ...]
-#   ./scripts/train/run_extension2.sh figures [--sections all]
-#   ./scripts/train/run_extension2.sh all  # Full pipeline (train + figures)
-#   ./scripts/train/run_extension2.sh test # Quick test (2 epochs, 1 seed)
-#   ./scripts/train/run_extension2.sh help
+#   ./scripts/train/run_extension_cross_dataset.sh train emnist-letters [--seeds 42,43,44,45,46]
+#   ./scripts/train/run_extension_cross_dataset.sh train emnist-digits [--seeds ...]
+#   ./scripts/train/run_extension_cross_dataset.sh train all [--seeds ...]
+#   ./scripts/train/run_extension_cross_dataset.sh figures [--sections all]
+#   ./scripts/train/run_extension_cross_dataset.sh all  # Full pipeline (train + figures)
+#   ./scripts/train/run_extension_cross_dataset.sh test # Quick test (2 epochs, 1 seed)
+#   ./scripts/train/run_extension_cross_dataset.sh help
 #
 # Options:
 #   --quick       2 epochs, 1 seed (for testing)
@@ -78,7 +78,7 @@ show_help() {
 Extension 2: Cross-Dataset Robustness Runner
 
 USAGE:
-    ./scripts/train/run_extension2.sh <command> [subcommand] [options]
+    ./scripts/train/run_extension_cross_dataset.sh <command> [subcommand] [options]
 
 COMMANDS:
     train <dataset>     Train models with CoM normalization
@@ -103,28 +103,28 @@ OPTIONS:
 
 EXAMPLES:
     # Quick test (2 epochs)
-    ./scripts/train/run_extension2.sh test
+    ./scripts/train/run_extension_cross_dataset.sh test
     
-    # Train all Extension 2 models (MNIST + EMNIST with CoM)
-    ./scripts/train/run_extension2.sh train all
+    # Train all cross-dataset models (MNIST + EMNIST with CoM)
+    ./scripts/train/run_extension_cross_dataset.sh train all
     
     # Train with quick mode (2 epochs, 1 seed)
-    ./scripts/train/run_extension2.sh train all --quick
+    ./scripts/train/run_extension_cross_dataset.sh train all --quick
     
     # Train MNIST with CoM only
-    ./scripts/train/run_extension2.sh train mnist
+    ./scripts/train/run_extension_cross_dataset.sh train mnist
     
     # Train EMNIST Letters only
-    ./scripts/train/run_extension2.sh train emnist-letters
+    ./scripts/train/run_extension_cross_dataset.sh train emnist-letters
     
-    # Generate all Extension 2 figures
-    ./scripts/train/run_extension2.sh figures
+    # Generate all cross-dataset figures
+    ./scripts/train/run_extension_cross_dataset.sh figures
     
     # Generate specific figure sections
-    ./scripts/train/run_extension2.sh figures similarity 3way
+    ./scripts/train/run_extension_cross_dataset.sh figures similarity 3way
     
     # Full pipeline
-    ./scripts/train/run_extension2.sh all
+    ./scripts/train/run_extension_cross_dataset.sh all
 EOF
 }
 
@@ -220,14 +220,14 @@ run_figures() {
     cd "$PROJECT_ROOT"
 
     if [ "$sections" = "" ] || [ "$sections" = "all" ]; then
-        python scripts/figures/generate_extension2_figures.py
+        python scripts/figures/generate_extension_cross_dataset_figures.py
         echo ""
-        echo "Running Extension 2 analysis scripts..."
-        python scripts/extension2/calculate_eigenvector_similarity.py
-        python scripts/extension2/calculate_mnist0_vs_all_emnist.py
-        python scripts/extension2/generate_accuracy_tables.py --checkpoint-dir "$CHECKPOINT_DIR" --seeds "$SEEDS"
+        echo "Running cross-dataset analysis scripts..."
+        python scripts/extension_cross_dataset/calculate_eigenvector_similarity.py
+        python scripts/extension_cross_dataset/calculate_mnist0_vs_all_emnist.py
+        python scripts/extension_cross_dataset/generate_accuracy_tables.py --checkpoint-dir "$CHECKPOINT_DIR" --seeds "$SEEDS"
     else
-        python scripts/figures/generate_extension2_figures.py --sections $sections
+        python scripts/figures/generate_extension_cross_dataset_figures.py --sections $sections
     fi
 }
 
@@ -293,7 +293,7 @@ case "$COMMAND" in
         ;;
     *)
         echo "Unknown command: $COMMAND"
-        echo "Run './scripts/train/run_extension2.sh help' for usage."
+        echo "Run './scripts/train/run_extension_cross_dataset.sh help' for usage."
         exit 1
         ;;
 esac

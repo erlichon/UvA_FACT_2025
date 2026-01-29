@@ -77,6 +77,7 @@
             \item SAEs $\to$ sparse features
             \item Eigendecompose $Q_f$
             \item Reveals AND-gate circuit:
+            \item Semantic opposites: $\cos = -0.16$
         \end{itemize}
         \begin{center}
             \small
@@ -84,6 +85,9 @@
             $\downarrow$\\
             negated-sentiment
         \end{center}
+        \vspace{0.1cm}
+        \tiny
+        Note: Uses fw-medium (not ts-medium) due to SAE availability.
     \end{columns}
 \end{frame}
 
@@ -110,8 +114,9 @@
         \footnotesize
         \textbf{Results:}
         \begin{itemize}
-            \item Paper: 69\% features $>$0.75 at rank-2
-            \item Ours: 18--32\% (SAE training gap)
+            \item Paper claims ``most features'' $>$0.75
+            \item Ours: 32--65\% (model-dependent)
+            \item SAE training: 2.8$\times$ improvement (v0$\to$v4)
         \end{itemize}
     \end{columns}
 \end{frame}
@@ -136,8 +141,8 @@
             \multicolumn{4}{c}{\textit{Language (Section 5)}} \\
             \midrule
             L1 & SAE feature discovery & \checkmark & Pretrained SAEs work for analysis \\
-            L2 & Negation/AND-gate circuits & \checkmark & Opposing eigenvalues confirmed \\
-            L3 & Low-rank interactions & $\sim$ & 18--32\% $>$0.75 vs.\ paper's 69\% \\
+            L2 & Negation/AND-gate circuits & \checkmark & Semantic opposites ($\cos = -0.16$) \\
+            L3 & Low-rank interactions & $\sim$ & 32--65\% $>$0.75 (model-dependent) \\
             L4 & Sparse interactions & \checkmark & Clear block structure in feature 751 \\
             L5 & Cross-model generalization & $\sim$ & Methodology works; magnitudes differ \\
             \bottomrule

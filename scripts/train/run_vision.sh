@@ -389,7 +389,7 @@ show_help() {
     echo "  train adversarial Noise015 models for Figure 7"
     echo "  train all        All training experiments (base + noise + size + challenge + adversarial)"
     echo "  figures          Generate all figures from checkpoints"
-    echo "  extension2       Run Extension 2 experiments (delegates to run_extension2.sh)"
+    echo "  extension2       Run cross-dataset experiments (delegates to run_extension_cross_dataset.sh)"
     echo "  test             Quick 2-epoch MPS verification"
     echo "  all              Full pipeline (train all + figures)"
     echo "  help             Show this help message"
@@ -413,10 +413,10 @@ show_help() {
     echo "                    challenge, adversarial, appendix, hub"
 }
 
-# --- EXTENSION 2 ---
+# --- EXTENSION CROSS-DATASET ---
 run_extension2() {
-    echo ">>> Delegating to Extension 2 runner..."
-    exec "$SCRIPT_DIR/run_extension2.sh" "${REMAINING_ARGS[@]}"
+    echo ">>> Delegating to cross-dataset runner..."
+    exec "$SCRIPT_DIR/run_extension_cross_dataset.sh" "${REMAINING_ARGS[@]}"
 }
 
 # --- MAIN ---

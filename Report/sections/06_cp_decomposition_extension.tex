@@ -5,7 +5,7 @@
 
 We extend the Bilinear MLP framework by proposing Canonical Polyadic (CP) decomposition as an \emph{architectural constraint} during training, shifting from discovering low-rank structure post-hoc to enforcing intrinsic interpretability.
 
-\subsection{Motivation: From Post-Hoc to Intrinsic Interpretability}
+\subsection{Motivation and Methodology}
 
 Standard eigendecomposition enforces orthogonality, creating entangled features where mixed concepts are artificially separated.
 CP-decomposition parameterizes the interaction tensor directly as a sum of rank-1 tensors:
@@ -14,11 +14,8 @@ CP-decomposition parameterizes the interaction tensor directly as a sum of rank-
     \label{eq:cp_factorization}
 \end{equation}
 where $R$ is the maximum rank and $\lambda_r$ are learnable scaling factors~\citep{veeramacheneni2022canonical}.
-This factorization does not enforce orthogonality, enabling disentangled representations where factors naturally overlap.
-
-\subsection{Methodology: Regularization Variants}
-
-We investigate three CP variants:
+This does not enforce orthogonality, enabling disentangled representations where factors naturally overlap.
+We investigate three variants:
 \textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
 \textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
 \textbf{Gated CP:} Stochastic gates with $L_0$ proxy for explicit rank pruning~\citep{cao2024learning}.

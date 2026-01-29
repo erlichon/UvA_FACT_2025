@@ -160,7 +160,7 @@ def _compute_clusters_from_projections(projs: dict, feature_ids: list) -> tuple:
     return cluster_pos, cluster_neg
 
 
-def generate_figure_8_final(results_dir: Path, figure_dir: Path):
+def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix: str = "", dataset_label: str = "TinyStories"):
     """
     Generate Final Figure 8: Comparison of Feature 3834 vs Feature 751.
     
@@ -172,29 +172,35 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     
     For both features, computes clusters from eigenvector projections (v1 sign) and
     reorders the interaction matrix to show block structure.
+    
+    Args:
+        results_dir: Path to results directory
+        figure_dir: Path to output figure directory
+        dataset_suffix: Suffix for input JSON files (e.g., "_fineweb16k")
+        dataset_label: Human-readable dataset name for the figure title
     """
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
     
     print("\n" + "="*60)
-    print("FIGURE 8 FINAL: Feature 3834 vs 751 (Paper Style)")
+    print(f"FIGURE 8 FINAL: Feature 3834 vs 751 ({dataset_label})")
     print("="*60)
     
-    # Load data for both features
-    feature_3834_file = results_dir / "figure_8_data_fw_medium.json"
-    feature_751_file = results_dir / "figure_8_feature751.json"
+    # Load data for both features (with optional dataset suffix)
+    feature_3834_file = results_dir / f"figure_8_data_fw_medium{dataset_suffix}.json"
+    feature_751_file = results_dir / f"figure_8_feature751{dataset_suffix}.json"
     circuit_751_file = results_dir / "circuit_analysis_751.json"
     
     if not feature_3834_file.exists():
         print(f"Feature 3834 data not found: {feature_3834_file}")
         print("Generate it first:")
-        print("  ./scripts/train/run_language.sh figure8")
+        print("  ./scripts/train/run_language.sh figure8 generate")
         return False
     
     if not feature_751_file.exists():
         print(f"Feature 751 data not found: {feature_751_file}")
         print("Generate it first:")
-        print("  ./scripts/train/run_language.sh figure8")
+        print("  ./scripts/train/run_language.sh figure8 generate")
         return False
     
     with open(feature_3834_file) as f:
@@ -583,16 +589,19 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     ax_scatter_751.set_ylabel("Rank-2 Prediction", fontsize=9)
     ax_scatter_751.set_title(f"C) Correlation: r = {corr_751:.3f}", fontsize=10, fontweight='bold')
     
-    # Main title
-    fig.suptitle("Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad)", 
-                fontsize=13, fontweight='bold', y=0.98)
+    # Main title (always include dataset name)
+    title = f"Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad) [{dataset_label}]"
+    fig.suptitle(title, fontsize=13, fontweight='bold', y=0.98)
     
     plt.tight_layout()
     plt.subplots_adjust(top=0.93, hspace=0.3)
     
-    save_figure(fig, "figure_8_final.pdf", figure_dir)
+    # Output filename includes dataset suffix
+    output_filename = f"figure_8_final{dataset_suffix}.pdf"
+    save_figure(fig, output_filename, figure_dir)
     
-    print(f"\nFinal Figure 8 generated!")
+    print(f"\nFinal Figure 8 generated! ({dataset_label})")
+    print(f"  Output: {output_filename}")
     print(f"  Row 1: Feature 3834 (not-good), r = {corr_3834:.3f}")
     print(f"         Clusters: {type_counts_3834['positive']} positive, {type_counts_3834['negative']} negative")
     print(f"  Row 2: Feature 751 (not-bad), r = {corr_751:.3f}")
@@ -720,8 +729,19 @@ def main():
     
     # === Figure 8: Sentiment Negation Circuit ===
     if generate_all or args.figure8_only:
-        generate_figure_8_final(RESULTS_DIR, FIGURE_DIR)
-        generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR)
+        # TinyStories (primary figure - cleaner semantic clustering)
+        generate_figure_8_final(RESULTS_DIR, FIGURE_DIR, dataset_suffix="", dataset_label="TinyStories")
+        generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR, dataset_suffix="", dataset_label="TinyStories")
+        
+        # FineWeb-16k (for comparison with tutorial) - optional, only if data exists
+        fineweb_3834 = RESULTS_DIR / "figure_8_data_fw_medium_fineweb16k.json"
+        fineweb_751 = RESULTS_DIR / "figure_8_feature751_fineweb16k.json"
+        if fineweb_3834.exists() and fineweb_751.exists():
+            generate_figure_8_final(RESULTS_DIR, FIGURE_DIR, dataset_suffix="_fineweb16k", dataset_label="FineWeb-16k")
+            generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR, dataset_suffix="_fineweb16k", dataset_label="FineWeb-16k")
+        else:
+            print("\nNote: FineWeb-16k data not found, skipping comparison figure.")
+            print("  Generate with: ./scripts/train/run_language.sh figure8 generate")
     
     # === Figure 10: SAE Training Time Effect ===
     if generate_all or args.figure10_only:

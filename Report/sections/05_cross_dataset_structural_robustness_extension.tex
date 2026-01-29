@@ -6,9 +6,8 @@
 A core promise of weight-based interpretability is that models learn meaningful geometric features rather than memorizing dataset-specific pixel correlations.
 We test whether bilinear MLPs learn \textbf{Platonic forms}---e.g., ``0-ness'' as circularity---rather than idiosyncratic MNIST stroke patterns.
 
-Throughout this section, \textbf{baseline} refers to models trained without regularization (noise std = 0, weight decay = 0), while \textbf{regularized} refers to models trained with full regularization (noise std = 0.5, weight decay = 1.0), as specified in Table~\ref{tab:reg_configs}.
-
-All models use \textbf{Center-of-Mass (CoM) normalization}: images are translated so intensity-weighted centroids align, forcing the bilinear layer to focus on \textbf{shape geometry} rather than absolute position.
+Throughout this section, \textbf{baseline} refers to models without regularization, while \textbf{regularized} refers to full regularization (noise std = 0.5, weight decay = 1.0) as in Table~\ref{tab:reg_configs}.
+All models use \textbf{Center-of-Mass (CoM) normalization}: images are translated so intensity-weighted centroids align, forcing the bilinear layer to focus on shape geometry rather than absolute position.
 We probe robustness under three distributional shifts:
 (1) \textbf{Writer independence}: MNIST $\leftrightarrow$ EMNIST-Digits (same labels, different writers);
 (2) \textbf{Domain transfer}: MNIST $\rightarrow$ USPS (different resolution/collection);

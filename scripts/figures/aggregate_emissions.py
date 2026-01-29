@@ -4,8 +4,8 @@ Aggregate emissions data from all experiments for the report.
 
 This script collects emissions data from:
 - Vision checkpoints (checkpoints/vision/**/*.pt)
-- Extension 2 checkpoints (checkpoints/extension2/*.pt)
-- Extension CP checkpoints (checkpoints/extension_cp/*.pt)
+- Cross-dataset robustness checkpoints (checkpoints/extension2/*.pt)
+- CP decomposition checkpoints (checkpoints/extension_cp/*.pt)
 - Language JSON results (results/language/*.json)
 
 And produces a summary JSON file at results/emissions_summary.json with:
@@ -139,7 +139,7 @@ def main():
     # ========================================================================
     # EXTENSION 2 CHECKPOINTS
     # ========================================================================
-    print("\n>>> Collecting extension 2 checkpoint emissions...")
+    print("\n>>> Collecting extension 2 checkpoint emissions...")  # Cross-dataset robustness
     
     ext2_dir = PROJECT_ROOT / "checkpoints/extension2"
     if ext2_dir.exists():

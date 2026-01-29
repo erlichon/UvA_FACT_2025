@@ -19,16 +19,17 @@ This script provides empirical evidence for these claims by comparing:
 All checkpoints are from fw-medium layer 12 with expansion=16.
 Default dataset: FineWeb-Edu (sampled).
 
+REUSES verify_correlation infrastructure for memory-efficient streaming (DRY).
+
 Usage:
-    python scripts/sae_training_time_analysis.py
-    python scripts/sae_training_time_analysis.py --device cuda --n-features 300
+    python scripts/figures/sae_training_time_analysis.py
+    python scripts/figures/sae_training_time_analysis.py --device mps --n-features 300
 """
 
 import sys
 from pathlib import Path
 import json
 import argparse
-import itertools
 from datetime import datetime
 
 # Add project root to path
@@ -37,49 +38,17 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 import torch
-import numpy as np
-from tqdm import tqdm
-from datasets import load_dataset, Dataset
-from transformers import AutoTokenizer
 
 from language.transformer import Transformer
-from language.utils import Sight
 from sae.sae import SAE, SAEConfig
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_model
 
 from src.utils import track_emissions
-
-
-def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> float:
-    """Compute Pearson correlation between two tensors."""
-    x = x - x.mean()
-    y = y - y.mean()
-    corr = (x @ y) / (torch.norm(x) * torch.norm(y) + 1e-10)
-    return corr.item()
-
-
-def cosine_similarity_metric(x: torch.Tensor, y: torch.Tensor) -> float:
-    """
-    Compute cosine similarity between two 1D tensors.
-    
-    Unlike Pearson correlation, cosine similarity does NOT center the vectors.
-    """
-    x_norm = torch.norm(x)
-    y_norm = torch.norm(y)
-    if x_norm < 1e-10 or y_norm < 1e-10:
-        return float('nan')
-    return (x @ y / (x_norm * y_norm)).item()
-
-
-def get_metric_function(metric: str):
-    """Get the metric function based on metric name."""
-    if metric == "pearson":
-        return pearson_corr
-    elif metric == "cosine":
-        return cosine_similarity_metric
-    else:
-        raise ValueError(f"Unknown metric: {metric}. Use 'pearson' or 'cosine'.")
+from src.language.verify_correlation import (
+    verify_correlation,
+    create_validation_dataloader,
+)
 
 
 def load_sae_with_tag(repo: str, layer: int, expansion: int, k: int, tag: str) -> SAE:
@@ -96,112 +65,18 @@ def load_sae_with_tag(repo: str, layer: int, expansion: int, k: int, tag: str) -
     return sae
 
 
-def analyze_sae_version(
-    model: Transformer,
-    sae: SAE,
-    layer: int,
-    mlp_in_all: torch.Tensor,
-    z_true_all: torch.Tensor,
-    ranks: list,
-    n_features: int = -1,
-    min_active: int = 50,
-    metric: str = "pearson",
-) -> dict:
-    """
-    Analyze correlation for a single SAE version.
-    
-    Returns dict with per-feature and aggregate statistics.
-    
-    Args:
-        n_features: Number of features to analyze. -1 means all features.
-        metric: Similarity metric - 'pearson' or 'cosine'
-    """
-    # Get the metric function
-    metric_fn = get_metric_function(metric)
-    
-    # Pre-extract weights
-    w_l = model.w_l[layer].cpu().float()
-    w_r = model.w_r[layer].cpu().float()
-    w_p = model.w_p[layer].cpu().float()
-    
-    # Find features with sufficient activations
-    activations_per_feature = (z_true_all > 0).sum(dim=0)
-    active_features = (activations_per_feature >= min_active).nonzero().squeeze(-1)
-    
-    results = {rank: [] for rank in ranks}
-    per_feature_results = []
-    
-    # Analyze all features if n_features == -1
-    if n_features == -1 or n_features >= len(active_features):
-        features_to_analyze = active_features
-    else:
-        features_to_analyze = active_features[:n_features]
-    
-    for feat_idx in tqdm(features_to_analyze, desc="Analyzing features", leave=False):
-        feat_idx = feat_idx.item()
-        z_true_feat = z_true_all[:, feat_idx]
-        active_mask = z_true_feat > 0
-        n_active = active_mask.sum().item()
-        
-        x_active = mlp_in_all[active_mask]
-        z_active = z_true_feat[active_mask]
-        
-        # Compute interaction matrix Q
-        out_direction = sae.w_enc.weight[feat_idx, :].cpu().float()
-        proj = out_direction @ w_p
-        scaled_l = proj.unsqueeze(1) * w_l
-        Q = scaled_l.T @ w_r
-        Q_sym = 0.5 * (Q + Q.T)
-        
-        # Eigendecomposition
-        eigvals, eigvecs = torch.linalg.eigh(Q_sym)
-        sort_idx = eigvals.abs().argsort(descending=True)
-        eigvals_sorted = eigvals[sort_idx]
-        eigvecs_sorted = eigvecs[:, sort_idx]
-        
-        # Compute metric (pearson or cosine) for each rank
-        feature_corrs = {'feat_idx': feat_idx, 'n_active': n_active}
-        for rank in ranks:
-            projections = x_active @ eigvecs_sorted[:, :rank]
-            z_pred = (projections ** 2) @ eigvals_sorted[:rank]
-            corr = metric_fn(z_active, z_pred)
-            
-            if not np.isnan(corr):
-                results[rank].append(corr)
-                feature_corrs[f'rank_{rank}'] = corr
-        
-        per_feature_results.append(feature_corrs)
-    
-    # Compute summary statistics
-    summary = {}
-    for rank in ranks:
-        if results[rank]:
-            corrs = np.array(results[rank])
-            summary[f'rank_{rank}'] = {
-                'mean': float(np.mean(corrs)),
-                'std': float(np.std(corrs)),
-                'median': float(np.median(corrs)),
-                'above_75_pct': float(np.mean(corrs > 0.75) * 100),
-                'n_features': len(corrs),
-            }
-    
-    return {
-        'summary': summary,
-        'per_feature': per_feature_results,
-        'n_active_features': len(active_features),
-    }
-
-
 def run_analysis(args):
-    """Run the actual analysis (wrapped by main for emissions tracking)."""
+    """Run the actual analysis using verify_correlation infrastructure (DRY)."""
     metric_label = "Cosine similarity" if args.metric == "cosine" else "Pearson correlation"
     print("=" * 70)
     print(f"SAE Training Time Analysis (Figure 10) - {metric_label}")
     print("=" * 70)
     print(f"Device: {args.device}")
     print(f"Metric: {metric_label}")
-    print(f"Features per version: {args.n_features}")
+    print(f"Features: {args.n_features} (-1=all)")
     print(f"Dataset: {args.dataset}")
+    print(f"Batches: {args.n_batches}, Batch size: {args.batch_size}")
+    print(f"Exact chunk size: {args.exact_chunk_size}")
     print(f"Start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
@@ -212,126 +87,124 @@ def run_analysis(args):
     k = 30
     sae_versions = ['v0', 'v1', 'v2', 'v3', 'v4']
     ranks = [1, 2, 4, 8, 16, 30]
+    n_ctx = 256  # Match Figure 9's SAE config
     
-    # Load model
+    # Load model on the target device
     print("Loading model...")
-    model = Transformer.from_pretrained(model_name, device='cpu')
+    model = Transformer.from_pretrained(model_name, device=args.device)
     repo = f'{model.config.repo}-scope'
-    n_ctx = model.config.n_ctx
     print(f"  Model: {model_name}")
     print(f"  Layer: {layer}, Expansion: {expansion}")
     print(f"  n_ctx: {n_ctx}")
+    print(f"  Device: {args.device}")
     
-    # Load tokenizer and dataset
-    print("\nLoading dataset...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
+    # Create config dict expected by create_validation_dataloader
+    config = {"sae": {"n_ctx": n_ctx}}
     
-    n_samples = max(args.n_batches * args.batch_size, 1)
-    if args.dataset == "fineweb":
-        print("  Using FineWeb-Edu (streaming sample)")
-        ds_stream = load_dataset(
-            "HuggingFaceFW/fineweb-edu",
-            "sample-10BT",
-            split="train",
-            streaming=True,
-        )
-        samples = list(itertools.islice(ds_stream, n_samples))
-        dataset = Dataset.from_list(samples)
-        print(f"  Loaded {len(dataset)} samples from FineWeb-Edu")
-    else:
-        dataset = load_dataset('roneneldan/TinyStories', split='train')
-        if n_samples > 0 and len(dataset) > n_samples:
-            dataset = dataset.select(range(n_samples))
+    # Create dataloader using verify_correlation's helper
+    print("\nCreating validation dataloader...")
+    dataloader = create_validation_dataloader(
+        tokenizer=model.tokenizer,
+        config=config,
+        device=args.device,
+        n_samples=args.n_batches * args.batch_size,
+        batch_size=args.batch_size,
+        dataset_name=args.dataset,
+    )
     
-    def tokenize_fn(examples):
-        return tokenizer(examples['text'], truncation=True, max_length=n_ctx, 
-                        padding='max_length', return_tensors='pt')
+    # Estimate tokens
+    estimated_tokens = args.n_batches * args.batch_size * n_ctx
+    print(f"  Estimated tokens: {estimated_tokens:,} (~{estimated_tokens/1e6:.2f}M)")
     
-    dataset = dataset.map(tokenize_fn, batched=True, remove_columns=['text'])
-    dataset.set_format(type='torch', columns=['input_ids', 'attention_mask'])
-    
-    # Collect activations once (shared across all SAE versions)
-    print("\nCollecting activations...")
-    sight = Sight(model)
-    all_mlp_in = []
-    all_mlp_out = []
-    
-    with torch.no_grad():
-        for i in tqdm(range(args.n_batches), desc="Processing batches"):
-            start_idx = i * args.batch_size
-            end_idx = min((i + 1) * args.batch_size, len(dataset))
-            if start_idx >= len(dataset):
-                break
-            batch = {k: v[start_idx:end_idx] for k, v in dataset[:end_idx].items() 
-                    if start_idx < end_idx}
-            
-            with sight.trace(batch, validate=False, scan=False):
-                mlp_in = sight['mlp-in', layer].save()
-                mlp_out = sight['mlp-out', layer].save()
-            
-            all_mlp_in.append(mlp_in.flatten(0, 1).float().cpu())
-            all_mlp_out.append(mlp_out.flatten(0, 1).float().cpu())
-    
-    mlp_in_all = torch.cat(all_mlp_in, dim=0)
-    mlp_out_all = torch.cat(all_mlp_out, dim=0)
-    print(f"  Collected {mlp_in_all.shape[0]} tokens")
-    
-    # Analyze each SAE version
+    # Results container
     all_results = {
         'metadata': {
             'model': model_name,
             'layer': layer,
             'expansion': expansion,
             'k': k,
-            'n_tokens': mlp_in_all.shape[0],
+            'n_tokens': estimated_tokens,
             'ranks': ranks,
             'metric': args.metric,
             'metric_label': metric_label,
+            'dataset': args.dataset,
+            'n_batches': args.n_batches,
+            'batch_size': args.batch_size,
+            'exact_chunk_size': args.exact_chunk_size,
             'timestamp': datetime.now().isoformat(),
         },
         'versions': {}
     }
     
+    # Analyze each SAE version using verify_correlation (reuse existing code)
     for version in sae_versions:
-        print(f"\n{'='*50}")
+        print(f"\n{'='*60}")
         print(f"Analyzing SAE version: {version}")
-        print(f"{'='*50}")
+        print(f"{'='*60}")
         
         # Load SAE
         print(f"  Loading SAE {version}...")
         sae = load_sae_with_tag(repo, layer, expansion, k, version)
         
-        # Compute SAE activations
-        print(f"  Computing SAE activations...")
-        z_true_all = sae.encode(mlp_out_all)
-        
-        # Analyze
-        print(f"  Analyzing {args.metric} (n_features={args.n_features}, -1=all)...")
-        results = analyze_sae_version(
+        # Use verify_correlation with exact_streaming for memory efficiency
+        print(f"  Running correlation analysis with exact_streaming...")
+        results, feature_results, scatter_files, run_info = verify_correlation(
             model=model,
-            sae=sae,
+            sae_out=sae,
             layer=layer,
-            mlp_in_all=mlp_in_all,
-            z_true_all=z_true_all,
+            dataloader=dataloader,
+            feature_indices=None,  # Auto-detect active features
             ranks=ranks,
-            n_features=args.n_features,
-            min_active=args.min_active,
+            device=args.device,
+            min_active_per_feature=args.min_active,
+            target_samples_per_feature=-1,  # All samples
+            max_batches=args.n_batches,
+            max_features=args.n_features,
+            save_scatter=False,
+            model_name=f"fw-medium-{version}",
+            use_streaming=True,
+            chunk_size=256,
             metric=args.metric,
+            batch_size=args.batch_size,
+            n_ctx=n_ctx,
+            streaming_threshold_tokens=0,  # Always use streaming
+            exact_streaming=True,  # Memory-safe exact computation
+            exact_chunk_size=args.exact_chunk_size,
         )
         
-        all_results['versions'][version] = results
+        # Convert results to summary format expected by Figure 10
+        summary = {}
+        for rank in ranks:
+            if rank in results and results[rank]:
+                corrs = results[rank]
+                import numpy as np
+                summary[f'rank_{rank}'] = {
+                    'mean': float(np.mean(corrs)),
+                    'std': float(np.std(corrs)),
+                    'median': float(np.median(corrs)),
+                    'above_75_pct': float(np.mean(np.array(corrs) > 0.75) * 100),
+                    'n_features': len(corrs),
+                }
+        
+        all_results['versions'][version] = {
+            'summary': summary,
+            'per_feature': feature_results,
+            'n_active_features': len(feature_results),
+            'run_info': run_info,
+        }
         
         # Print summary
         print(f"\n  Summary for {version}:")
         for rank in [1, 2, 8]:
-            if f'rank_{rank}' in results['summary']:
-                s = results['summary'][f'rank_{rank}']
+            if f'rank_{rank}' in summary:
+                s = summary[f'rank_{rank}']
                 print(f"    Rank-{rank}: mean={s['mean']:.3f}, median={s['median']:.3f}, "
-                      f">{0.75*100:.0f}%: {s['above_75_pct']:.1f}%")
+                      f">75%: {s['above_75_pct']:.1f}%")
         
-        # Clean up
-        del sae, z_true_all
+        # Clean up SAE memory
+        del sae
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
     
     # Print comparison table
     print(f"\n{'='*70}")
@@ -354,26 +227,30 @@ def run_analysis(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SAE Training Time Analysis")
+    parser = argparse.ArgumentParser(description="SAE Training Time Analysis (Figure 10)")
     parser.add_argument('--device', type=str, default='cpu', help='Device (cpu, cuda, mps)')
-    parser.add_argument('--n-features', type=int, default=-1, help='Number of features to analyze (-1 for all)')
-    parser.add_argument('--n-batches', type=int, default=10, help='Number of batches for activation collection')
-    parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
-    parser.add_argument('--min-active', type=int, default=50, help='Minimum active samples per feature')
-    parser.add_argument('--output', type=str, default='results/language/sae_training_time_comparison.json',
+    parser.add_argument('--n-features', type=int, default=-1, 
+                        help='Number of features to analyze (-1 for all)')
+    parser.add_argument('--n-batches', type=int, default=128, 
+                        help='Number of batches (default 128, matching Figure 9)')
+    parser.add_argument('--batch-size', type=int, default=48, 
+                        help='Batch size (default 48, matching Figure 9)')
+    parser.add_argument('--min-active', type=int, default=50, 
+                        help='Minimum active samples per feature')
+    parser.add_argument('--exact-chunk-size', type=int, default=64,
+                        help='Features per chunk in exact streaming (smaller=less memory)')
+    parser.add_argument('--output', type=str, 
+                        default='results/language/sae_training_time_comparison.json',
                         help='Output JSON file')
-    parser.add_argument('--metric', type=str, default='pearson', choices=['pearson', 'cosine'],
+    parser.add_argument('--metric', type=str, default='pearson', 
+                        choices=['pearson', 'cosine'],
                         help="Similarity metric: 'pearson' (default) or 'cosine'")
-    parser.add_argument(
-        '--dataset',
-        type=str,
-        default='fineweb',
-        choices=['fineweb', 'tinystories'],
-        help="Dataset to sample from (default: fineweb)",
-    )
+    parser.add_argument('--dataset', type=str, default='fineweb',
+                        choices=['fineweb', 'tinystories'],
+                        help="Dataset to sample from (default: fineweb)")
     args = parser.parse_args()
     
-    # Adjust output path for cosine metric - put in cosine/ subfolder
+    # Adjust output path for cosine metric
     if args.metric == "cosine":
         output_path = Path(args.output)
         cosine_dir = output_path.parent / "cosine"
@@ -391,7 +268,7 @@ def main():
         'gpu_hours': tracker.result.gpu_hours,
     }
     
-    # Save results with emissions
+    # Save results
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:

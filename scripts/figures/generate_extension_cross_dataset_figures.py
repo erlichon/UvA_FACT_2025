@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Generate Extension 2 figures (Cross-Dataset Structural Robustness).
+Generate Cross-Dataset Robustness figures (Extension 1).
 
-This script is the single entrypoint for all Extension 2 figures. It only uses
+This script is the single entrypoint for all cross-dataset figures. It only uses
 existing checkpoints (no new training).
 
 Figures generated:
@@ -26,10 +26,10 @@ New (eigenvalue-aware metrics):
 14. Statistical comparison: t-test similar vs dissimilar pairs
 
 Usage:
-    python scripts/figures/generate_extension2_figures.py
-    python scripts/figures/generate_extension2_figures.py --sections eigenvectors
-    python scripts/figures/generate_extension2_figures.py --sections similarity_weighted ranking
-    ./scripts/train/run_extension2.sh figures  # Preferred wrapper
+    python scripts/figures/generate_extension_cross_dataset_figures.py
+    python scripts/figures/generate_extension_cross_dataset_figures.py --sections eigenvectors
+    python scripts/figures/generate_extension_cross_dataset_figures.py --sections similarity_weighted ranking
+    ./scripts/train/run_extension_cross_dataset.sh figures  # Preferred wrapper
 """
 
 import sys
@@ -90,8 +90,8 @@ class Dirs:
 def get_dirs() -> Dirs:
     """Get directory paths, with fallbacks for different checkpoint names.
     
-    For Extension 2, ALL models should be trained with CoM normalization.
-    MNIST CoM checkpoints are in checkpoints/extension2/ (trained via run_extension2.sh).
+    For cross-dataset robustness, ALL models should be trained with CoM normalization.
+    MNIST CoM checkpoints are in checkpoints/extension2/ (trained via run_extension_cross_dataset.sh).
     """
     # MNIST: Prefer extension2 CoM checkpoint, fall back to vision/mnist (non-CoM, but warn)
     mnist_candidates = [
@@ -112,8 +112,8 @@ def get_dirs() -> Dirs:
     # Warn if using non-CoM MNIST checkpoint
     if "vision" in str(mnist_ckpt) or "dense_full_seed" in str(mnist_ckpt):
         print("WARNING: Using vision MNIST checkpoint (no CoM).")
-        print("   For fair Extension 2 comparison, train MNIST with CoM:")
-        print("   ./scripts/train/run_extension2.sh train mnist")
+        print("   For fair cross-dataset comparison, train MNIST with CoM:")
+        print("   ./scripts/train/run_extension_cross_dataset.sh train mnist")
     
     return Dirs(
         mnist_ckpt=mnist_ckpt,
