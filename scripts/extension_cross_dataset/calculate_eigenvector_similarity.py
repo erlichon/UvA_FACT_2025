@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.paths import EXTENSION2_CHECKPOINTS
 from src.vision.spectral import load_checkpoint_eigenvalues
-from scripts.extension2.utils import (
+from scripts.extension_cross_dataset.utils import (
     get_balanced_eigenvectors_and_vals,
     abs_cosine_similarity,
 )

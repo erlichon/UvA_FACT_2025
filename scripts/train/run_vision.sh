@@ -389,7 +389,7 @@ show_help() {
     echo "  train adversarial Noise015 models for Figure 7"
     echo "  train all        All training experiments (base + noise + size + challenge + adversarial)"
     echo "  figures          Generate all figures from checkpoints"
-    echo "  extension2       Run cross-dataset experiments (delegates to run_extension_cross_dataset.sh)"
+    echo "  extension_cross_dataset       Run cross-dataset experiments (delegates to run_extension_cross_dataset.sh)"
     echo "  test             Quick 2-epoch MPS verification"
     echo "  all              Full pipeline (train all + figures)"
     echo "  help             Show this help message"
@@ -414,7 +414,7 @@ show_help() {
 }
 
 # --- EXTENSION CROSS-DATASET ---
-run_extension2() {
+run_extension_cross_dataset() {
     echo ">>> Delegating to cross-dataset runner..."
     exec "$SCRIPT_DIR/run_extension_cross_dataset.sh" "${REMAINING_ARGS[@]}"
 }
@@ -446,8 +446,8 @@ case $COMMAND in
     all)
         run_all
         ;;
-    extension2)
-        run_extension2
+    extension_cross_dataset)
+        run_extension_cross_dataset
         ;;
     help|*)
         show_help

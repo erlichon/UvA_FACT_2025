@@ -151,28 +151,28 @@ def _build_sections() -> Dict[str, List[Dict[str, str]]]:
         # Extension 2: Cross-Dataset Robustness
         # -----------------------------
         "Extension 2 / Eigenvector Comparisons": [
-            {"label": "Eigenvectors: 0 vs O", "path": _fig_rel_path("extension2_eigenvec_0_O.pdf")},
-            {"label": "Eigenvectors: 1 vs I", "path": _fig_rel_path("extension2_eigenvec_1_I.pdf")},
-            {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension2_eigenvec_2_Z.pdf")},
-            {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension2_eigenvec_5_S.pdf")},
-            {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension2_3way_comparison.pdf")},
-            {"label": "3-way: MNIST 0 vs EMNIST O vs EMNIST X", "path": _fig_rel_path("extension2_3way_comparison_0_O_X.pdf")},
+            {"label": "Eigenvectors: 0 vs O", "path": _fig_rel_path("extension_cross_dataset_eigenvec_0_O.pdf")},
+            {"label": "Eigenvectors: 1 vs I", "path": _fig_rel_path("extension_cross_dataset_eigenvec_1_I.pdf")},
+            {"label": "Eigenvectors: 2 vs Z", "path": _fig_rel_path("extension_cross_dataset_eigenvec_2_Z.pdf")},
+            {"label": "Eigenvectors: 5 vs S", "path": _fig_rel_path("extension_cross_dataset_eigenvec_5_S.pdf")},
+            {"label": "3-way: MNIST 0 vs EMNIST 0 vs EMNIST O", "path": _fig_rel_path("extension_cross_dataset_3way_comparison.pdf")},
+            {"label": "3-way: MNIST 0 vs EMNIST O vs EMNIST X", "path": _fig_rel_path("extension_cross_dataset_3way_comparison_0_O_X.pdf")},
         ],
         "Extension 2 / Similarity vs k": [
-            {"label": "Mean Cosine Similarity", "path": _fig_rel_path("extension2_similarity_vs_k.pdf")},
-            {"label": "Quadratic Form Similarity", "path": _fig_rel_path("extension2_similarity_vs_k_quadratic_form.pdf")},
+            {"label": "Mean Cosine Similarity", "path": _fig_rel_path("extension_cross_dataset_similarity_vs_k.pdf")},
+            {"label": "Quadratic Form Similarity", "path": _fig_rel_path("extension_cross_dataset_similarity_vs_k_quadratic_form.pdf")},
         ],
         "Extension 2 / Heatmaps": [
-            {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension2_similarity_heatmap.pdf")},
-            {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_quadratic_form.pdf")},
-            {"label": "Absolute Cosine Similarity Heatmap (k=20)", "path": _fig_rel_path("extension2_heatmap_abs_cosine_similarity.pdf")},
-            {"label": "Quadratic Form: MNIST vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension2_quadratic_form_heatmap_digits.pdf")},
+            {"label": "Mean Cosine Heatmap (k=20)", "path": _fig_rel_path("extension_cross_dataset_similarity_heatmap.pdf")},
+            {"label": "Quadratic Form Heatmap (k=20)", "path": _fig_rel_path("extension_cross_dataset_heatmap_quadratic_form.pdf")},
+            {"label": "Absolute Cosine Similarity Heatmap (k=20)", "path": _fig_rel_path("extension_cross_dataset_heatmap_abs_cosine_similarity.pdf")},
+            {"label": "Quadratic Form: MNIST vs EMNIST Digits (k=20)", "path": _fig_rel_path("extension_cross_dataset_quadratic_form_heatmap_digits.pdf")},
         ],
         "Extension 2 / Eigenvalue Distributions": [
-            {"label": "Eigenvalues: 0 vs O", "path": _fig_rel_path("extension2_eigenval_0_O.pdf")},
-            {"label": "Eigenvalues: 1 vs I", "path": _fig_rel_path("extension2_eigenval_1_I.pdf")},
-            {"label": "Eigenvalues: 2 vs Z", "path": _fig_rel_path("extension2_eigenval_2_Z.pdf")},
-            {"label": "Eigenvalues: 5 vs S", "path": _fig_rel_path("extension2_eigenval_5_S.pdf")},
+            {"label": "Eigenvalues: 0 vs O", "path": _fig_rel_path("extension_cross_dataset_eigenval_0_O.pdf")},
+            {"label": "Eigenvalues: 1 vs I", "path": _fig_rel_path("extension_cross_dataset_eigenval_1_I.pdf")},
+            {"label": "Eigenvalues: 2 vs Z", "path": _fig_rel_path("extension_cross_dataset_eigenval_2_Z.pdf")},
+            {"label": "Eigenvalues: 5 vs S", "path": _fig_rel_path("extension_cross_dataset_eigenval_5_S.pdf")},
         ],
         # -----------------------------
         # Extension CP: CP Decomposition

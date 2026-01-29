@@ -1,6 +1,6 @@
 % Extension 1: Cross-Dataset Robustness Slides
 
-\begin{frame}{Extension 1: Background and Purpose}
+\begin{frame}{Extension 1: Cross-Dataset Robustness}
     \textbf{Hypothesis:} Eigenvector decomposition generalizes across datasets
     
     \vspace{0.5cm}
@@ -54,11 +54,14 @@
     \begin{center}
         \begin{figure}
             \centering
-            \includegraphics[width=0.85\textwidth]{../Report/figures/extension2/extension2_heatmap_abs_cosine_similarity.pdf}
+            \includegraphics[width=0.8\textwidth]{../Report/figures/extension_cross_dataset/extension_cross_dataset_heatmap_abs_cosine_similarity.pdf}
             \caption{Absolute cosine similarity between MNIST digit classes and EMNIST letter classes fails to distinguish geometrically similar pairs (0--O) from dissimilar pairs (0--X).}
         \end{figure}
-        \vspace{0.3cm}
+        \vspace{0.2cm}
         \small
+        \textbf{Methodology:} Absolute cosine similarity between the \textbf{first 20 eigenvectors} of each letter-digit pair, \textbf{averaged across 5 seeds}.
+        
+        \vspace{0.2cm}
         Cosine similarity fails: Similar pairs (0--O): 0.358 vs.\ Dissimilar pairs (0--X): 0.339 (virtually identical)
     \end{center}
 \end{frame}
@@ -94,11 +97,14 @@
     \begin{center}
         \begin{figure}
             \centering
-            \includegraphics[width=0.85\textwidth]{../Report/figures/extension2/extension2_heatmap_quadratic_form.pdf}
-            \caption{Quadratic Form Similarity Heatmap}
+            \includegraphics[width=0.8\textwidth]{../Report/figures/extension_cross_dataset/extension_cross_dataset_heatmap_quadratic_form.pdf}
+            \caption{Quadratic Form Similarity Heatmap (k=20)}
         \end{figure}
-        \vspace{0.3cm}
+        \vspace{0.2cm}
         \small
+        \textbf{k=20:} We take the rank-20 (low-rank) approximation of the interaction matrix $B_c$ for each digit and each letter, then compute Quadratic Form Similarity.
+        
+        \vspace{0.2cm}
         Clear discrimination: strong diagonal for MNIST vs.\ EMNIST-Digits; bright entries at shape-matched pairs (0--O, 1--I, 2--Z, 5--S)
     \end{center}
 \end{frame}
@@ -107,8 +113,16 @@
     \begin{center}
         \begin{figure}
             \centering
-            \includegraphics[width=0.85\textwidth]{../Report/figures/extension2/extension2_similarity_vs_k_quadratic_form.pdf}
+            \includegraphics[width=0.75\textwidth]{../Report/figures/extension_cross_dataset/extension_cross_dataset_similarity_vs_k_quadratic_form.pdf}
             \caption{Quadratic Form Similarity vs number of eigenvectors $k$. Similar pairs converge around $k=20$; dissimilar pairs stay near zero.}
         \end{figure}
+        
+        \vspace{0.3cm}
+        \fcolorbox{black}{yellow!20}{
+            \parbox{0.9\textwidth}{
+                \centering
+                \textbf{Main Takeaway:} Quadratic Form Similarity is the correct metric for measuring structural similarity across models trained on different datasets---\textbf{not cosine similarity}.
+            }
+        }
     \end{center}
 \end{frame}

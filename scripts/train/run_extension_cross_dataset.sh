@@ -31,7 +31,7 @@ export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 
 # Default values (paths are interpreted relative to project root)
 SEEDS="42,43,44,45,46"
-CHECKPOINT_DIR="checkpoints/extension2"
+CHECKPOINT_DIR="checkpoints/extension_cross_dataset"
 QUICK_MODE=false
 WANDB_FLAG=""
 EPOCHS_OVERRIDE=""

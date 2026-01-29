@@ -179,6 +179,100 @@ def generate_regularization_section(d: Dirs) -> None:
     _save_figure(fig, d.figure_out / "eigenvectors_noise.pdf")
     plt.close(fig)
 
+    # Single-digit comparison (digit 0) across three regularization conditions
+    # For presentation slide 4: cleaner comparison showing noise is key
+    fig, axes = plt.subplots(1, 3, figsize=(12, 3))
+    
+    digit = 0  # Focus on digit "0"
+    n_show = 5  # Show top 5 eigenvectors per condition
+    
+    conditions = [
+        ("No Regularization", vecs_none, vals_none),
+        ("Noise Only (σ=0.5)", vecs_noise, vals_noise),
+        ("Full Reg (σ=0.5, λ=1.0)", vecs_reg, vals_reg),
+    ]
+    
+    for ax_idx, (label, vecs, vals) in enumerate(conditions):
+        # Get top eigenvectors by absolute magnitude for this digit
+        abs_vals = vals[digit].abs()
+        sorted_indices = abs_vals.argsort(descending=True)[:n_show]
+        
+        # Create a small grid showing top-5 eigenvectors horizontally
+        combined_img = []
+        for i, idx in enumerate(sorted_indices):
+            vec = vecs[digit, idx].numpy().reshape(28, 28)
+            # Normalize each eigenvector
+            vmax = np.abs(vec).max()
+            if vmax > 1e-10:
+                vec = vec / vmax
+            combined_img.append(vec)
+        
+        # Stack horizontally with small gaps
+        gap = np.ones((28, 2)) * 0  # Small white gap
+        full_img = combined_img[0]
+        for vec in combined_img[1:]:
+            full_img = np.concatenate([full_img, gap, vec], axis=1)
+        
+        vmax = 1.0
+        axes[ax_idx].imshow(full_img, cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+        axes[ax_idx].axis("off")
+        axes[ax_idx].set_title(label, fontsize=11, fontweight='bold' if 'Noise Only' in label else 'normal')
+    
+    fig.suptitle(f"Digit {digit}: Top-5 Eigenvectors Across Regularization Conditions", fontsize=12, y=1.02)
+    plt.tight_layout()
+    _save_figure(fig, d.figure_out / "eigenvectors_single_digit_comparison.pdf")
+    plt.close(fig)
+
+    # Generate separate figures for V2 (with reg) and V3 (no reg) with eigenvalue labels
+    # These show only digit 0's top-5 eigenvectors with λ values above each
+    def _make_single_digit_eigenvectors_with_labels(vecs, vals, digit, n_show, title, out_name):
+        """Create figure showing top eigenvectors for a single digit with eigenvalue labels."""
+        fig, axes = plt.subplots(1, n_show, figsize=(n_show * 1.5, 2.2))
+        
+        # Get top eigenvectors by absolute magnitude
+        abs_vals = vals[digit].abs()
+        sorted_indices = abs_vals.argsort(descending=True)[:n_show]
+        
+        for i, idx in enumerate(sorted_indices):
+            vec = vecs[digit, idx].numpy().reshape(28, 28)
+            eigenvalue = vals[digit, idx].item()
+            
+            # Normalize eigenvector for display
+            vmax = np.abs(vec).max()
+            if vmax > 1e-10:
+                vec = vec / vmax
+            
+            axes[i].imshow(vec, cmap="RdBu_r", vmin=-1, vmax=1)
+            axes[i].axis("off")
+            # Show eigenvalue above
+            axes[i].set_title(f"λ={eigenvalue:.1f}", fontsize=9)
+        
+        fig.suptitle(title, fontsize=11, y=1.0)
+        plt.tight_layout()
+        _save_figure(fig, d.figure_out / out_name)
+        plt.close(fig)
+    
+    # V2: With regularization (noise + WD)
+    _make_single_digit_eigenvectors_with_labels(
+        vecs_reg, vals_reg, digit=0, n_show=5,
+        title="Digit 0: Top-5 Eigenvectors (Full Reg)",
+        out_name="eigenvectors_digit0_reg.pdf"
+    )
+    
+    # V2 additional: Noise only
+    _make_single_digit_eigenvectors_with_labels(
+        vecs_noise, vals_noise, digit=0, n_show=5,
+        title="Digit 0: Top-5 Eigenvectors (Noise Only)",
+        out_name="eigenvectors_digit0_noise.pdf"
+    )
+    
+    # V3: No regularization
+    _make_single_digit_eigenvectors_with_labels(
+        vecs_none, vals_none, digit=0, n_show=5,
+        title="Digit 0: Top-5 Eigenvectors (No Reg)",
+        out_name="eigenvectors_digit0_noreg.pdf"
+    )
+
     # Fashion eigenvectors: add noise-only too
     fashion_noise_ckpt = d.vision_fashion_ckpts / "fashion_dense_noise_seed42.pt"
     if fashion_noise_ckpt.exists():
@@ -1355,10 +1449,10 @@ def generate_appendix_sparsity(d: Dirs) -> None:
     plt.close(fig)
 
 
-def generate_extension2_section(d: Dirs) -> None:
+def generate_extension_cross_dataset_section(d: Dirs) -> None:
     """Generate Extension 2 (Cross-Dataset Robustness) figures from JSON results and checkpoints."""
     import json
-    from src.plot_utils.extension2 import (
+    from src.plot_utils.extension_cross_dataset import (
         DIGIT_LETTER_PAIRS,
         plot_digit_letter_eigenvector_comparison,
         plot_subspace_overlap_by_rank,
@@ -1370,13 +1464,13 @@ def generate_extension2_section(d: Dirs) -> None:
     
     print("\n=== Extension 2 / Cross-Dataset Robustness ===")
     
-    ext2_dir = PROJECT_ROOT / "results/extension2"
-    ext2_ckpt_dir = ext2_dir / "checkpoints"
+    extension_cross_dataset_dir = PROJECT_ROOT / "results/extension_cross_dataset"
+    extension_cross_dataset_ckpt_dir = extension_cross_dataset_dir / "checkpoints"
     
     # Load checkpoints for the new visualizations
     mnist_ckpt = d.vision_mnist_ckpts / "mnist_dense_full_seed42.pt"
-    emnist_letters_ckpt = ext2_ckpt_dir / "emnist_letters_regularized_seed42.pt"
-    emnist_digits_ckpt = ext2_ckpt_dir / "emnist_digits_regularized_seed42.pt"
+    emnist_letters_ckpt = extension_cross_dataset_ckpt_dir / "emnist_letters_regularized_seed42.pt"
+    emnist_digits_ckpt = extension_cross_dataset_ckpt_dir / "emnist_digits_regularized_seed42.pt"
     
     mnist_data = None
     emnist_letters_data = None
@@ -1412,14 +1506,14 @@ def generate_extension2_section(d: Dirs) -> None:
             emnist_vals=emnist_letters_data["eigenvalues"],
             pairs=DIGIT_LETTER_PAIRS,
         )
-        _save_figure(fig, d.figure_out / "extension2_subspace_overlap.pdf")
+        _save_figure(fig, d.figure_out / "extension_cross_dataset_subspace_overlap.pdf")
         plt.close(fig)
-        print("Generated: extension2_subspace_overlap.pdf")
+        print("Generated: extension_cross_dataset_subspace_overlap.pdf")
     
     # ==========================================================================
     # 2. FIXED: Mechanism stability results (correct JSON keys)
     # ==========================================================================
-    mechanism_path = ext2_dir / "mechanism_stability_results.json"
+    mechanism_path = extension_cross_dataset_dir / "mechanism_stability_results.json"
     if mechanism_path.exists():
         with open(mechanism_path) as f:
             mechanism_results = json.load(f)
@@ -1484,16 +1578,16 @@ def generate_extension2_section(d: Dirs) -> None:
         
         plt.suptitle('Extension 2: Mechanism Stability Analysis', fontsize=14, y=1.02)
         plt.tight_layout()
-        _save_figure(fig, d.figure_out / "extension2_mechanism_stability.pdf")
+        _save_figure(fig, d.figure_out / "extension_cross_dataset_mechanism_stability.pdf")
         plt.close(fig)
-        print("Generated: extension2_mechanism_stability.pdf")
+        print("Generated: extension_cross_dataset_mechanism_stability.pdf")
     else:
         print(f"WARNING: {mechanism_path} not found, skipping mechanism stability figure")
     
     # ==========================================================================
     # 3. Eigenspectra comparison (MNIST vs EMNIST-Digits) with CI across seeds
     # ==========================================================================
-    from src.plot_utils.extension2 import plot_eigenspectra_comparison_with_ci
+    from src.plot_utils.extension_cross_dataset import plot_eigenspectra_comparison_with_ci
     
     # Load all seeds for aggregation
     seeds = [42, 43, 44, 45, 46]
@@ -1503,7 +1597,7 @@ def generate_extension2_section(d: Dirs) -> None:
     print("\nLoading eigenspectra from multiple seeds...")
     for seed in seeds:
         mnist_ckpt_seed = d.vision_mnist_ckpts / f"mnist_dense_full_seed{seed}.pt"
-        emnist_ckpt_seed = ext2_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt"
+        emnist_ckpt_seed = extension_cross_dataset_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt"
         
         if mnist_ckpt_seed.exists():
             data = torch.load(mnist_ckpt_seed, map_location="cpu", weights_only=False)
@@ -1522,9 +1616,9 @@ def generate_extension2_section(d: Dirs) -> None:
             top_k=50,
             ci_level=0.90,
         )
-        _save_figure(fig, d.figure_out / "extension2_eigenspectra.pdf")
+        _save_figure(fig, d.figure_out / "extension_cross_dataset_eigenspectra.pdf")
         plt.close(fig)
-        print("Generated: extension2_eigenspectra.pdf")
+        print("Generated: extension_cross_dataset_eigenspectra.pdf")
     else:
         print("WARNING: Not enough checkpoints found for eigenspectra comparison")
     
@@ -1544,7 +1638,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 pair_label=label,
                 n_top=5,
             )
-            filename = f"extension2_eigenvec_{label.replace('-', '_')}.pdf"
+            filename = f"extension_cross_dataset_eigenvec_{label.replace('-', '_')}.pdf"
             _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
@@ -1567,7 +1661,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 digit_label=digit_label,
                 letter_label=letter_label,
             )
-            filename = f"extension2_cosine_heatmap_{label.replace('-', '_')}.pdf"
+            filename = f"extension_cross_dataset_cosine_heatmap_{label.replace('-', '_')}.pdf"
             _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
@@ -1587,7 +1681,7 @@ def generate_extension2_section(d: Dirs) -> None:
                 digit_label=digit_label,
                 letter_label=letter_label,
             )
-            filename = f"extension2_eigenval_dist_{label.replace('-', '_')}.pdf"
+            filename = f"extension_cross_dataset_eigenval_dist_{label.replace('-', '_')}.pdf"
             _save_figure(fig, d.figure_out / filename)
             plt.close(fig)
             print(f"Generated: {filename}")
@@ -1605,9 +1699,9 @@ def generate_extension2_section(d: Dirs) -> None:
             pairs=DIGIT_LETTER_PAIRS,
             k=20,
         )
-        _save_figure(fig, d.figure_out / "extension2_principal_angles.pdf")
+        _save_figure(fig, d.figure_out / "extension_cross_dataset_principal_angles.pdf")
         plt.close(fig)
-        print("Generated: extension2_principal_angles.pdf")
+        print("Generated: extension_cross_dataset_principal_angles.pdf")
     
     # ==========================================================================
     # 8. NEW: t-SNE and PCA embeddings (2 figures)
@@ -1626,9 +1720,9 @@ def generate_extension2_section(d: Dirs) -> None:
             method="pca",
         )
         if fig is not None:
-            _save_figure(fig, d.figure_out / "extension2_eigenvec_pca.pdf")
+            _save_figure(fig, d.figure_out / "extension_cross_dataset_eigenvec_pca.pdf")
             plt.close(fig)
-            print("Generated: extension2_eigenvec_pca.pdf")
+            print("Generated: extension_cross_dataset_eigenvec_pca.pdf")
         
         # t-SNE embedding
         fig = plot_eigenvector_embedding(
@@ -1641,9 +1735,9 @@ def generate_extension2_section(d: Dirs) -> None:
             method="tsne",
         )
         if fig is not None:
-            _save_figure(fig, d.figure_out / "extension2_eigenvec_tsne.pdf")
+            _save_figure(fig, d.figure_out / "extension_cross_dataset_eigenvec_tsne.pdf")
             plt.close(fig)
-            print("Generated: extension2_eigenvec_tsne.pdf")
+            print("Generated: extension_cross_dataset_eigenvec_tsne.pdf")
     
     print("\n=== Extension 2 figure generation complete ===")
 
@@ -1910,8 +2004,8 @@ def main() -> int:
         "--sections",
         type=str,
         nargs="+",
-        default=["regularization", "truncation_similarity", "challenge", "adversarial", "explanation", "extension2", "appendix", "hub"],
-        help="Sections to generate: regularization truncation_similarity challenge adversarial explanation extension2 appendix hub",
+        default=["regularization", "truncation_similarity", "challenge", "adversarial", "explanation", "extension_cross_dataset", "appendix", "hub"],
+        help="Sections to generate: regularization truncation_similarity challenge adversarial explanation extension_cross_dataset appendix hub",
     )
     parser.add_argument("--device", type=str, default=None, help="cpu|mps|cuda (default: auto)")
     parser.add_argument("--seed", type=int, default=42)
@@ -1963,8 +2057,8 @@ def main() -> int:
         generate_adversarial_section(d, device=device, target_class=args.target_class)
     if "explanation" in sections:
         generate_explanation_section(d, device=device)
-    if "extension2" in sections:
-        generate_extension2_section(d)
+    if "extension_cross_dataset" in sections:
+        generate_extension_cross_dataset_section(d)
     if "appendix" in sections:
         generate_appendix_eigenspectrum_digits(d)
         generate_appendix_sparsity(d)

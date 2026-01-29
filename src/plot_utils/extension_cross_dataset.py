@@ -206,57 +206,68 @@ def plot_subspace_overlap_comparison(
 
 
 def plot_eigenspectra_side_by_side(
-    vals_baseline: Float[Tensor, "n_classes n_components"],
-    vals_regularized: Float[Tensor, "n_classes n_components"],
+    vals_left: Float[Tensor, "n_classes n_components"],
+    vals_right: Float[Tensor, "n_classes n_components"],
+    labels: Optional[Tuple[str, str]] = None,
     figsize: Tuple[float, float] = (14, 5),
     top_k: int = 50,
+    title: Optional[str] = None,
     save_path: Optional[str] = None,
 ) -> plt.Figure:
     """
-    Plot eigenvalue spectra side-by-side for baseline vs regularized models.
+    Plot eigenvalue spectra side-by-side for two models.
     
     Shows eigenvalue decay patterns with effective rank in title.
     
     Args:
-        vals_baseline: [n_classes, n_components] eigenvalues for baseline model
-        vals_regularized: [n_classes, n_components] eigenvalues for regularized model
+        vals_left: [n_classes, n_components] eigenvalues for left panel
+        vals_right: [n_classes, n_components] eigenvalues for right panel
+        labels: Optional tuple of (left_label, right_label) for titles
         figsize: Figure size
         top_k: Number of top eigenvalues to show
+        title: Optional overall figure title
         save_path: If provided, save figure to this path
         
     Returns:
         matplotlib Figure object
     """
+    if labels is None:
+        labels = ("Model A", "Model B")
+    
     fig, axes = plt.subplots(1, 2, figsize=figsize)
     
     # Compute effective ranks
-    eff_rank_baseline = effective_rank(vals_baseline)
-    eff_rank_regularized = effective_rank(vals_regularized)
+    eff_rank_left = effective_rank(vals_left)
+    eff_rank_right = effective_rank(vals_right)
     
     # Plot eigenspectra (sorted by magnitude)
-    for cls in range(10):
-        # Baseline
-        vals_sorted = vals_baseline[cls].abs().sort(descending=True).values
+    n_classes = min(vals_left.shape[0], vals_right.shape[0])
+    for cls in range(n_classes):
+        # Left panel
+        vals_sorted = vals_left[cls].abs().sort(descending=True).values
         axes[0].semilogy(vals_sorted[:top_k].numpy(), alpha=0.6)
         
-        # Regularized
-        vals_sorted = vals_regularized[cls].abs().sort(descending=True).values
+        # Right panel
+        vals_sorted = vals_right[cls].abs().sort(descending=True).values
         axes[1].semilogy(vals_sorted[:top_k].numpy(), alpha=0.6)
     
     axes[0].set_title(
-        f'Baseline (No Noise)\nMean Eff. Rank: {eff_rank_baseline.mean():.1f}', 
+        f'{labels[0]}\nMean Eff. Rank: {eff_rank_left.mean():.1f}', 
         fontsize=12
     )
     axes[0].set_xlabel('Eigenvalue Index')
     axes[0].set_ylabel('|Eigenvalue| (log scale)')
     
     axes[1].set_title(
-        f'Regularized (sigma=0.15)\nMean Eff. Rank: {eff_rank_regularized.mean():.1f}', 
+        f'{labels[1]}\nMean Eff. Rank: {eff_rank_right.mean():.1f}', 
         fontsize=12
     )
     axes[1].set_xlabel('Eigenvalue Index')
     
-    plt.suptitle('Eigenvalue Spectra: Effect of Regularization', fontsize=14, y=1.02)
+    if title:
+        plt.suptitle(title, fontsize=14, y=1.02)
+    else:
+        plt.suptitle('Eigenvalue Spectra Comparison', fontsize=14, y=1.02)
     plt.tight_layout()
     
     if save_path:

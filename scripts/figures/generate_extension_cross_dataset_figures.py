@@ -65,7 +65,7 @@ from src.vision.subspace import (
 )
 from src.plot_utils.style import set_publication_style
 from src.artifact_loader import ensure_artifacts
-from src.plot_utils.extension2 import (
+from src.plot_utils.extension_cross_dataset import (
     DIGIT_LETTER_PAIRS,
     plot_digit_letter_eigenvector_comparison,
     plot_eigenvalue_distribution_overlay,
@@ -91,9 +91,9 @@ def get_dirs() -> Dirs:
     """Get directory paths, with fallbacks for different checkpoint names.
     
     For cross-dataset robustness, ALL models should be trained with CoM normalization.
-    MNIST CoM checkpoints are in checkpoints/extension2/ (trained via run_extension_cross_dataset.sh).
+    MNIST CoM checkpoints are in checkpoints/extension_cross_dataset/ (trained via run_extension_cross_dataset.sh).
     """
-    # MNIST: Prefer extension2 CoM checkpoint, fall back to vision/mnist (non-CoM, but warn)
+    # MNIST: Prefer extension_cross_dataset CoM checkpoint, fall back to vision/mnist (non-CoM, but warn)
     mnist_candidates = [
         EXTENSION2_CHECKPOINTS / "mnist_dense_full_com_seed42.pt",  # Extension 2 CoM (preferred)
         MNIST_CHECKPOINTS / "mnist_dense_full_seed42.pt",  # Vision (fallback)
@@ -186,7 +186,7 @@ def generate_eigenvector_comparisons(
         )
         
         digit, letter = label.split("-")
-        out_path = d.figure_out / f"extension2_eigenvec_{digit}_{letter}.pdf"
+        out_path = d.figure_out / f"extension_cross_dataset_eigenvec_{digit}_{letter}.pdf"
         _save_figure(fig, out_path)
         plt.close(fig)
 
@@ -209,7 +209,7 @@ def generate_eigenvalue_distributions(
             letter_label=letter,
         )
         
-        out_path = d.figure_out / f"extension2_eigenval_{digit}_{letter}.pdf"
+        out_path = d.figure_out / f"extension_cross_dataset_eigenval_{digit}_{letter}.pdf"
         _save_figure(fig, out_path)
         plt.close(fig)
 
@@ -285,7 +285,7 @@ def generate_similarity_vs_k(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_similarity_vs_k.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_similarity_vs_k.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -344,7 +344,7 @@ def generate_similarity_heatmap(
     plt.colorbar(im, ax=ax, label='Similarity')
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_similarity_heatmap.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_similarity_heatmap.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
     
@@ -398,7 +398,7 @@ def generate_3way_comparison(
         class_names=["MNIST Digit '0'", "EMNIST Digit '0'", "EMNIST Letter 'O'"],
     )
     
-    out_path = d.figure_out / "extension2_3way_comparison.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_3way_comparison.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -444,7 +444,7 @@ def generate_3way_comparison_0_O_X(
         class_names=["MNIST Digit '0'", "EMNIST Letter 'O'", "EMNIST Letter 'X'"],
     )
 
-    out_path = d.figure_out / "extension2_3way_comparison_0_O_X.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_3way_comparison_0_O_X.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -482,7 +482,7 @@ def generate_eigenvector_comparison_table(
     
     # Load checkpoints for all 5 seeds
     seeds = [42, 43, 44, 45, 46]
-    ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
+    extension_cross_dataset_ckpt_dir = EXTENSION2_CHECKPOINTS
     vision_ckpt_dir = MNIST_CHECKPOINTS
     
     # Helper function to get balanced eigenvectors and eigenvalues
@@ -535,15 +535,15 @@ def generate_eigenvector_comparison_table(
     for seed in seeds:
         # Try to load checkpoints for this seed
         mnist_candidates = [
-            ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
-            ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
             vision_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
         ]
         digits_candidates = [
-            ext2_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"emnist_digits_regularized_seed{seed}.pt",
         ]
         letters_candidates = [
-            ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
         ]
         
         mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
@@ -577,7 +577,7 @@ def generate_eigenvector_comparison_table(
             continue
     
     if len(loaded_seeds) == 0:
-        print("  ⚠️  No multi-seed checkpoints found, using single checkpoint...")
+        print("  WARN  No multi-seed checkpoints found, using single checkpoint...")
         # Fallback to single seed
         if digits_vecs is None or digits_vals is None:
             print("  Skipping: EMNIST Digits checkpoint not available")
@@ -737,7 +737,7 @@ def generate_eigenvector_comparison_table_0_O_X(
     from src.paths import EXTENSION2_CHECKPOINTS, MNIST_CHECKPOINTS
 
     seeds = [42, 43, 44, 45, 46]
-    ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
+    extension_cross_dataset_ckpt_dir = EXTENSION2_CHECKPOINTS
     vision_ckpt_dir = MNIST_CHECKPOINTS
 
     mnist_class = 0
@@ -787,12 +787,12 @@ def generate_eigenvector_comparison_table_0_O_X(
 
     for seed in seeds:
         mnist_candidates = [
-            ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
-            ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
             vision_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
         ]
         letters_candidates = [
-            ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+            extension_cross_dataset_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
         ]
 
         mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
@@ -821,7 +821,7 @@ def generate_eigenvector_comparison_table_0_O_X(
             continue
 
     if len(loaded_seeds) == 0:
-        print("  ⚠️  No multi-seed checkpoints found, aborting 0/O/X table generation.")
+        print("  WARN  No multi-seed checkpoints found, aborting 0/O/X table generation.")
         return
 
     print(f"  Loaded {len(loaded_seeds)} seeds: {loaded_seeds}")
@@ -833,7 +833,7 @@ def generate_eigenvector_comparison_table_0_O_X(
     sim_mnist_x_mean = sim_mnist_x_stack.mean(dim=0)
 
     # Eigenvalue signs from reference MNIST eigenvalues
-    mnist_ckpt_ref = ext2_ckpt_dir / f"mnist_dense_full_com_seed{loaded_seeds[0]}.pt"
+    mnist_ckpt_ref = extension_cross_dataset_ckpt_dir / f"mnist_dense_full_com_seed{loaded_seeds[0]}.pt"
     mnist_vals_ref, mnist_vecs_ref = load_checkpoint_eigenvalues(str(mnist_ckpt_ref))
     _, mnist_0_vals_ref = get_balanced_eigenvectors_and_vals(mnist_vals_ref, mnist_vecs_ref, mnist_class, k)
 
@@ -1005,7 +1005,7 @@ def generate_selection_method_comparison(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_selection_comparison.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_selection_comparison.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -1027,7 +1027,7 @@ def generate_principal_angles(
         k=20,
     )
     
-    out_path = d.figure_out / "extension2_principal_angles.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_principal_angles.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -1126,7 +1126,7 @@ def generate_similarity_vs_k_weighted(
         if method == 'quadratic_form':
             # Load checkpoints for all 5 seeds
             seeds = [42, 43, 44, 45, 46]
-            ext2_ckpt_dir = EXTENSION2_CHECKPOINTS
+            extension_cross_dataset_ckpt_dir = EXTENSION2_CHECKPOINTS
             
             similar_overlaps_by_seed = {label: [] for _, _, label in DIGIT_LETTER_PAIRS}
             control_overlaps_by_seed = []
@@ -1135,11 +1135,11 @@ def generate_similarity_vs_k_weighted(
             for seed in seeds:
                 # Try different checkpoint naming patterns
                 mnist_candidates = [
-                    ext2_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
-                    ext2_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
+                    extension_cross_dataset_ckpt_dir / f"mnist_dense_full_com_seed{seed}.pt",
+                    extension_cross_dataset_ckpt_dir / f"mnist_dense_full_seed{seed}.pt",
                 ]
                 letters_candidates = [
-                    ext2_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
+                    extension_cross_dataset_ckpt_dir / f"emnist_letters_regularized_seed{seed}.pt",
                 ]
                 
                 mnist_ckpt = next((p for p in mnist_candidates if p.exists()), None)
@@ -1193,7 +1193,7 @@ def generate_similarity_vs_k_weighted(
                     continue
             
             if len(loaded_seeds) == 0:
-                print("    ⚠️  No multi-seed checkpoints found, using single checkpoint...")
+                print("    WARN  No multi-seed checkpoints found, using single checkpoint...")
                 similar_overlaps, control_means, control_stds = _compute_similarity_vs_k_for_metric(
                     mnist_vecs, mnist_vals, letters_vecs, letters_vals, method, k_values
                 )
@@ -1275,7 +1275,7 @@ def generate_similarity_vs_k_weighted(
         
         plt.tight_layout()
         
-        out_path = d.figure_out / f"extension2_similarity_vs_k_{method}.pdf"
+        out_path = d.figure_out / f"extension_cross_dataset_similarity_vs_k_{method}.pdf"
         _save_figure(fig, out_path)
         plt.close(fig)
 
@@ -1357,7 +1357,7 @@ def generate_similarity_heatmap_weighted(
         plt.colorbar(im, ax=ax, label='Similarity')
         plt.tight_layout()
         
-        out_path = d.figure_out / f"extension2_heatmap_{method}.pdf"
+        out_path = d.figure_out / f"extension_cross_dataset_heatmap_{method}.pdf"
         _save_figure(fig, out_path)
         plt.close(fig)
         
@@ -1461,7 +1461,7 @@ def generate_cosine_similarity_heatmap_abs(
 
     plt.tight_layout()
 
-    out_path = d.figure_out / "extension2_heatmap_abs_cosine_similarity.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_heatmap_abs_cosine_similarity.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -1491,7 +1491,7 @@ def generate_quadratic_form_heatmap_digits(
     print("\n=== Quadratic Form Heatmap: MNIST Digits vs EMNIST Digits ===")
     
     if digits_vecs is None or digits_vals is None:
-        print("  ⚠️  EMNIST Digits checkpoint not found, skipping...")
+        print("  WARN  EMNIST Digits checkpoint not found, skipping...")
         return
     
     # Compute 10x10 similarity matrix using quadratic_form metric
@@ -1546,7 +1546,7 @@ def generate_quadratic_form_heatmap_digits(
     plt.tight_layout()
     
     # Save
-    out_path = d.figure_out / "extension2_quadratic_form_heatmap_digits.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_quadratic_form_heatmap_digits.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
     
@@ -1650,7 +1650,7 @@ def generate_metric_comparison(
     plt.suptitle('Comparison of Similarity Metrics', fontsize=14, y=1.02)
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_metric_comparison_4way.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_metric_comparison_4way.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
 
@@ -1728,7 +1728,7 @@ def generate_ranking_analysis(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_ranking_analysis.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_ranking_analysis.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
     
@@ -1858,7 +1858,7 @@ def generate_statistical_comparison(
     
     plt.tight_layout()
     
-    out_path = d.figure_out / "extension2_statistical_comparison_all_metrics.pdf"
+    out_path = d.figure_out / "extension_cross_dataset_statistical_comparison_all_metrics.pdf"
     _save_figure(fig, out_path)
     plt.close(fig)
     

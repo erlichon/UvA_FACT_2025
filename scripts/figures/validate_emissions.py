@@ -4,7 +4,7 @@ Validate all experiment outputs have required emissions data.
 
 This script checks:
 - Vision checkpoints (checkpoints/vision/**/*.pt)
-- Extension 2 checkpoints (checkpoints/extension2/*.pt)
+- Extension 2 checkpoints (checkpoints/extension_cross_dataset/*.pt)
 - Extension CP checkpoints (checkpoints/extension_cp/*.pt)
 - Language JSON results (results/language/*.json)
 
@@ -158,9 +158,9 @@ def main():
     # ========================================================================
     print("\n>>> Checking extension 2 checkpoints...")
     
-    ext2_dir = PROJECT_ROOT / "checkpoints/extension2"
-    if ext2_dir.exists():
-        pt_files = list(ext2_dir.glob('*.pt'))
+    extension_cross_dataset_dir = PROJECT_ROOT / "checkpoints/extension_cross_dataset"
+    if extension_cross_dataset_dir.exists():
+        pt_files = list(extension_cross_dataset_dir.glob('*.pt'))
         if args.sample > 0:
             pt_files = pt_files[:args.sample]
         
@@ -177,7 +177,7 @@ def main():
                     print(f"  [FAIL] {pt_file.relative_to(PROJECT_ROOT)}: {err}")
     else:
         if args.strict:
-            warnings.append(f"Directory not found: {ext2_dir}")
+            warnings.append(f"Directory not found: {extension_cross_dataset_dir}")
     
     # ========================================================================
     # CHECK EXTENSION CP CHECKPOINTS

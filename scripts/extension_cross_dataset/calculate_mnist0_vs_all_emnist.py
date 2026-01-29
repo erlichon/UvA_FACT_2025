@@ -19,7 +19,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.paths import EXTENSION2_CHECKPOINTS
 from src.vision.spectral import load_checkpoint_eigenvalues
-from scripts.extension2.utils import (
+from scripts.extension_cross_dataset.utils import (
     get_balanced_eigenvectors_and_vals,
     compute_mean_abs_cosine_similarity,
 )
@@ -168,7 +168,7 @@ def main():
     print(f"  Rank among all letters: #{o_rank} / 26")
     
     # Save to CSV for further analysis
-    output_dir = PROJECT_ROOT / "results" / "extension2"
+    output_dir = PROJECT_ROOT / "results" / "extension_cross_dataset"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create DataFrame for digits

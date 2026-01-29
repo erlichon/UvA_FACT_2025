@@ -286,3 +286,190 @@ def plot_cp_rank_comparison(
         print(f"Figure saved to: {save_path}")
     
     return fig
+
+
+def visualize_eigenvectors_for_config(
+    eigenvalues: torch.Tensor,
+    eigenvectors: torch.Tensor,
+    n_top: int = 5,
+    n_bottom: int = 5,
+    title: str = "Eigenvectors",
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Visualize top and bottom eigenvectors for a checkpoint's eigenvalues/eigenvectors.
+    
+    Creates a grid with 10 rows (one per class) and (n_top + n_bottom) columns
+    showing the top positive and top negative eigenvectors with eigenvalue labels.
+    
+    Args:
+        eigenvalues: [n_classes, n_eigenvalues] tensor
+        eigenvectors: [n_classes, n_eigenvalues, d_input] tensor
+        n_top: Number of top (largest) eigenvectors to show
+        n_bottom: Number of bottom (smallest) eigenvectors to show
+        title: Figure title
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    
+    # Extract top and bottom eigenvectors
+    top_indices, top_vecs, bottom_indices, bottom_vecs = get_top_eigenvectors(
+        eigenvalues, eigenvectors, n_top=n_top, n_bottom=n_bottom
+    )
+    
+    n_classes = eigenvalues.shape[0]
+    
+    # Create figure: n_classes rows × (n_top + n_bottom) columns
+    fig, axes = plt.subplots(n_classes, n_top + n_bottom, figsize=(2 * (n_top + n_bottom), 2 * n_classes))
+    
+    # Find global vmin/vmax for consistent scaling
+    vmax = max(top_vecs.abs().max().item(), bottom_vecs.abs().max().item())
+    vmin = -vmax
+    
+    for class_idx in range(n_classes):
+        # Plot top eigenvectors (positive)
+        for i in range(n_top):
+            ax = axes[class_idx, i]
+            vec = top_vecs[class_idx, i].detach().cpu().numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+            ax.axis('off')
+            
+            # Add eigenvalue label
+            eig_val = eigenvalues[class_idx, top_indices[class_idx, i]].item()
+            ax.set_title(f'{eig_val:.2f}', fontsize=8, pad=2)
+            
+            # Add class label on first column
+            if i == 0:
+                ax.set_ylabel(f'Class {class_idx}', fontsize=10, rotation=0, ha='right', va='center')
+        
+        # Plot bottom eigenvectors (negative)
+        for i in range(n_bottom):
+            ax = axes[class_idx, n_top + i]
+            vec = bottom_vecs[class_idx, i].detach().cpu().numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+            ax.axis('off')
+            
+            # Add eigenvalue label
+            eig_val = eigenvalues[class_idx, bottom_indices[class_idx, i]].item()
+            ax.set_title(f'{eig_val:.2f}', fontsize=8, pad=2)
+    
+    # Column headers
+    for i in range(n_top):
+        axes[0, i].annotate(f'Top {i+1}', xy=(0.5, 1.15), xycoords='axes fraction',
+                           ha='center', fontsize=9, fontweight='bold', color='green')
+    for i in range(n_bottom):
+        axes[0, n_top + i].annotate(f'Bot {i+1}', xy=(0.5, 1.15), xycoords='axes fraction',
+                                    ha='center', fontsize=9, fontweight='bold', color='red')
+    
+    plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
+    plt.tight_layout(rect=(0, 0, 1, 0.98))
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def compare_modes_for_rank(
+    checkpoint_data: dict,
+    rank: int,
+    modes: List[str] = ['fixed', 'lambda', 'gated'],
+    n_top: int = 5,
+    n_bottom: int = 5,
+    save_path: Optional[Path] = None,
+) -> Optional[plt.Figure]:
+    """
+    Compare eigenvectors across all modes for a fixed CP rank.
+    
+    Args:
+        checkpoint_data: Dict mapping (rank, mode) tuples to checkpoint dicts
+        rank: CP rank to compare
+        modes: List of mode names to compare
+        n_top: Number of top eigenvectors per mode
+        n_bottom: Number of bottom eigenvectors per mode
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object (or None if no checkpoints found)
+    """
+    set_publication_style()
+    
+    # Collect all eigenvectors for global scaling
+    all_vecs = []
+    mode_data = {}
+    for mode in modes:
+        key = (rank, mode)
+        if key in checkpoint_data:
+            checkpoint = checkpoint_data[key]
+            eigenvalues = checkpoint['eigenvalues']
+            eigenvectors = checkpoint['eigenvectors']
+            top_indices, top_vecs, bottom_indices, bottom_vecs = get_top_eigenvectors(
+                eigenvalues, eigenvectors, n_top=n_top, n_bottom=n_bottom
+            )
+            mode_data[mode] = {
+                'eigenvalues': eigenvalues,
+                'top_indices': top_indices,
+                'top_vecs': top_vecs,
+                'bottom_indices': bottom_indices,
+                'bottom_vecs': bottom_vecs,
+            }
+            all_vecs.extend([top_vecs, bottom_vecs])
+    
+    if not mode_data:
+        print(f"No checkpoints found for rank {rank}")
+        return None
+    
+    n_modes = len(mode_data)
+    vmax = max(v.abs().max().item() for v in all_vecs)
+    vmin = -vmax
+    
+    # Create figure
+    n_cols = n_modes * (n_top + n_bottom)
+    fig, axes = plt.subplots(10, n_cols, figsize=(1.5 * n_cols, 20))
+    
+    for mode_idx, mode in enumerate(modes):
+        if mode not in mode_data:
+            continue
+        
+        data = mode_data[mode]
+        col_start = mode_idx * (n_top + n_bottom)
+        
+        for class_idx in range(10):
+            # Top eigenvectors
+            for i in range(n_top):
+                ax = axes[class_idx, col_start + i]
+                vec = data['top_vecs'][class_idx, i].detach().cpu().numpy().reshape(28, 28)
+                ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+                ax.axis('off')
+                
+                if class_idx == 0:
+                    ax.set_title(f'{mode}\nTop{i+1}', fontsize=7)
+                if col_start + i == 0:
+                    ax.set_ylabel(f'{class_idx}', fontsize=9, rotation=0, ha='right', va='center')
+            
+            # Bottom eigenvectors
+            for i in range(n_bottom):
+                ax = axes[class_idx, col_start + n_top + i]
+                vec = data['bottom_vecs'][class_idx, i].detach().cpu().numpy().reshape(28, 28)
+                ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+                ax.axis('off')
+                
+                if class_idx == 0:
+                    ax.set_title(f'Bot{i+1}', fontsize=7)
+    
+    plt.suptitle(f'Eigenvector Comparison: CP Rank {rank}', fontsize=14, fontweight='bold')
+    plt.tight_layout(rect=(0, 0, 1, 0.98))
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig

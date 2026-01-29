@@ -3,7 +3,7 @@
 # Objective: Prove that regularized Bilinear MLPs learn universal geometric shapes
 # (e.g., "circularity") rather than dataset-specific pixel artifacts.
 
-name: extension2_robustness
+name: extension_cross_dataset_robustness
 experiment_id: RQ2
 
 # Model configuration
@@ -64,9 +64,9 @@ subspace_test:
 
 # Output paths
 output:
-  results_dir: results/extension2
-  checkpoints_dir: results/extension2/checkpoints
-  figures_dir: Report/figures/extension2
+  results_dir: results/extension_cross_dataset
+  checkpoints_dir: results/extension_cross_dataset/checkpoints
+  figures_dir: Report/figures/extension_cross_dataset
 
 # Reproducibility
 seeds: [42, 43, 44, 45, 46]

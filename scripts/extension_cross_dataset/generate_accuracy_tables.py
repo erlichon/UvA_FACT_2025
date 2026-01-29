@@ -208,7 +208,7 @@ def compute_cross_dataset_accuracies(
     letter_to_digit = {'O': 0, 'I': 1, 'Z': 2, 'S': 5}  # B removed per user request
     
     # Check if baseline checkpoints exist (in vision checkpoints directory)
-    # checkpoint_dir is checkpoints/extension2, so parent is checkpoints
+    # checkpoint_dir is checkpoints/extension_cross_dataset, so parent is checkpoints
     baseline_checkpoint_dir = checkpoint_dir.parent / "vision" / "mnist"
     
     # Evaluate for each seed
@@ -365,7 +365,7 @@ def generate_latex_table_mnist_emnist_digits(results: Dict, output_path: Path):
 \\begin{table}[h]
 \\centering
 \\caption{Cross-Dataset Accuracy: MNIST $\\leftrightarrow$ EMNIST-Digits (mean over 5 seeds)}
-\\label{tab:extension2_mnist_emnist_digits}
+\\label{tab:extension_cross_dataset_mnist_emnist_digits}
 \\begin{tabular}{lc}
 \\toprule
 \\textbf{Direction} & \\textbf{Accuracy} \\\\
@@ -407,7 +407,7 @@ def generate_latex_table_usps(results: Dict, output_path: Path):
 \\begin{table}[h]
 \\centering
 \\caption{Cross-Dataset Accuracy: MNIST $\\rightarrow$ USPS (mean over 5 seeds)}
-\\label{tab:extension2_usps}
+\\label{tab:extension_cross_dataset_usps}
 \\begin{tabular}{lc}
 \\toprule
 \\textbf{Model} & \\textbf{Accuracy} \\\\
@@ -450,7 +450,7 @@ def generate_latex_table_emnist_letters(results: Dict, output_path: Path):
 \\begin{table}[h]
 \\centering
 \\caption{Semantic Confusion: MNIST on EMNIST Letters (mean over 5 seeds)}
-\\label{tab:extension2_emnist_letters}
+\\label{tab:extension_cross_dataset_emnist_letters}
 \\begin{tabular}{lc}
 \\toprule
 \\textbf{Letter $\\rightarrow$ Digit} & \\textbf{Accuracy} \\\\
@@ -473,13 +473,13 @@ def main():
     parser.add_argument(
         "--checkpoint-dir",
         type=Path,
-        default=PROJECT_ROOT / "checkpoints" / "extension2",
+        default=PROJECT_ROOT / "checkpoints" / "extension_cross_dataset",
         help="Directory containing Extension 2 checkpoints"
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=PROJECT_ROOT / "Report" / "figures" / "extension2",
+        default=PROJECT_ROOT / "Report" / "figures" / "extension_cross_dataset",
         help="Directory to save output tables"
     )
     parser.add_argument(

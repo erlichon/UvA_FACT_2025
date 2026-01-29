@@ -4,7 +4,7 @@ Aggregate emissions data from all experiments for the report.
 
 This script collects emissions data from:
 - Vision checkpoints (checkpoints/vision/**/*.pt)
-- Cross-dataset robustness checkpoints (checkpoints/extension2/*.pt)
+- Cross-dataset robustness checkpoints (checkpoints/extension_cross_dataset/*.pt)
 - CP decomposition checkpoints (checkpoints/extension_cp/*.pt)
 - Language JSON results (results/language/*.json)
 
@@ -141,12 +141,12 @@ def main():
     # ========================================================================
     print("\n>>> Collecting extension 2 checkpoint emissions...")  # Cross-dataset robustness
     
-    ext2_dir = PROJECT_ROOT / "checkpoints/extension2"
-    if ext2_dir.exists():
-        for pt_file in ext2_dir.glob('*.pt'):
+    extension_cross_dataset_dir = PROJECT_ROOT / "checkpoints/extension_cross_dataset"
+    if extension_cross_dataset_dir.exists():
+        for pt_file in extension_cross_dataset_dir.glob('*.pt'):
             emissions = extract_checkpoint_emissions(pt_file)
             if emissions:
-                emissions_by_category['extension2'].append(emissions)
+                emissions_by_category['extension_cross_dataset'].append(emissions)
                 if args.verbose:
                     print(f"  {pt_file.name}: {emissions['co2_kg']:.6f} kg CO2")
     
@@ -270,7 +270,7 @@ def main():
     }
     
     # Extension 2 total
-    ext2_total = aggregated.get('extension2', aggregate_category([]))
+    extension_cross_dataset_total = aggregated.get('extension_cross_dataset', aggregate_category([]))
     
     # Extension CP total
     ext_cp_total = aggregated.get('extension_cp', aggregate_category([]))
@@ -278,13 +278,13 @@ def main():
     # Grand total
     grand_total = {
         'total_co2_kg': vision_total['total_co2_kg'] + language_total['total_co2_kg'] + 
-                        ext2_total['total_co2_kg'] + ext_cp_total['total_co2_kg'],
+                        extension_cross_dataset_total['total_co2_kg'] + ext_cp_total['total_co2_kg'],
         'total_wall_time_hours': vision_total['total_wall_time_hours'] + language_total['total_wall_time_hours'] +
-                                  ext2_total['total_wall_time_hours'] + ext_cp_total['total_wall_time_hours'],
+                                  extension_cross_dataset_total['total_wall_time_hours'] + ext_cp_total['total_wall_time_hours'],
         'total_gpu_hours': vision_total['total_gpu_hours'] + language_total['total_gpu_hours'] +
-                           ext2_total['total_gpu_hours'] + ext_cp_total['total_gpu_hours'],
+                           extension_cross_dataset_total['total_gpu_hours'] + ext_cp_total['total_gpu_hours'],
         'n_experiments': vision_total['n_experiments'] + language_total['n_experiments'] +
-                         ext2_total['n_experiments'] + ext_cp_total['n_experiments'],
+                         extension_cross_dataset_total['n_experiments'] + ext_cp_total['n_experiments'],
     }
     
     # ========================================================================
@@ -300,7 +300,7 @@ def main():
         'by_section': {
             'vision': vision_total,
             'language': language_total,
-            'extension2': ext2_total,
+            'extension_cross_dataset': extension_cross_dataset_total,
             'extension_cp': ext_cp_total,
         },
         'grand_total': grand_total,
@@ -319,10 +319,10 @@ def main():
                 'co2_kg': round(language_total['total_co2_kg'], 6),
             },
             'Extension 2 (Cross-Dataset)': {
-                'experiments': ext2_total['n_experiments'],
-                'wall_time_hours': round(ext2_total['total_wall_time_hours'], 2),
-                'gpu_hours': round(ext2_total['total_gpu_hours'], 3),
-                'co2_kg': round(ext2_total['total_co2_kg'], 6),
+                'experiments': extension_cross_dataset_total['n_experiments'],
+                'wall_time_hours': round(extension_cross_dataset_total['total_wall_time_hours'], 2),
+                'gpu_hours': round(extension_cross_dataset_total['total_gpu_hours'], 3),
+                'co2_kg': round(extension_cross_dataset_total['total_co2_kg'], 6),
             },
             'Extension 3 (CP-Decomposition)': {
                 'experiments': ext_cp_total['n_experiments'],

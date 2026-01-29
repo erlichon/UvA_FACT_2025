@@ -32,10 +32,10 @@ SIZE_SWEEP_CHECKPOINTS = VISION_CHECKPOINTS / "size_sweep"
 CHALLENGE_CHECKPOINTS = VISION_CHECKPOINTS / "challenge"
 
 # Extension checkpoints
-EXTENSION_CROSS_DATASET_CHECKPOINTS = CHECKPOINTS_ROOT / "extension2"  # Cross-dataset robustness
+EXTENSION_CROSS_DATASET_CHECKPOINTS = CHECKPOINTS_ROOT / "extension_cross_dataset"
 EXTENSION_CP_CHECKPOINTS = CHECKPOINTS_ROOT / "extension_cp"
 
-# Backward compatibility alias
+# Backward compatibility alias (DEPRECATED - use EXTENSION_CROSS_DATASET_CHECKPOINTS)
 EXTENSION2_CHECKPOINTS = EXTENSION_CROSS_DATASET_CHECKPOINTS
 
 # =============================================================================
@@ -47,10 +47,10 @@ FIGURES_ROOT = PROJECT_ROOT / "Report" / "figures"
 # Figure subdirectories by paper section
 VISION_FIGURES = FIGURES_ROOT / "vision"
 LANGUAGE_FIGURES = FIGURES_ROOT / "language"
-EXTENSION_CROSS_DATASET_FIGURES = FIGURES_ROOT / "extension2"  # Cross-dataset robustness
+EXTENSION_CROSS_DATASET_FIGURES = FIGURES_ROOT / "extension_cross_dataset"
 EXTENSION_CP_FIGURES = FIGURES_ROOT / "extension_cp"
 
-# Backward compatibility alias
+# Backward compatibility alias (DEPRECATED - use EXTENSION_CROSS_DATASET_FIGURES)
 EXTENSION2_FIGURES = EXTENSION_CROSS_DATASET_FIGURES
 
 # =============================================================================
@@ -66,9 +66,9 @@ LANGUAGE_RESULTS = RESULTS_ROOT / "language"
 LANGUAGE_EIGENPAIRS = RESULTS_ROOT / "language" / "eigenpairs"
 
 # Extension Cross-Dataset results (JSON data files)
-EXTENSION_CROSS_DATASET_RESULTS = RESULTS_ROOT / "extension2"
+EXTENSION_CROSS_DATASET_RESULTS = RESULTS_ROOT / "extension_cross_dataset"
 
-# Backward compatibility alias
+# Backward compatibility alias (DEPRECATED - use EXTENSION_CROSS_DATASET_RESULTS)
 EXTENSION2_RESULTS = EXTENSION_CROSS_DATASET_RESULTS
 
 # =============================================================================

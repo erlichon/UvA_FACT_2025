@@ -7,6 +7,21 @@ This repository reproduces and extends ["Bilinear MLPs enable weight-based mecha
 
 The goal of this README is to make the **codebase reproducible without extra effort**, and to document the **report** and **presentation** build steps.
 
+---
+
+## Table of Contents
+
+1. [Quick Start](#quick-start-reproducibility-smoke-tests)
+2. [Environment Setup](#environment-setup)
+3. [Notebooks (All Results)](#notebooks-all-results)
+4. [Full Reproduction Paths](#full-reproduction-paths)
+5. [Datasets](#datasets)
+6. [Pre-trained Checkpoints](#pre-trained-checkpoints-and-results)
+7. [Tests](#tests)
+8. [Repository Structure](#repository-structure-high-level)
+
+---
+
 ## Quick Start (Reproducibility Smoke Tests)
 
 These commands verify the environment and run minimal tests.
@@ -31,6 +46,34 @@ conda env create -f environment.yml && conda activate fact
 # Local (CPU/MPS)
 conda env create -f environment_cpu.yml && conda activate fact_cpu
 ```
+
+## Notebooks (All Results)
+
+The `notebooks/` directory contains Jupyter notebooks that reproduce **all figures and results** from the report. Each notebook can be run end-to-end and automatically downloads required checkpoints/results from Google Drive.
+
+| Notebook | Description | Report Figures |
+|----------|-------------|----------------|
+| `01_reproduction_vision.ipynb` | **Vision experiments (Section 4)**: eigenspectrum analysis, eigenvector visualization, ablation studies | Figures 1-4 |
+| `02a_extension_cross_dataset_robustness.ipynb` | **Extension 1**: Cross-dataset functional analysis, eigenvector similarity, geometric semantics | Extension 1 figures |
+| `02b_cp_extension.ipynb` | **Extension 2**: CP rank sweep analysis, accuracy vs interpretability trade-offs, eigenvector visualization | Extension 2 figures |
+| `04_reproduction_language.ipynb` | **Language experiments (Section 5)**: correlation analysis, negation circuits, SAE training effect | Figures 8-10 |
+
+### Running Notebooks
+
+```bash
+# Activate environment
+conda activate fact_cpu  # or fact for GPU
+
+# Start Jupyter
+jupyter notebook notebooks/
+
+# Or run specific notebook from command line
+jupyter nbconvert --to notebook --execute notebooks/01_reproduction_vision.ipynb
+```
+
+**Note**: Checkpoints and results are automatically downloaded on first run. All plotting code is imported from `src/plot_utils/` modules.
+
+---
 
 ## Full Reproduction Paths
 
@@ -115,10 +158,32 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 
 ## Outputs and Expected Artifacts
 
-- **Checkpoints**: `checkpoints/` (vision, extension2, CP)
+- **Checkpoints**: `checkpoints/` (vision, extension_cross_dataset, CP)
 - **Results JSONs**: `results/`
 - **Figures for report**: `Report/figures/`
 - **Interactive assets**: `Report/paper_hub_bundle/`, `results/interactive/`
+
+## Datasets
+
+All datasets are **automatically downloaded** via PyTorch's `torchvision` on first use:
+
+| Dataset | Source | Usage |
+|---------|--------|-------|
+| MNIST | `torchvision.datasets.MNIST` | Vision (Section 4), baseline digit classification |
+| Fashion-MNIST | `torchvision.datasets.FashionMNIST` | Vision (Section 4), more complex classification |
+| EMNIST (Letters) | `torchvision.datasets.EMNIST` | Extension 1, cross-dataset robustness |
+| USPS | `torchvision.datasets.USPS` | Extension 1, transfer learning validation |
+
+**Language models** (Section 5) use pre-trained models from HuggingFace:
+- `tdooms/ts-medium` (6L TinyStories)
+- `tdooms/fw-small` (12L FineWeb)
+- `tdooms/fw-medium` (16L FineWeb)
+
+SAE checkpoints are also from HuggingFace (`tdooms/fw-medium-scope`, etc.).
+
+**Data directory**: Downloaded datasets are cached in `data/` (gitignored). The first run may take a few minutes to download.
+
+---
 
 ## Pre-trained Checkpoints and Results
 
@@ -193,11 +258,26 @@ python -m pytest tests/ -v -k "test_effective_rank"
 
 ```
 UvA_FACT_2025/
-├── src/                 # Core code (vision, language, models)
+├── notebooks/           # Jupyter notebooks with all results (run these!)
+│   ├── 01_reproduction.ipynb          # Vision experiments (Section 4)
+│   ├── 02a_extension_cross_dataset_robustness.ipynb
+│   ├── 02b_cp_sweep.ipynb
+│   ├── 03_eigenvector_visualization.ipynb
+│   └── 04_language_experiments.ipynb  # Language experiments (Section 5)
+├── src/                 # Core code (vision, language, models, plot_utils)
 ├── scripts/             # Experiment runners and figure generation
 ├── configs/             # YAML experiment configs
-├── results/             # Outputs and analysis JSONs
+├── tests/               # Unit tests (pytest)
 ├── Report/              # Final report (LaTeX + figures)
 ├── presentation/        # Final slides
-└── bilinear-decomposition-main/  # Original paper code (do not modify)
+├── environment.yml      # GPU environment (CUDA)
+├── environment_cpu.yml  # CPU/MPS environment (Mac/local)
+└── bilinear-decomposition-main/  # Original paper code (wrapped, not modified)
 ```
+
+### Key Code Organization
+
+- **`src/`**: All reusable code (models, data loading, spectral analysis, plotting)
+- **`scripts/`**: Shell scripts and Python runners for experiments
+- **`notebooks/`**: Self-contained notebooks that generate all report figures
+- **`tests/`**: Pytest unit tests for core functionality
