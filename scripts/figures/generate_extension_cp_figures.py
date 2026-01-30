@@ -267,16 +267,30 @@ def generate_rank_comparison(ctx: VisionContext, cp_df: pd.DataFrame, dense_df: 
     plt.tight_layout()
     ctx.save_cp_figure(fig, "cp_accuracy_by_rank")
     
-    # Figure 3: Effective Rank by CP Rank
+    # Figure 3: Effective Rank by CP Rank (with dense baselines)
     fig, ax = plt.subplots(1, 1, figsize=(10, 5))
     
     bars = ax.bar(x, rank_stats['eff_rank_mean'],
                   yerr=rank_stats['eff_rank_std'],
-                  capsize=4, color=CP_COLORS['cp'], edgecolor='black')
+                  capsize=4, color=CP_COLORS['cp'], edgecolor='black', label='CP effective rank')
     
     # Add theoretical max line (CP rank limits effective rank)
-    ax.plot(x, rank_stats['rank'], 'r--', linewidth=2, 
-            label='Theoretical Max (= CP Rank)', marker='o', markersize=5)
+    ax.plot(x, rank_stats['rank'], 'k--', linewidth=2, alpha=0.5,
+            label='Ideal (eff_rank = cp_rank)', marker='o', markersize=5)
+    
+    # Add dense baselines as horizontal lines
+    if not dense_df.empty:
+        dense_stats = dense_df.groupby('config')['effective_rank'].mean()
+        
+        if 'none' in dense_stats.index:
+            none_eff = dense_stats['none']
+            ax.axhline(y=none_eff, color='red', linestyle='--', linewidth=2,
+                      label=f'Dense (no reg): {none_eff:.1f}')
+        
+        if 'full' in dense_stats.index:
+            full_eff = dense_stats['full']
+            ax.axhline(y=full_eff, color='green', linestyle='--', linewidth=2,
+                      label=f'Dense (full reg): {full_eff:.1f}')
     
     ax.set_xticks(x)
     ax.set_xticklabels([f"R={int(r)}" for r in rank_stats['rank']])

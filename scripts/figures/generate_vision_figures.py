@@ -467,8 +467,8 @@ def generate_truncation_similarity_section(d: Dirs) -> None:
         ax.fill_between(ranks, ci_low, ci_high, color=colors[size], alpha=0.2)
 
     ax.set_xlabel("Eigenvector rank", fontsize=12)
-    ax.set_ylabel("Cosine similarity", fontsize=12)
-    ax.set_title("Similarity Across Eigenvectors", fontsize=13)
+    ax.set_ylabel("Absolute Cosine similarity", fontsize=12)
+    ax.set_title("Eigenvector Similarity Across Seeds", fontsize=13)
     ax.legend(title="Model Size", fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, max_rank)

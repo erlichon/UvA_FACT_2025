@@ -536,16 +536,20 @@ def plot_cp_accuracy_vs_rank(
 
 def plot_cp_effective_rank_vs_cp_rank(
     cp_df,
+    baseline_df=None,
     figsize: Tuple[int, int] = (10, 6),
     save_path: Optional[Path] = None,
+    show_ideal_line: bool = False,
 ) -> plt.Figure:
     """
     Plot CP effective rank vs CP rank.
     
     Args:
         cp_df: DataFrame with CP results (columns: rank, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results (columns: mode, effective_rank)
         figsize: Figure size
         save_path: Optional path to save figure
+        show_ideal_line: If True, show diagonal line where eff_rank = cp_rank
         
     Returns:
         matplotlib Figure object
@@ -563,10 +567,31 @@ def plot_cp_effective_rank_vs_cp_rank(
                     yerr=cp_agg['eff_std'],
                     fmt='s-', label='CP effective rank', markersize=10, linewidth=2, capsize=5)
         
-        # Ideal line: effective_rank = cp_rank
-        max_rank = cp_agg['rank'].max()
-        ax.plot([8, max_rank], [8, max_rank], 'k--', alpha=0.5, linewidth=2, 
-                label='Ideal (eff_rank = cp_rank)')
+        # Ideal line: effective_rank = cp_rank (optional)
+        if show_ideal_line:
+            max_rank = cp_agg['rank'].max()
+            ax.plot([8, max_rank], [8, max_rank], 'k--', alpha=0.5, linewidth=2, 
+                    label='Ideal (eff_rank = cp_rank)')
+        
+        # Add dense baselines as horizontal lines
+        if baseline_df is not None and len(baseline_df) > 0:
+            mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+            min_rank = cp_agg['rank'].min()
+            max_rank = cp_agg['rank'].max()
+            
+            # Dense (no reg) - none config
+            none_df = baseline_df[baseline_df[mode_col].str.contains('none', case=False)]
+            if len(none_df) > 0:
+                none_eff = none_df['effective_rank'].mean()
+                ax.axhline(y=none_eff, color='red', linestyle='--', linewidth=2, 
+                          label=f'Dense (no reg): {none_eff:.1f}')
+            
+            # Dense (full reg) - full config
+            full_df = baseline_df[baseline_df[mode_col].str.contains('full', case=False)]
+            if len(full_df) > 0:
+                full_eff = full_df['effective_rank'].mean()
+                ax.axhline(y=full_eff, color='green', linestyle='--', linewidth=2, 
+                          label=f'Dense (full reg): {full_eff:.1f}')
     
     ax.set_xlabel('CP Rank', fontsize=12)
     ax.set_ylabel('Effective Rank', fontsize=12)
@@ -574,6 +599,7 @@ def plot_cp_effective_rank_vs_cp_rank(
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.set_xscale('log', base=2)
+    ax.set_yscale('log', base=2)
     
     plt.tight_layout()
     
