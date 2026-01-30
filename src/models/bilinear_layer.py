@@ -183,7 +183,7 @@ class BilinearCP(nn.Module):
             gated_lambdas = self.lambdas * mask
             hidden = left * right * gated_lambdas
         elif self.cp_init_mode == "gated":
-            # Gated mode: Concrete (Hard-Sigmoid) gate
+            # Gated mode: (Hard-Sigmoid) gate
             # Stretched Sigmoid that can be pushed past 0 and 1 boundaries, then clamped
             # Formula: gate_r = clamp(sigmoid(phi_r) * 1.1 - 0.05, 0, 1)
             gates = torch.clamp(torch.sigmoid(self.gate_logits) * 1.1 - 0.05, 0, 1)

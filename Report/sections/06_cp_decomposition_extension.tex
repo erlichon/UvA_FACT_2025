@@ -18,7 +18,7 @@ This does not enforce orthogonality, enabling disentangled representations where
 We investigate three variants:
 \textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
 \textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
-\textbf{Gated CP:} Stochastic gates with $L_0$ proxy for explicit rank pruning~\citep{cao2024learning}.
+\textbf{Gated CP:} Soft gates with L0 proxy for explicit rank pruning~\citep{cao2024learning}.
 All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{32, 64, 128, 256\}$.
 
 \subsection{Quantitative Analysis: Accuracy-Interpretability Trade-off}
