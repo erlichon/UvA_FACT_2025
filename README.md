@@ -187,9 +187,9 @@ SAE checkpoints are also from HuggingFace (`tdooms/fw-medium-scope`, etc.).
 
 ## Pre-trained Checkpoints and Results
 
-Due to file size constraints, trained model checkpoints and full result files are hosted on Google Drive:
+Due to file size constraints, trained model checkpoints and full result files are hosted on Google Drive.
 
-**[Download Checkpoints and Results](https://drive.google.com/drive/folders/1et6EfHxvyEZKCZ1yXfA1EOHbcShCNWzt)**
+### Automatic Download (Recommended)
 
 Artifacts are **downloaded automatically** when running figure generation scripts via `src/artifact_loader.py`. To manually trigger download:
 
@@ -202,6 +202,51 @@ Or via CLI:
 ```bash
 python -m src.artifact_loader
 ```
+
+### Manual Download (If Automatic Download Fails)
+
+If automatic download fails (e.g., SSL issues, rate limiting), download manually:
+
+1. **Download the zip files:**
+   - [checkpoints.zip](https://drive.google.com/file/d/12RI9zXhgjXcrVO50qU3GGRvHNTyKw3ws/view?usp=sharing) (~3.5 GB)
+   - [results.zip](https://drive.google.com/file/d/1iy3BfsCVOOIt43yi9h9KNe31wwGPVFgK/view?usp=sharing) (~200 MB)
+
+2. **Place them in the project root and extract:**
+   ```bash
+   # Using Python (recommended)
+   python -c "from src.artifact_loader import extract_zip; extract_zip('checkpoints.zip', 'checkpoints'); extract_zip('results.zip', 'results')"
+   
+   # Or using command line
+   unzip checkpoints.zip
+   unzip results.zip
+   ```
+
+3. **Verify the structure:**
+   ```
+   UvA_FACT_2025/
+   ├── checkpoints/
+   │   ├── vision/
+   │   │   ├── mnist/
+   │   │   ├── fashion/
+   │   │   ├── challenge/
+   │   │   ├── noise_sweep/
+   │   │   └── size_sweep/
+   │   ├── extension_cross_dataset/
+   │   └── extension_cp/
+   └── results/
+       ├── language/
+       ├── extension_cross_dataset/
+       └── ...
+   ```
+
+### File Checksums (for verification)
+
+| File | Size | MD5 |
+|------|------|-----|
+| checkpoints.zip | ~3.3 GB | `33e1c3e2a2f7eb7b1f011a03c2c9ee78` |
+| results.zip | ~196 MB | `2d9bbcd60dd5b5925fdee1b14a42a2d6` |
+
+Verify with: `md5 checkpoints.zip results.zip` (macOS) or `md5sum checkpoints.zip results.zip` (Linux)
 
 These checkpoints enable full reproduction of all figures without retraining (~40 GPU hours).
 
