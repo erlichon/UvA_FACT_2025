@@ -8,7 +8,7 @@
 Vision experiments were straightforward: the bilinear architecture is simple, MNIST trains in $\sim$3 minutes per run, and results were highly consistent (std $<$1\% across 40 runs).
 Challenges included hyperparameter disambiguation (code defaults differ from appendix values), SAE availability gaps (requiring pivot to \texttt{fw-medium} for Figure 8, and using 8x instead of paper's 4x expansion at layer 10--11), and memory constraints requiring streaming computation for large interaction matrices.
 Additionally, key definitions were ambiguous: the paper does not specify which correlation measure to use (Pearson, Spearman, cosine) or the threshold for ``active'' features; we chose Pearson correlation and active $= z > 0$.
-The paper's claim that ``most features'' achieve high rank-2 correlation is not quantified---there is no measure or threshold provided.
+The paper's claim that ``most features'' achieve high rank-2 correlation is not quantified-there is no measure or threshold provided.
 We interpret ``most features'' as a median threshold ($>$50\% of features achieving $>$0.75 correlation): under this interpretation, fw-small (65\%) reproduces the claim, while ts-medium (32\%) and fw-medium (45\%) fall short.
 Determining whether low correlation reflected bugs or limitations required systematic comparison of five SAE checkpoints.
 
@@ -21,12 +21,12 @@ Low-rank bilinear models offer sustainable alternatives to scaling dense archite
 
 \subsection{Connection to FACT-AI Transparency}
 
-Bilinear MLPs offer intrinsic transparency: eigenvectors are the learned features---no auxiliary models needed.
+Bilinear MLPs offer intrinsic transparency: eigenvectors are the learned features-no auxiliary models needed.
 Our partial language reproduction highlights that low-rank approximation quality depends on both SAE training duration and model training compute (tokens/parameter): models with higher tokens/param show stronger low-rank behavior.
 This emphasizes the importance of documenting training budgets in interpretability research.
-Following the tutorial methodology, we identify features 3834 (``not-good'') and 751 (``not-bad'') as semantic opposites with weakly negative cosine similarity ($-0.16$) in SAE decoder space---what the tutorial calls a ``somewhat linear subspace.''
+Following the tutorial methodology, we identify features 3834 (``not-good'') and 751 (``not-bad'') as semantic opposites with weakly negative cosine similarity ($-0.16$) in SAE decoder space-what the tutorial calls a ``somewhat linear subspace.''
 As additional validation beyond the paper, we test the same circuit on both TinyStories and FineWeb-16k: correlations remain consistent (0.93/0.83 vs.\ 0.91/0.82), demonstrating robustness to distribution shift.
-Weight decay reduces effective rank from 38.5 to 15.5 ($2.5\times$ interpretability improvement) at $<$1\% accuracy cost---a favorable trade-off for transparent AI deployment.
+Weight decay reduces effective rank from 38.5 to 15.5 ($2.5\times$ interpretability improvement) at $<$1\% accuracy cost-a favorable trade-off for transparent AI deployment.
 
 \subsection{Communication with Original Authors}
 
@@ -42,3 +42,4 @@ Under our median interpretation ($>$50\% threshold), fw-small (65\%) reproduces 
 The bilinear decomposition methodology is sound; low-rank approximation quality depends on both SAE convergence and model training compute (tokens/parameter).
 Extensions demonstrate transferable geometric circuits across datasets and CP-decomposition achieving 93.8\% accuracy with disentangled factors at eff.\ rank 17.5, while gaining significant efficiency (30 times faster training).
 Future work should develop quantitative interpretability metrics and extend to larger vision models.
+Additionally, investigating CP-decomposition for cross-dataset and cross-domain robustness would validate whether the efficiency and disentanglement benefits extend beyond single-dataset training.

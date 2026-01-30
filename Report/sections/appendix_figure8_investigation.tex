@@ -15,7 +15,7 @@ We investigated the publicly available SAEs on HuggingFace to determine reproduc
 \begin{itemize}[leftmargin=*,topsep=0pt,itemsep=0pt]
     \item Layers 0--4: Only \texttt{mlp-out}, \texttt{resid-mid}, \texttt{resid-pre} SAEs
     \item Layer 5: \texttt{mlp-in} and \texttt{mlp-out} available
-    \item \textbf{Critical: No \texttt{mlp-in} SAE at layer 4}---the layer used in the paper's Figure 8
+    \item \textbf{Critical: No \texttt{mlp-in} SAE at layer 4}-the layer used in the paper's Figure 8
 \end{itemize}
 
 \textbf{fw-medium-scope} (16 layers):
@@ -116,7 +116,7 @@ This confirms the mechanism: high activation requires negative concepts \emph{wi
 \label{app:linear_subspace}
 
 Following the tutorial methodology, we compute cosine similarity between SAE decoder directions for the top output features with high eigenvalues.
-Features 3834 and 751 have cosine similarity $-0.16$---weakly negative, which the tutorial calls a ``somewhat linear subspace.''
+Features 3834 and 751 have cosine similarity $-0.16$-weakly negative, which the tutorial calls a ``somewhat linear subspace.''
 Note that $-0.16$ is closer to orthogonal than anti-parallel; the features are \emph{semantic} opposites (not-good vs.\ not-bad) rather than geometrically opposing.
 Semantic interpretation comes from inspecting top-activating tokens: feature 3834 fires on negated positive contexts, while feature 751 fires on negated negative contexts.
 The paper's tutorial observes: ``It's not surprising that this forms a linear subspace as the two are opposites.''
