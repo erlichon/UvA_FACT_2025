@@ -23,7 +23,7 @@ from src.plot_utils.ablation import (
 )
 
 # Extension 2 plots
-from src.plot_utils.extension2 import (
+from src.plot_utils.extension_cross_dataset import (
     plot_usps_transfer_comparison,
     plot_semantic_confusion_distributions,
     plot_subspace_overlap_comparison,

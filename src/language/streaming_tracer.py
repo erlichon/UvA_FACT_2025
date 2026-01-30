@@ -5,11 +5,11 @@ This module provides a chunked computation approach that reduces peak GPU memory
 from ~17GB to ~1GB, enabling Figure 8 to run on CUDA GPUs with 40GB memory.
 
 The key insight is that the einsum:
-    Q[i,j] = Σ_m Σ_o w_l[m,i] * w_r[m,j] * w_p[o,m] * out_latents[o]
+    Q[i,j] = sigma_m sigma_o w_l[m,i] * w_r[m,j] * w_p[o,m] * out_latents[o]
 
 Can be decomposed into:
     z[m] = w_p.T @ out_latents  (small: [d_hidden])
-    Q[i,j] = Σ_m w_l[m,i] * w_r[m,j] * z[m]  (streamable across m)
+    Q[i,j] = sigma_m w_l[m,i] * w_r[m,j] * z[m]  (streamable across m)
 
 For projection onto SAE latents:
     The original tracer.q(project=True) uses an inefficient einsum that
@@ -85,7 +85,7 @@ def q_streaming(
         
         # Compute chunk contribution to Q
         # Q += einsum("cm,c,cn->mn", w_l_chunk, z_chunk, w_r_chunk)
-        # This is: Q[m,n] += Σ_c w_l[c,m] * z[c] * w_r[c,n]
+        # This is: Q[m,n] += sigma_c w_l[c,m] * z[c] * w_r[c,n]
         # Equivalent to: (w_l_chunk.T * z_chunk) @ w_r_chunk
         # Memory: chunk_size * d_model = 256 * 1024 * 4 bytes = 1MB intermediate
         Q += torch.einsum('cm,c,cn->mn', w_l_chunk, z_chunk, w_r_chunk)

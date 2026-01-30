@@ -26,13 +26,13 @@ import numpy as np
 
 from .style import set_publication_style
 
-# Model colors for consistency across figures
+# Model colors for consistency across figures (paper-style)
 # Note: ts-medium is the 6-layer model (paper refers to it as "ts-tiny")
 MODEL_COLORS = {
-    "ts-medium": "#2E86AB",    # Blue - 6 layer TinyStories
-    "ts-tiny": "#2E86AB",      # Blue (alias)
-    "fw-small": "#A23B72",     # Magenta - 12 layer FineWeb
-    "fw-medium": "#F18F01",    # Orange - 16 layer FineWeb
+    "ts-medium": "#2ca02c",    # Green - 6 layer TinyStories (ts-tiny in paper)
+    "ts-tiny": "#2ca02c",      # Green (alias)
+    "fw-small": "#1f77b4",     # Blue - 12 layer FineWeb
+    "fw-medium": "#d62728",    # Red - 16 layer FineWeb
 }
 
 MODEL_LABELS = {
@@ -104,14 +104,6 @@ def plot_correlation_progression(
     else:
         fig = ax.figure
     
-    # Paper-style colors (clean, distinct)
-    paper_colors = {
-        'ts-medium': '#2ca02c',  # Green (ts-tiny in paper)
-        'ts-tiny': '#2ca02c',    # Green
-        'fw-small': '#d62728',   # Red
-        'fw-medium': '#1f77b4',  # Blue
-    }
-    
     for model, data in results_dict.items():
         if "summary" not in data or "correlation_by_rank" not in data["summary"]:
             continue
@@ -128,7 +120,7 @@ def plot_correlation_progression(
         ranks = np.array(ranks)
         means = np.array(means)
         
-        color = paper_colors.get(model, "#333333")
+        color = MODEL_COLORS.get(model, "#333333")
         label = MODEL_LABELS.get(model, model)
         
         # Paper style: smooth lines, no markers
@@ -1305,8 +1297,12 @@ def plot_sae_training_effect(
         ax.axhline(y=0.75, color='#d62728', linestyle='--', linewidth=2,
                    label='Paper threshold (0.75)', alpha=0.8)
     
+    # Get metric label from metadata (default to Pearson if not present)
+    metadata = results.get('metadata', {})
+    metric_label = metadata.get('metric_label', 'Pearson correlation')
+    
     ax.set_xlabel('Approximation Rank (k)', fontsize=11)
-    ax.set_ylabel('Mean Pearson Correlation', fontsize=11)
+    ax.set_ylabel(f'Mean {metric_label}', fontsize=11)
     ax.set_title(title, fontsize=12)
     ax.set_ylim(0, 1)
     ax.legend(loc='lower right', fontsize=7, framealpha=0.9, handlelength=1.5)

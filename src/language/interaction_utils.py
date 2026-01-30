@@ -259,11 +259,11 @@ def compute_interaction_matrix_streaming(
     This reduces peak GPU memory from ~17GB to ~1GB by chunking the computation.
     
     The key insight is that the einsum:
-        Q[i,j] = Σ_m Σ_o w_l[m,i] * w_r[m,j] * w_p[o,m] * out_direction[o]
+        Q[i,j] = sigma_m sigma_o w_l[m,i] * w_r[m,j] * w_p[o,m] * out_direction[o]
     
     Can be decomposed into:
         z[m] = w_p.T @ out_direction  (small: [d_hidden])
-        Q[i,j] = Σ_m w_l[m,i] * w_r[m,j] * z[m]  (streamable across m)
+        Q[i,j] = sigma_m w_l[m,i] * w_r[m,j] * z[m]  (streamable across m)
     
     Args:
         model: Transformer model with w_l, w_r, w_p properties

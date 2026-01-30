@@ -130,7 +130,7 @@ train_cp_model() {
     # Check if checkpoint already exists
     local checkpoint="${CHECKPOINT_DIR}/mnist_cp_r${rank}_${init_mode}_seed${seed}.pt"
     if [ -f "$checkpoint" ]; then
-        echo "✓ Checkpoint exists: $checkpoint (skipping)"
+        echo "[OK] Checkpoint exists: $checkpoint (skipping)"
         return 0
     fi
     

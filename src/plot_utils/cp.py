@@ -286,3 +286,453 @@ def plot_cp_rank_comparison(
         print(f"Figure saved to: {save_path}")
     
     return fig
+
+
+def visualize_eigenvectors_for_config(
+    eigenvalues: torch.Tensor,
+    eigenvectors: torch.Tensor,
+    n_top: int = 5,
+    n_bottom: int = 5,
+    title: str = "Eigenvectors",
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Visualize top and bottom eigenvectors for a checkpoint's eigenvalues/eigenvectors.
+    
+    Creates a grid with 10 rows (one per class) and (n_top + n_bottom) columns
+    showing the top positive and top negative eigenvectors with eigenvalue labels.
+    
+    Args:
+        eigenvalues: [n_classes, n_eigenvalues] tensor
+        eigenvectors: [n_classes, n_eigenvalues, d_input] tensor
+        n_top: Number of top (largest) eigenvectors to show
+        n_bottom: Number of bottom (smallest) eigenvectors to show
+        title: Figure title
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    
+    # Extract top and bottom eigenvectors
+    top_indices, top_vecs, bottom_indices, bottom_vecs = get_top_eigenvectors(
+        eigenvalues, eigenvectors, n_top=n_top, n_bottom=n_bottom
+    )
+    
+    n_classes = eigenvalues.shape[0]
+    
+    # Create figure: n_classes rows × (n_top + n_bottom) columns
+    fig, axes = plt.subplots(n_classes, n_top + n_bottom, figsize=(2 * (n_top + n_bottom), 2 * n_classes))
+    
+    # Find global vmin/vmax for consistent scaling
+    vmax = max(top_vecs.abs().max().item(), bottom_vecs.abs().max().item())
+    vmin = -vmax
+    
+    for class_idx in range(n_classes):
+        # Plot top eigenvectors (positive)
+        for i in range(n_top):
+            ax = axes[class_idx, i]
+            vec = top_vecs[class_idx, i].detach().cpu().numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+            ax.axis('off')
+            
+            # Add eigenvalue label
+            eig_val = eigenvalues[class_idx, top_indices[class_idx, i]].item()
+            ax.set_title(f'{eig_val:.2f}', fontsize=8, pad=2)
+            
+            # Add class label on first column
+            if i == 0:
+                ax.set_ylabel(f'Class {class_idx}', fontsize=10, rotation=0, ha='right', va='center')
+        
+        # Plot bottom eigenvectors (negative)
+        for i in range(n_bottom):
+            ax = axes[class_idx, n_top + i]
+            vec = bottom_vecs[class_idx, i].detach().cpu().numpy().reshape(28, 28)
+            ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+            ax.axis('off')
+            
+            # Add eigenvalue label
+            eig_val = eigenvalues[class_idx, bottom_indices[class_idx, i]].item()
+            ax.set_title(f'{eig_val:.2f}', fontsize=8, pad=2)
+    
+    # Column headers
+    for i in range(n_top):
+        axes[0, i].annotate(f'Top {i+1}', xy=(0.5, 1.15), xycoords='axes fraction',
+                           ha='center', fontsize=9, fontweight='bold', color='green')
+    for i in range(n_bottom):
+        axes[0, n_top + i].annotate(f'Bot {i+1}', xy=(0.5, 1.15), xycoords='axes fraction',
+                                    ha='center', fontsize=9, fontweight='bold', color='red')
+    
+    plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
+    plt.tight_layout(rect=(0, 0, 1, 0.98))
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def compare_modes_for_rank(
+    checkpoint_data: dict,
+    rank: int,
+    modes: List[str] = ['fixed', 'lambda', 'gated'],
+    n_top: int = 5,
+    n_bottom: int = 5,
+    save_path: Optional[Path] = None,
+) -> Optional[plt.Figure]:
+    """
+    Compare eigenvectors across all modes for a fixed CP rank.
+    
+    Args:
+        checkpoint_data: Dict mapping (rank, mode) tuples to checkpoint dicts
+        rank: CP rank to compare
+        modes: List of mode names to compare
+        n_top: Number of top eigenvectors per mode
+        n_bottom: Number of bottom eigenvectors per mode
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object (or None if no checkpoints found)
+    """
+    set_publication_style()
+    
+    # Collect all eigenvectors for global scaling
+    all_vecs = []
+    mode_data = {}
+    for mode in modes:
+        key = (rank, mode)
+        if key in checkpoint_data:
+            checkpoint = checkpoint_data[key]
+            eigenvalues = checkpoint['eigenvalues']
+            eigenvectors = checkpoint['eigenvectors']
+            top_indices, top_vecs, bottom_indices, bottom_vecs = get_top_eigenvectors(
+                eigenvalues, eigenvectors, n_top=n_top, n_bottom=n_bottom
+            )
+            mode_data[mode] = {
+                'eigenvalues': eigenvalues,
+                'top_indices': top_indices,
+                'top_vecs': top_vecs,
+                'bottom_indices': bottom_indices,
+                'bottom_vecs': bottom_vecs,
+            }
+            all_vecs.extend([top_vecs, bottom_vecs])
+    
+    if not mode_data:
+        print(f"No checkpoints found for rank {rank}")
+        return None
+    
+    n_modes = len(mode_data)
+    vmax = max(v.abs().max().item() for v in all_vecs)
+    vmin = -vmax
+    
+    # Create figure
+    n_cols = n_modes * (n_top + n_bottom)
+    fig, axes = plt.subplots(10, n_cols, figsize=(1.5 * n_cols, 20))
+    
+    for mode_idx, mode in enumerate(modes):
+        if mode not in mode_data:
+            continue
+        
+        data = mode_data[mode]
+        col_start = mode_idx * (n_top + n_bottom)
+        
+        for class_idx in range(10):
+            # Top eigenvectors
+            for i in range(n_top):
+                ax = axes[class_idx, col_start + i]
+                vec = data['top_vecs'][class_idx, i].detach().cpu().numpy().reshape(28, 28)
+                ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+                ax.axis('off')
+                
+                if class_idx == 0:
+                    ax.set_title(f'{mode}\nTop{i+1}', fontsize=7)
+                if col_start + i == 0:
+                    ax.set_ylabel(f'{class_idx}', fontsize=9, rotation=0, ha='right', va='center')
+            
+            # Bottom eigenvectors
+            for i in range(n_bottom):
+                ax = axes[class_idx, col_start + n_top + i]
+                vec = data['bottom_vecs'][class_idx, i].detach().cpu().numpy().reshape(28, 28)
+                ax.imshow(vec, cmap='RdBu', vmin=vmin, vmax=vmax)
+                ax.axis('off')
+                
+                if class_idx == 0:
+                    ax.set_title(f'Bot{i+1}', fontsize=7)
+    
+    plt.suptitle(f'Eigenvector Comparison: CP Rank {rank}', fontsize=14, fontweight='bold')
+    plt.tight_layout(rect=(0, 0, 1, 0.98))
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def plot_cp_accuracy_vs_rank(
+    cp_df,
+    baseline_df=None,
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP accuracy vs rank.
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, accuracy, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        # Aggregate CP results by rank
+        cp_agg = cp_df.groupby('rank').agg({
+            'accuracy': ['mean', 'std'],
+        }).reset_index()
+        cp_agg.columns = ['rank', 'acc_mean', 'acc_std']
+        
+        ax.errorbar(cp_agg['rank'], cp_agg['acc_mean'] * 100, 
+                    yerr=cp_agg['acc_std'] * 100,
+                    fmt='o-', label='CP', markersize=10, linewidth=2, capsize=5)
+    
+    # Add dense baselines as horizontal lines
+    if baseline_df is not None and len(baseline_df) > 0:
+        mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+        for mode in ['none', 'full']:
+            subset = baseline_df[baseline_df[mode_col].str.contains(mode, case=False)]
+            if len(subset) > 0:
+                mean_acc = subset['accuracy'].mean() * 100
+                ax.axhline(y=mean_acc, linestyle='--', alpha=0.7, 
+                          label=f'Dense ({mode}): {mean_acc:.1f}%')
+    
+    ax.set_xlabel('CP Rank', fontsize=12)
+    ax.set_ylabel('Accuracy (%)', fontsize=12)
+    ax.set_title('CP Accuracy vs Rank', fontsize=14, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_xscale('log', base=2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig
+
+
+def plot_cp_effective_rank_vs_cp_rank(
+    cp_df,
+    baseline_df=None,
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[Path] = None,
+    show_ideal_line: bool = False,
+) -> plt.Figure:
+    """
+    Plot CP effective rank vs CP rank.
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results (columns: mode, effective_rank)
+        figsize: Figure size
+        save_path: Optional path to save figure
+        show_ideal_line: If True, show diagonal line where eff_rank = cp_rank
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        cp_agg = cp_df.groupby('rank').agg({
+            'effective_rank': ['mean', 'std'],
+        }).reset_index()
+        cp_agg.columns = ['rank', 'eff_mean', 'eff_std']
+        
+        ax.errorbar(cp_agg['rank'], cp_agg['eff_mean'],
+                    yerr=cp_agg['eff_std'],
+                    fmt='s-', label='CP effective rank', markersize=10, linewidth=2, capsize=5)
+        
+        # Ideal line: effective_rank = cp_rank (optional)
+        if show_ideal_line:
+            max_rank = cp_agg['rank'].max()
+            ax.plot([8, max_rank], [8, max_rank], 'k--', alpha=0.5, linewidth=2, 
+                    label='Ideal (eff_rank = cp_rank)')
+        
+        # Add dense baselines as horizontal lines
+        if baseline_df is not None and len(baseline_df) > 0:
+            mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+            min_rank = cp_agg['rank'].min()
+            max_rank = cp_agg['rank'].max()
+            
+            # Dense (no reg) - none config
+            none_df = baseline_df[baseline_df[mode_col].str.contains('none', case=False)]
+            if len(none_df) > 0:
+                none_eff = none_df['effective_rank'].mean()
+                ax.axhline(y=none_eff, color='red', linestyle='--', linewidth=2, 
+                          label=f'Dense (no reg): {none_eff:.1f}')
+            
+            # Dense (full reg) - full config
+            full_df = baseline_df[baseline_df[mode_col].str.contains('full', case=False)]
+            if len(full_df) > 0:
+                full_eff = full_df['effective_rank'].mean()
+                ax.axhline(y=full_eff, color='green', linestyle='--', linewidth=2, 
+                          label=f'Dense (full reg): {full_eff:.1f}')
+    
+    ax.set_xlabel('CP Rank', fontsize=12)
+    ax.set_ylabel('Effective Rank', fontsize=12)
+    ax.set_title('Effective Rank vs CP Rank', fontsize=14, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_xscale('log', base=2)
+    ax.set_yscale('log', base=2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig
+
+
+def plot_cp_pareto_frontier(
+    cp_df,
+    baseline_df=None,
+    ranks=None,
+    figsize: Tuple[int, int] = (8, 6),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP accuracy vs effective rank (Pareto frontier).
+    
+    Matches the style of cp_rank_accuracy_tradeoff.pdf from generate_extension_cp_figures.py.
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, accuracy, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results
+        ranks: List of ranks to include (default: all)
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        if ranks is None:
+            ranks = sorted(cp_df['rank'].unique())
+        
+        # Group by rank and compute mean/std
+        rank_stats = cp_df.groupby('rank').agg({
+            'accuracy': ['mean', 'std'],
+            'effective_rank': ['mean', 'std'],
+        }).reset_index()
+        rank_stats.columns = ['rank', 'acc_mean', 'acc_std', 'eff_rank_mean', 'eff_rank_std']
+        
+        # Plot CP models with color by log(rank)
+        scatter = ax.scatter(
+            rank_stats['eff_rank_mean'], 
+            rank_stats['acc_mean'] * 100,
+            c=np.log2(rank_stats['rank']),
+            cmap='viridis',
+            s=150,
+            edgecolors='black',
+            linewidths=1.5,
+            zorder=3,
+            label='CP Models'
+        )
+        
+        # Add error bars
+        ax.errorbar(
+            rank_stats['eff_rank_mean'],
+            rank_stats['acc_mean'] * 100,
+            xerr=rank_stats['eff_rank_std'],
+            yerr=rank_stats['acc_std'] * 100,
+            fmt='none',
+            color='gray',
+            alpha=0.5,
+            capsize=3,
+            zorder=2,
+        )
+        
+        # Add rank labels
+        for _, row in rank_stats.iterrows():
+            ax.annotate(
+                f"R={int(row['rank'])}",
+                (row['eff_rank_mean'], row['acc_mean'] * 100),
+                textcoords="offset points",
+                xytext=(5, 5),
+                fontsize=9,
+            )
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter, ax=ax, label='log₂(CP Rank)')
+    
+    # Dense baselines (all 4 configs)
+    if baseline_df is not None and len(baseline_df) > 0:
+        mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+        markers = {'none': 's', 'noise': '^', 'wd': 'v', 'full': 'D'}
+        labels = {
+            'none': 'Dense (no reg)',
+            'noise': 'Dense (noise)',
+            'wd': 'Dense (WD)',
+            'full': 'Dense (full reg)',
+        }
+        
+        # Group by config and compute mean
+        dense_stats = baseline_df.groupby(mode_col).agg({
+            'accuracy': 'mean',
+            'effective_rank': 'mean',
+        }).reset_index()
+        
+        for _, row in dense_stats.iterrows():
+            config = row[mode_col]
+            # Extract config name (e.g., 'dense_none' -> 'none')
+            config_key = config.replace('dense_', '') if 'dense_' in config else config
+            marker = markers.get(config_key, 'o')
+            label = labels.get(config_key, f'Dense ({config_key})')
+            
+            ax.scatter(
+                row['effective_rank'],
+                row['accuracy'] * 100,
+                marker=marker,
+                s=100,
+                color='red',
+                edgecolors='black',
+                linewidths=1,
+                label=label,
+                zorder=4,
+            )
+    
+    ax.set_xlabel('Effective Rank', fontsize=12)
+    ax.set_ylabel('Validation Accuracy (%)', fontsize=12)
+    ax.set_title('CP Rank vs Accuracy Trade-off', fontsize=14, fontweight='bold')
+    ax.legend(loc='lower right', fontsize=9, framealpha=0.9, title='Dense Baselines')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig

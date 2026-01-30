@@ -77,6 +77,7 @@ Figure~\ref{fig:app_challenge_decay} compares eigenvalue decay across these vari
     Eigenvector-derived masks cause significantly larger accuracy drops than random masks of equal magnitude.}
     \label{fig:adversarial}
 \end{figure}
+\vspace{-0.5\baselineskip}
 
 \subsection{Eigenvector Quality Comparison}
 \label{app:eigenvector_quality}
@@ -90,6 +91,7 @@ Figure~\ref{fig:app_eigenvectors_noise} shows the effect of noise-only regulariz
     Noise alone produces recognizable digit patterns, though less sharp than with weight decay.}
     \label{fig:app_eigenvectors_noise}
 \end{figure}
+\vspace{-0.5\baselineskip}
 
 \subsection{Cross-Dataset Comparison: MNIST vs Fashion-MNIST}
 \label{app:cross_dataset}
@@ -107,14 +109,14 @@ Figure~\ref{fig:app_fashion} shows eigenvector quality on Fashion-MNIST under no
 \noindent The silhouette-like patterns for clothing items (T-shirt, Dress, Coat) demonstrate that the eigenvector interpretability extends beyond digit recognition to more complex shape categories.
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_noreg.pdf}
+    \includegraphics[width=0.70\linewidth]{figures/vision/eigenvectors_noreg.pdf}
     \caption{Top eigenvectors for each digit class (0--9) without regularization: diffuse, noise-like patterns (V3).}
     \label{fig:eigenvectors_noreg}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.95\linewidth]{figures/vision/eigenvectors_reg.pdf}
+    \includegraphics[width=0.70\linewidth]{figures/vision/eigenvectors_reg.pdf}
     \caption{Top eigenvectors for each digit class (0--9) with regularization (noise $\sigma=0.5$, weight decay $=1.0$): recognizable digit strokes (V2).}
     \label{fig:eigenvectors_reg}
 \end{figure}

@@ -678,13 +678,13 @@ run_figure8_figures() {
 }
 
 run_figure8_all() {
-    echo ">>> Running full Figure 8 pipeline: legacy -> search -> analyze -> figures"
+    echo ">>> Running full Figure 8 pipeline: generate -> search -> analyze -> figures"
     echo "    Estimated total time: ~8-10 hours"
     echo ""
     
-    # Step 1: Generate legacy single-feature data (needed for figure_8_data_fw_medium.json)
-    echo "Step 1/4: Generating legacy single-feature data..."
-    run_figure8_legacy
+    # Step 1: Generate data for both datasets (TinyStories + FineWeb-16k)
+    echo "Step 1/4: Generating Figure 8 data..."
+    run_figure8_generate
     echo ""
     
     # Step 2: Comprehensive circuit search
@@ -704,9 +704,9 @@ run_figure8_all() {
     echo "Full Figure 8 pipeline complete!"
 }
 
-# Legacy figure8 (data generation for features 3834 and 751)
-# Uses TinyStories dataset for cleaner semantic clustering
-run_figure8_legacy() {
+# Figure 8 data generation for features 3834 and 751
+# Generates data for both TinyStories and FineWeb-16k datasets for comparison
+run_figure8_generate() {
     print_header
     activate_conda
     
@@ -726,60 +726,121 @@ run_figure8_legacy() {
         streaming_flag="--streaming --chunk-size $CHUNK_SIZE"
     fi
     
-    # Use TinyStories for cleaner semantic clustering (unless overridden)
-    local dataset_flag=""
+    # Helper function to generate data for a specific dataset
+    generate_for_dataset() {
+        local dataset_name="$1"
+        local suffix="$2"
+        
+        echo ""
+        echo "============================================================"
+        echo ">>> Generating Figure 8 data for $dataset_name"
+        echo "============================================================"
+        echo "    Features: 3834 (not-good) and 751 (not-bad)"
+        echo "    Device: $fig8_device"
+        echo "    Dataset: $dataset_name"
+        echo "    Batch size: $batch_size"
+        echo "    Samples: $n_samples"
+        echo "    Metric: $METRIC"
+        if $STREAMING; then
+            echo "    Streaming: enabled (chunk_size=$CHUNK_SIZE)"
+        fi
+        echo "    Memory: Uses iterative eigensolver (constant memory)"
+        echo ""
+        
+        # Generate data for feature 3834 (not-good)
+        echo "--- Feature 3834 (not-good) on $dataset_name ---"
+        python src/language/negation_visualization.py \
+            --config configs/language_negation_fw.yaml \
+            --output "results/language/figure_8_data_fw_medium${suffix}.json" \
+            --feature 3834 \
+            --device "$fig8_device" \
+            --batch-size "$batch_size" \
+            --n-samples "$n_samples" \
+            --metric "$METRIC" \
+            --dataset "$dataset_name" \
+            $streaming_flag
+        
+        echo ""
+        cleanup_memory "figure8/3834_$dataset_name"
+        
+        # Generate data for feature 751 (not-bad)
+        echo "--- Feature 751 (not-bad) on $dataset_name ---"
+        python src/language/negation_visualization.py \
+            --config configs/language_negation_fw.yaml \
+            --output "results/language/figure_8_feature751${suffix}.json" \
+            --feature 751 \
+            --device "$fig8_device" \
+            --batch-size "$batch_size" \
+            --n-samples "$n_samples" \
+            --metric "$METRIC" \
+            --dataset "$dataset_name" \
+            $streaming_flag
+        
+        echo ""
+        cleanup_memory "figure8/751_$dataset_name"
+    }
+    
+    # Check if specific dataset requested via --fig8-dataset
     if [ -n "$FIG8_DATASET" ]; then
-        dataset_flag="--dataset $FIG8_DATASET"
+        # Generate for single requested dataset
+        case "$FIG8_DATASET" in
+            tinystories)
+                generate_for_dataset "tinystories" ""
+                ;;
+            fineweb-16k)
+                generate_for_dataset "fineweb-16k" "_fineweb16k"
+                ;;
+            *)
+                echo "Unknown dataset: $FIG8_DATASET"
+                echo "Supported: tinystories, fineweb-16k"
+                exit 1
+                ;;
+        esac
     else
-        dataset_flag="--dataset tinystories"
+        # Generate for BOTH datasets (default behavior)
+        echo "============================================================"
+        echo ">>> Figure 8: Generating data for BOTH datasets"
+        echo "    1. TinyStories (cleaner semantic clustering)"
+        echo "    2. FineWeb-16k (tutorial comparison)"
+        echo "============================================================"
+        
+        # TinyStories (primary - used in main figure)
+        generate_for_dataset "tinystories" ""
+        
+        # FineWeb-16k (for comparison with tutorial)
+        generate_for_dataset "fineweb-16k" "_fineweb16k"
     fi
     
-    echo ">>> Running Figure 8 (fw-medium layer 7 on TinyStories)"
-    echo "    Features: 3834 (not-good) and 751 (not-bad)"
-    echo "    Device: $fig8_device"
-    echo "    Dataset: ${FIG8_DATASET:-tinystories}"
-    echo "    Batch size: $batch_size"
-    echo "    Samples: $n_samples"
-    echo "    Metric: $METRIC"
-    if $STREAMING; then
-        echo "    Streaming: enabled (chunk_size=$CHUNK_SIZE)"
+    echo ""
+    echo "============================================================"
+    echo "Figure 8 data generation complete!"
+    echo "============================================================"
+    echo "TinyStories outputs:"
+    echo "  results/language/figure_8_data_fw_medium.json (feature 3834)"
+    echo "  results/language/figure_8_feature751.json (feature 751)"
+    if [ -z "$FIG8_DATASET" ] || [ "$FIG8_DATASET" = "fineweb-16k" ]; then
+        echo ""
+        echo "FineWeb-16k outputs (tutorial comparison):"
+        echo "  results/language/figure_8_data_fw_medium_fineweb16k.json (feature 3834)"
+        echo "  results/language/figure_8_feature751_fineweb16k.json (feature 751)"
     fi
-    echo "    Memory: Uses iterative eigensolver (constant memory)"
-    echo ""
+    echo "============================================================"
     
-    # Generate data for feature 3834 (not-good)
-    echo "--- Feature 3834 (not-good) ---"
-    python src/language/negation_visualization.py \
-        --config configs/language_negation_fw.yaml \
-        --output "results/language/figure_8_data_fw_medium.json" \
-        --feature 3834 \
-        --device "$fig8_device" \
-        --batch-size "$batch_size" \
-        --n-samples "$n_samples" \
-        --metric "$METRIC" \
-        $dataset_flag \
-        $streaming_flag
+    # Generate PDF figures for all available datasets
+    echo ""
+    echo ">>> Generating Figure 8 PDFs..."
+    run_figure8_figures
     
     echo ""
-    cleanup_memory "figure8/3834"
-    
-    # Generate data for feature 751 (not-bad)
-    echo "--- Feature 751 (not-bad) ---"
-    python src/language/negation_visualization.py \
-        --config configs/language_negation_fw.yaml \
-        --output "results/language/figure_8_feature751.json" \
-        --feature 751 \
-        --device "$fig8_device" \
-        --batch-size "$batch_size" \
-        --n-samples "$n_samples" \
-        --metric "$METRIC" \
-        $dataset_flag \
-        $streaming_flag
-    
-    echo ""
-    echo "Figure 8 data generated!"
-    echo "Output: results/language/figure_8_data_fw_medium.json (feature 3834)"
-    echo "        results/language/figure_8_feature751.json (feature 751)"
+    echo "============================================================"
+    echo "Figure 8 complete!"
+    echo "============================================================"
+    echo "PDF outputs:"
+    echo "  Report/figures/language/figure_8_final.pdf (TinyStories)"
+    if [ -z "$FIG8_DATASET" ] || [ "$FIG8_DATASET" = "fineweb-16k" ]; then
+        echo "  Report/figures/language/figure_8_final_fineweb16k.pdf (FineWeb-16k)"
+    fi
+    echo "============================================================"
 }
 
 run_figure8() {
@@ -799,8 +860,8 @@ run_figure8() {
         all)
             run_figure8_all
             ;;
-        legacy|"")
-            run_figure8_legacy
+        generate|"")
+            run_figure8_generate
             ;;
         *)
             echo "Unknown figure8 subcommand: $subcmd"
@@ -808,11 +869,12 @@ run_figure8() {
             echo "Usage: ./scripts/train/run_language.sh figure8 <subcommand>"
             echo ""
             echo "Subcommands:"
+            echo "  generate  (default) Generate data for features 3834 & 751"
+            echo "            Runs on both TinyStories and FineWeb-16k datasets"
             echo "  search    Run full circuit search (~8-10 hours)"
             echo "  analyze   Analyze top circuits from search results"
-            echo "  figures   Generate all Figure 8 variants"
-            echo "  all       Full pipeline: search -> analyze -> figures"
-            echo "  legacy    (default) Single feature visualization"
+            echo "  figures   Generate all Figure 8 PDF variants"
+            echo "  all       Full pipeline: generate -> search -> analyze -> figures"
             exit 1
             ;;
     esac
@@ -825,17 +887,31 @@ run_figure10() {
     
     mkdir -p results/language
     
-    local n_features=-1
-    local n_batches=10
+    # Figure 10: expansion=16 has ~16K features, but we sample for reasonable runtime
+    # 1000 features is statistically representative for comparing v0-v4 SAE training effect
+    # Target: ~14 hours on MPS (vs 17 days for all 16K features)
+    local n_features=1000
+    local batch_size=32
+    local exact_chunk_size=32  # Larger chunks = faster (1000 features fits in memory)
+    # 64 batches × 32 batch_size × 256 n_ctx = ~524K tokens (enough for correlation)
+    local n_batches=${MAX_BATCHES:-64}
     if $QUICK_MODE; then
         n_features=100
-        n_batches=5
+        n_batches=10
+        batch_size=24
+        exact_chunk_size=16
     fi
     
+    local n_tokens_approx=$((n_batches * batch_size * 256))  # 64×32×256 ≈ 524K tokens
+    
     echo ">>> Running SAE Training Time Analysis (Figure 10)"
+    echo "    Uses verify_correlation infrastructure (DRY, memory-efficient)"
     echo "    Model: fw-medium, Layer: 12, Expansion: 16"
     echo "    SAE versions: v0 (1x) -> v4 (16x training)"
     echo "    Features: $n_features (-1 = all)"
+    echo "    Batches: $n_batches (batch_size=$batch_size)"
+    echo "    Exact chunk size: $exact_chunk_size features/chunk"
+    echo "    Approx tokens: ~${n_tokens_approx} (~$(echo "scale=2; $n_tokens_approx / 1000000" | bc)M)"
     echo "    Device: $DEVICE"
     echo "    Metric: $METRIC"
     echo "    Dataset: fineweb"
@@ -845,6 +921,8 @@ run_figure10() {
         --device "$DEVICE" \
         --n-features "$n_features" \
         --n-batches "$n_batches" \
+        --batch-size "$batch_size" \
+        --exact-chunk-size "$exact_chunk_size" \
         --metric "$METRIC" \
         --dataset "fineweb" \
         --output "results/language/sae_training_time_comparison.json"
@@ -1105,7 +1183,7 @@ show_help() {
     echo "  precompute    Precompute eigenpairs for fast iteration (Phase 1)"
     echo "  figure9       Correlation sweep for Figure 9 (all 3 models)"
     echo "  figure8       Negation circuit visualization (Figure 8)"
-    echo "  figure10      SAE training time analysis (Figure 10)"
+    echo "  figure10      SAE training time analysis (Figure 10, ~1.57M tokens)"
     echo "  negation      Negation feature discovery"
     echo "  interaction   Interaction matrix analysis"
     echo "  figures       Generate all language figures from results"
@@ -1120,11 +1198,12 @@ show_help() {
     echo "  precompute --model X --layer Y  Specific model and layer"
     echo ""
     echo "Figure 8 Subcommands:"
+    echo "  figure8 generate  Generate data for features 3834/751 (default)"
+    echo "                    Runs on both TinyStories and FineWeb-16k datasets"
     echo "  figure8 search    Run comprehensive circuit search (~8-10 hours)"
     echo "  figure8 analyze   Analyze top circuits from search results"
-    echo "  figure8 figures   Generate all Figure 8 variants"
-    echo "  figure8 all       Full pipeline: search -> analyze -> figures"
-    echo "  figure8 legacy    Single feature visualization (default)"
+    echo "  figure8 figures   Generate all Figure 8 PDF variants"
+    echo "  figure8 all       Full pipeline: generate -> search -> analyze -> figures"
     echo ""
     echo "Options:"
     echo "  --quick           Reduced samples/features for testing"
@@ -1133,12 +1212,12 @@ show_help() {
     echo "  --model           Specific model: ts-medium, fw-small, fw-medium, all"
     echo "  --layer           Layer index (for precompute)"
     echo "  --sequential      Run models sequentially (memory-safe for figure9)"
-    echo "  --feature         Feature index for figure8 legacy (default: 3834)"
+    echo "  --feature         Feature index for figure8 generate (default: 3834)"
     echo "  --streaming       Use streaming Q computation for CUDA (Figure 8)"
     echo "  --chunk-size      Chunk size for streaming (default: 256)"
     echo "  --fig8-dataset    Dataset for Figure 8 (tinystories|fineweb|fineweb-16k)"
-    echo "  --batch-size      Batch size for figure9 validation"
-    echo "  --max-batches     Max batches for figure9 validation"
+    echo "  --batch-size      Batch size for figure9/figure10 validation"
+    echo "  --max-batches     Max batches for figure9/figure10 (default: 128 for both)"
     echo "  --metric          pearson|cosine (default: pearson)"
     echo "  --load-eigenpairs Path to cached eigenpairs or 'auto' (fast iteration)"
     echo "  --float16         Save eigenpairs in float16 (50% storage reduction)"
@@ -1160,6 +1239,8 @@ show_help() {
     echo "  ./scripts/train/run_language.sh figure9 --quick           # Quick correlation sweep"
     echo "  ./scripts/train/run_language.sh figure9 --model fw-medium # Single model"
     echo "  ./scripts/train/run_language.sh figure8 all               # Full Figure 8 pipeline"
+    echo "  ./scripts/train/run_language.sh figure10                  # SAE training analysis (~1.57M tokens)"
+    echo "  ./scripts/train/run_language.sh figure10 --max-batches 50 # Fewer batches (faster)"
     echo "  ./scripts/train/run_language.sh all                       # Full pipeline"
     echo ""
     echo "Models (with correct validation datasets):"

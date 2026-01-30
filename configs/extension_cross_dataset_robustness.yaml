@@ -1,0 +1,72 @@
+# Extension 2: Cross-Dataset Structural Robustness Configuration
+# 
+# Objective: Prove that regularized Bilinear MLPs learn universal geometric shapes
+# (e.g., "circularity") rather than dataset-specific pixel artifacts.
+
+name: extension_cross_dataset_robustness
+experiment_id: RQ2
+
+# Model configuration
+model:
+  mode: dense
+  d_hidden: 256
+  d_input: 784
+  d_output: 10  # For MNIST (change to 26 for EMNIST)
+
+# Training configuration
+training:
+  epochs: 100
+  lr: 0.001
+  batch_size: 2048
+
+# Regularization settings (Phase 1 config: full regularization)
+# Using same settings as Phase 1 for consistency
+regularization:
+  noise_std: 0.5
+  weight_decay: 1.0
+
+# Data configuration
+data:
+  # Use center-of-mass normalization for fair comparison
+  use_com_normalization: true
+  datasets:
+    - mnist
+    - emnist_digits
+    - emnist_letters
+    - usps
+
+# Semantic Confusion Test configuration
+semantic_test:
+  # Letters to test (should map to visually similar digits)
+  letters: ['O', 'I', 'Z', 'S', 'B']
+  # Expected digit mappings
+  expected_mapping:
+    O: 0
+    I: 1
+    Z: 2
+    S: 5
+    B: 6
+
+# Subspace Geometry Test configuration
+subspace_test:
+  # Number of top eigenvectors to compare
+  k: 10
+  # Similarity method (using only cosine similarity)
+  methods:
+    - mean_cos
+  # Pairs to compare (MNIST digit index, EMNIST letter index)
+  test_pairs:
+    - [0, 14]   # 0 vs O
+    - [1, 8]    # 1 vs I
+    - [2, 25]   # 2 vs Z
+    - [5, 18]   # 5 vs S
+    - [6, 1]    # 6 vs B
+
+# Output paths
+output:
+  results_dir: results/extension_cross_dataset
+  checkpoints_dir: results/extension_cross_dataset/checkpoints
+  figures_dir: Report/figures/extension_cross_dataset
+
+# Reproducibility
+seeds: [42, 43, 44, 45, 46]

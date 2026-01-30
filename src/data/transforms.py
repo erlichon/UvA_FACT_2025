@@ -86,7 +86,7 @@ def compute_center_of_mass(image: Tensor) -> Tuple[float, float]:
     """
     Compute the center of mass of an image.
     
-    Formula: CoM_x = Σ(x · I(x,y)) / Σ(I(x,y))
+    Formula: CoM_x = sigma(x · I(x,y)) / sigma(I(x,y))
     
     IMPORTANT: This should be applied to raw tensor (0-1 range) BEFORE
     normalization. Normalized data contains negative values which breaks
@@ -119,9 +119,9 @@ def compute_center_of_mass(image: Tensor) -> Tuple[float, float]:
     x_coords = torch.arange(w, device=image.device, dtype=image.dtype)
     
     # Compute center of mass
-    # CoM_y = Σ(y · I(y,x)) / Σ(I(y,x))
+    # CoM_y = sigma(y · I(y,x)) / sigma(I(y,x))
     com_y = (y_coords.view(-1, 1) * image).sum() / total_mass
-    # CoM_x = Σ(x · I(y,x)) / Σ(I(y,x))
+    # CoM_x = sigma(x · I(y,x)) / sigma(I(y,x))
     com_x = (x_coords.view(1, -1) * image).sum() / total_mass
     
     return com_y.item(), com_x.item()

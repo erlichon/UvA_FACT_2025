@@ -3,6 +3,11 @@
 \section{Environmental Impact}
 \label{app:environmental}
 
+All experiments were tracked using \texttt{codecarbon} with Netherlands grid intensity.
+Hardware: Apple M4 (MPS) for all experiments.
+Total compute: 1.74 GPU-hours.
+Total emissions: 0.169 kg CO2eq ($\approx$ 1 km driving).
+
 \begin{table}[H]
     \caption{Environmental impact (CO2 via \texttt{codecarbon}).}
     \label{tab:environmental}
@@ -12,17 +17,17 @@
         \toprule
         Experiment & Runs & Wall (h) & GPU-h & CO2 (kg) \\
         \midrule
-        Vision (Section 4)$^\dagger$ & 81 & 1.22 & 1.11 & 0.039 \\
-        Language (Section 5)$^\ddagger$ & 2 & 0.19 & 0.07 & 0.005 \\
+        Vision (Section 4)$^\dagger$ & 101 & 1.66 & 1.11 & 0.040 \\
+        Language (Section 5)$^\ddagger$ & 3 & 19.09 & 0.00 & 0.105 \\
         Extension 1 (Cross-Dataset) & 15 & 0.58 & 0.58 & 0.020 \\
         Extension 2 (CP-Decomposition) & 105 & 0.05 & 0.05 & 0.004 \\
         \midrule
-        \textbf{Total} & \textbf{203} & \textbf{2.04} & \textbf{1.81} & \textbf{0.067} \\
+        \textbf{Total} & \textbf{224} & \textbf{21.39} & \textbf{1.74} & \textbf{0.169} \\
         \bottomrule
     \end{tabular}
     
     \vspace{0.5em}
     \footnotesize
-    $^\dagger$Challenge task (Figure 6) and adversarial experiments (Figure 7) run on local MacBook Pro M4 (2025) due to computational constraints.\\
-    $^\ddagger$Language experiments run on local MacBook Pro M4 (2025) using Apple Silicon (MPS).
+    $^\dagger$Includes 20 challenge task experiments (Figure 6) with full emissions tracking.\\
+    $^\ddagger$Language experiments run on Apple Silicon (MPS); GPU-hours reported as 0 since \texttt{codecarbon} only tracks NVIDIA GPUs.
 \end{table}

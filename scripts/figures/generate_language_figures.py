@@ -160,41 +160,47 @@ def _compute_clusters_from_projections(projs: dict, feature_ids: list) -> tuple:
     return cluster_pos, cluster_neg
 
 
-def generate_figure_8_final(results_dir: Path, figure_dir: Path):
+def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix: str = "", dataset_label: str = "TinyStories"):
     """
     Generate Final Figure 8: Comparison of Feature 3834 vs Feature 751.
     
     Layout: 2 rows x 3 columns
-    - Row 1: Feature 3834 (Tutorial "not-good")
+    - Row 1: Feature 3834 (Tutorial "not-bad")
     - Row 2: Feature 751 (Strong AND-gate circuit)
     
     Each row shows: A) Interaction Submatrix | B) Eigenvector Projections | C) Scatter Plot
     
     For both features, computes clusters from eigenvector projections (v1 sign) and
     reorders the interaction matrix to show block structure.
+    
+    Args:
+        results_dir: Path to results directory
+        figure_dir: Path to output figure directory
+        dataset_suffix: Suffix for input JSON files (e.g., "_fineweb16k")
+        dataset_label: Human-readable dataset name for the figure title
     """
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
     
     print("\n" + "="*60)
-    print("FIGURE 8 FINAL: Feature 3834 vs 751 (Paper Style)")
+    print(f"FIGURE 8 FINAL: Feature 3834 vs 751 ({dataset_label})")
     print("="*60)
     
-    # Load data for both features
-    feature_3834_file = results_dir / "figure_8_data_fw_medium.json"
-    feature_751_file = results_dir / "figure_8_feature751.json"
+    # Load data for both features (with optional dataset suffix)
+    feature_3834_file = results_dir / f"figure_8_data_fw_medium{dataset_suffix}.json"
+    feature_751_file = results_dir / f"figure_8_feature751{dataset_suffix}.json"
     circuit_751_file = results_dir / "circuit_analysis_751.json"
     
     if not feature_3834_file.exists():
         print(f"Feature 3834 data not found: {feature_3834_file}")
         print("Generate it first:")
-        print("  ./scripts/train/run_language.sh figure8")
+        print("  ./scripts/train/run_language.sh figure8 generate")
         return False
     
     if not feature_751_file.exists():
         print(f"Feature 751 data not found: {feature_751_file}")
         print("Generate it first:")
-        print("  ./scripts/train/run_language.sh figure8")
+        print("  ./scripts/train/run_language.sh figure8 generate")
         return False
     
     with open(feature_3834_file) as f:
@@ -273,7 +279,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
         ax_Q_3834.axhline(y=n_pos_3834 - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
         ax_Q_3834.axvline(x=n_pos_3834 - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
     
-    ax_Q_3834.set_title("Feature 3834 (\"not-good\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
+    ax_Q_3834.set_title("Feature 3834 (\"not-bad\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
     ax_Q_3834.set_xlabel("Input Feature", fontsize=9)
     ax_Q_3834.set_ylabel("Input Feature", fontsize=9)
     plt.colorbar(im, ax=ax_Q_3834, fraction=0.046, pad=0.04)
@@ -329,8 +335,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
                                  zorder=8)
             ax_proj_3834.scatter(-bg_v1_scaled, -bg_v2_scaled, marker='o', c='#2ca02c', s=50, 
                                 edgecolors='black', linewidths=1, zorder=15)
-            # "not-good feature" marker (black dot) - near "good" direction (negation of good)
-            ax_proj_3834.scatter(-bg_v1_scaled*0.7, -bg_v2_scaled*0.7, marker='o', c='black', s=60, 
+            # "not-bad feature" marker (black dot) - near "bad" direction (negation of bad)
+            ax_proj_3834.scatter(bg_v1_scaled*0.7, bg_v2_scaled*0.7, marker='o', c='black', s=60, 
                                 edgecolors='white', linewidths=1.5, zorder=16)
     
     if "[BOS] not" in meaningful_dirs_3834:
@@ -371,7 +377,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
         Line2D([0], [0], marker='o', color='w', markerfacecolor='#8B0000', 
                markersize=6, markeredgecolor='black', label='"bad" unembed'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='black', 
-               markersize=6, markeredgecolor='white', label='not-good feature'),
+               markersize=6, markeredgecolor='white', label='not-bad feature'),
     ]
     ax_proj_3834.legend(handles=legend_elements_3834, loc='upper left', fontsize=6)
     
@@ -449,7 +455,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
         ax_Q_751.axhline(y=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
         ax_Q_751.axvline(x=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
     
-    ax_Q_751.set_title("Feature 751 (\"not-bad\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
+    ax_Q_751.set_title("Feature 751 (\"not-good\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
     ax_Q_751.set_xlabel("Input Feature", fontsize=9)
     ax_Q_751.set_ylabel("Input Feature", fontsize=9)
     plt.colorbar(im, ax=ax_Q_751, fraction=0.046, pad=0.04)
@@ -517,8 +523,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
                                 zorder=8)
             ax_proj_751.scatter(-bg_v1_scaled, -bg_v2_scaled, marker='o', c='#2ca02c', s=50, 
                                edgecolors='black', linewidths=1, zorder=15)
-            # "not-bad feature" marker (black dot) - near "bad" direction (negation of bad)
-            ax_proj_751.scatter(bg_v1_scaled*0.7, bg_v2_scaled*0.7, marker='o', c='black', s=60, 
+            # "not-good feature" marker (black dot) - near "good" direction (negation of good)
+            ax_proj_751.scatter(-bg_v1_scaled*0.7, -bg_v2_scaled*0.7, marker='o', c='black', s=60, 
                                edgecolors='white', linewidths=1.5, zorder=16)
     
     if "[BOS] not" in meaningful_dirs_751:
@@ -559,7 +565,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
         Line2D([0], [0], marker='o', color='w', markerfacecolor='#8B0000', 
                markersize=6, markeredgecolor='black', label='"bad" unembed'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='black', 
-               markersize=6, markeredgecolor='white', label='not-bad feature'),
+               markersize=6, markeredgecolor='white', label='not-good feature'),
     ]
     ax_proj_751.legend(handles=legend_elements_751, loc='lower right', fontsize=6)
     
@@ -583,22 +589,25 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path):
     ax_scatter_751.set_ylabel("Rank-2 Prediction", fontsize=9)
     ax_scatter_751.set_title(f"C) Correlation: r = {corr_751:.3f}", fontsize=10, fontweight='bold')
     
-    # Main title
-    fig.suptitle("Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad)", 
-                fontsize=13, fontweight='bold', y=0.98)
+    # Main title (always include dataset name)
+    title = f"Sentiment Negation Circuits: Feature 3834 (not-bad) vs Feature 751 (not-good) [{dataset_label}]"
+    fig.suptitle(title, fontsize=13, fontweight='bold', y=0.98)
     
     plt.tight_layout()
     plt.subplots_adjust(top=0.93, hspace=0.3)
     
-    save_figure(fig, "figure_8_final.pdf", figure_dir)
+    # Output filename includes dataset suffix
+    output_filename = f"figure_8_final{dataset_suffix}.pdf"
+    save_figure(fig, output_filename, figure_dir)
     
-    print(f"\nFinal Figure 8 generated!")
-    print(f"  Row 1: Feature 3834 (not-good), r = {corr_3834:.3f}")
+    print(f"\nFinal Figure 8 generated! ({dataset_label})")
+    print(f"  Output: {output_filename}")
+    print(f"  Row 1: Feature 3834 (not-bad), r = {corr_3834:.3f}")
     print(f"         Clusters: {type_counts_3834['positive']} positive, {type_counts_3834['negative']} negative")
-    print(f"  Row 2: Feature 751 (not-bad), r = {corr_751:.3f}")
+    print(f"  Row 2: Feature 751 (not-good), r = {corr_751:.3f}")
     print(f"         Clusters: {type_counts_751['positive']} positive, {type_counts_751['negative']} negative")
     
-    return True
+    return fig  # Return figure for notebook display
 
 
 def generate_figure_10(results_dir: Path, figure_dir: Path):
@@ -720,8 +729,19 @@ def main():
     
     # === Figure 8: Sentiment Negation Circuit ===
     if generate_all or args.figure8_only:
-        generate_figure_8_final(RESULTS_DIR, FIGURE_DIR)
-        generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR)
+        # TinyStories (primary figure - cleaner semantic clustering)
+        generate_figure_8_final(RESULTS_DIR, FIGURE_DIR, dataset_suffix="", dataset_label="TinyStories")
+        generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR, dataset_suffix="", dataset_label="TinyStories")
+        
+        # FineWeb-16k (for comparison with tutorial) - optional, only if data exists
+        fineweb_3834 = RESULTS_DIR / "figure_8_data_fw_medium_fineweb16k.json"
+        fineweb_751 = RESULTS_DIR / "figure_8_feature751_fineweb16k.json"
+        if fineweb_3834.exists() and fineweb_751.exists():
+            generate_figure_8_final(RESULTS_DIR, FIGURE_DIR, dataset_suffix="_fineweb16k", dataset_label="FineWeb-16k")
+            generate_figure_8_final(RESULTS_DIR, REPORT_FIG_DIR, dataset_suffix="_fineweb16k", dataset_label="FineWeb-16k")
+        else:
+            print("\nNote: FineWeb-16k data not found, skipping comparison figure.")
+            print("  Generate with: ./scripts/train/run_language.sh figure8 generate")
     
     # === Figure 10: SAE Training Time Effect ===
     if generate_all or args.figure10_only:

@@ -22,7 +22,7 @@
 #
 # After full run, results are available at:
 # - checkpoints/vision/**/*.pt (with emissions field)
-# - checkpoints/extension2/*.pt (with emissions field)
+# - checkpoints/extension_cross_dataset/*.pt (with emissions field)
 # - checkpoints/extension_cp/*.pt (with emissions field)
 # - results/language/*.json (with co2_kg field)
 # - results/emissions_summary.json (aggregated)
@@ -60,7 +60,7 @@ while [[ "$#" -gt 0 ]]; do
             SKIP_VISION=true
             shift
             ;;
-        --skip-extension2)
+        --skip-extension_cross_dataset)
             SKIP_EXTENSION2=true
             shift
             ;;
@@ -87,7 +87,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "  --test              Quick validation mode (~15-20 min)"
             echo "  --no-conda          Skip conda activation (for Snellius/HPC)"
             echo "  --skip-vision       Skip vision experiments"
-            echo "  --skip-extension2   Skip extension 2 experiments"
+            echo "  --skip-extension_cross_dataset   Skip extension 2 experiments"
             echo "  --skip-extension-cp Skip extension CP experiments"
             echo "  --skip-language     Skip language experiments"
             echo "  --skip-figures      Skip figure generation"
@@ -170,17 +170,17 @@ if ! $SKIP_EXTENSION2; then
     echo "========================================================================"
     
     if $TEST_MODE; then
-        echo ">>> Running extension 2 in test mode (2 epochs, MNIST only)"
-        ./scripts/train/run_extension2.sh test
+        echo ">>> Running cross-dataset in test mode (2 epochs, MNIST only)"
+        ./scripts/train/run_extension_cross_dataset.sh test
     else
-        echo ">>> Running all extension 2 experiments"
-        ./scripts/train/run_extension2.sh train all
+        echo ">>> Running all cross-dataset experiments"
+        ./scripts/train/run_extension_cross_dataset.sh train all
     fi
     
     echo ">>> Extension 2 experiments complete"
 else
     echo ""
-    echo ">>> Skipping extension 2 experiments (--skip-extension2)"
+    echo ">>> Skipping extension 2 experiments (--skip-extension_cross_dataset)"
 fi
 
 # ============================================================================
@@ -292,8 +292,8 @@ if ! $SKIP_FIGURES; then
     echo ">>> Generating language figures"
     ./scripts/train/run_language.sh figures $CONDA_FLAG
     
-    echo ">>> Generating extension 2 figures"
-    ./scripts/train/run_extension2.sh figures
+    echo ">>> Generating cross-dataset figures"
+    ./scripts/train/run_extension_cross_dataset.sh figures
     
     echo ">>> Generating extension CP figures"
     if [ -f "./scripts/train/run_extension_cp.sh" ]; then
@@ -332,7 +332,7 @@ echo "End time: $(date)"
 echo ""
 echo "Results:"
 echo "  - Vision checkpoints: checkpoints/vision/**/*.pt"
-echo "  - Extension 2 checkpoints: checkpoints/extension2/*.pt"
+echo "  - Extension 2 checkpoints: checkpoints/extension_cross_dataset/*.pt"
 echo "  - Extension CP checkpoints: checkpoints/extension_cp/*.pt"
 echo "  - Language results: results/language/*.json"
 echo "  - Emissions summary: results/emissions_summary.json"

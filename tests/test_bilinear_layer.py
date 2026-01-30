@@ -168,10 +168,11 @@ class TestBilinearCP:
         assert layer.lambdas.grad is not None
 
     def test_mathematical_correctness(self):
-        """Forward pass should match explicit tensor construction."""
+        """Forward pass should match explicit tensor construction (fixed mode)."""
         torch.manual_seed(42)
         d_in, d_out, rank = 8, 4, 2
-        layer = BilinearCP(d_in=d_in, d_out=d_out, rank=rank)
+        # Use "fixed" mode for simple formula without normalization/thresholding
+        layer = BilinearCP(d_in=d_in, d_out=d_out, rank=rank, cp_init_mode="fixed")
 
         x = torch.randn(3, d_in)
 
