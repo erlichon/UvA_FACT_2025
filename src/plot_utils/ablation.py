@@ -155,8 +155,8 @@ def plot_accuracy_vs_effective_rank(
     ax.set_ylabel("Test Accuracy (%)")
     ax.set_title(title)
     
-    # Position legend in bottom left, avoiding the annotation arrow
-    ax.legend(title="Configuration", loc="lower left", bbox_to_anchor=(0.0, 0.0), framealpha=0.9)
+    # Position legend in lower right
+    ax.legend(title="Configuration", loc="lower right", framealpha=0.9)
 
     # Add direction annotation in a non-overlapping position (upper right area pointing left)
     if annotate:

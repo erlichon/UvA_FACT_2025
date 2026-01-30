@@ -473,3 +473,174 @@ def compare_modes_for_rank(
         print(f"Saved: {save_path}")
     
     return fig
+
+
+def plot_cp_accuracy_vs_rank(
+    cp_df,
+    baseline_df=None,
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP accuracy vs rank.
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, accuracy, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        # Aggregate CP results by rank
+        cp_agg = cp_df.groupby('rank').agg({
+            'accuracy': ['mean', 'std'],
+        }).reset_index()
+        cp_agg.columns = ['rank', 'acc_mean', 'acc_std']
+        
+        ax.errorbar(cp_agg['rank'], cp_agg['acc_mean'] * 100, 
+                    yerr=cp_agg['acc_std'] * 100,
+                    fmt='o-', label='CP', markersize=10, linewidth=2, capsize=5)
+    
+    # Add dense baselines as horizontal lines
+    if baseline_df is not None and len(baseline_df) > 0:
+        mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+        for mode in ['none', 'full']:
+            subset = baseline_df[baseline_df[mode_col].str.contains(mode, case=False)]
+            if len(subset) > 0:
+                mean_acc = subset['accuracy'].mean() * 100
+                ax.axhline(y=mean_acc, linestyle='--', alpha=0.7, 
+                          label=f'Dense ({mode}): {mean_acc:.1f}%')
+    
+    ax.set_xlabel('CP Rank', fontsize=12)
+    ax.set_ylabel('Accuracy (%)', fontsize=12)
+    ax.set_title('CP Accuracy vs Rank', fontsize=14, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_xscale('log', base=2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig
+
+
+def plot_cp_effective_rank_vs_cp_rank(
+    cp_df,
+    figsize: Tuple[int, int] = (10, 6),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP effective rank vs CP rank.
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, effective_rank)
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        cp_agg = cp_df.groupby('rank').agg({
+            'effective_rank': ['mean', 'std'],
+        }).reset_index()
+        cp_agg.columns = ['rank', 'eff_mean', 'eff_std']
+        
+        ax.errorbar(cp_agg['rank'], cp_agg['eff_mean'],
+                    yerr=cp_agg['eff_std'],
+                    fmt='s-', label='CP effective rank', markersize=10, linewidth=2, capsize=5)
+        
+        # Ideal line: effective_rank = cp_rank
+        max_rank = cp_agg['rank'].max()
+        ax.plot([8, max_rank], [8, max_rank], 'k--', alpha=0.5, linewidth=2, 
+                label='Ideal (eff_rank = cp_rank)')
+    
+    ax.set_xlabel('CP Rank', fontsize=12)
+    ax.set_ylabel('Effective Rank', fontsize=12)
+    ax.set_title('Effective Rank vs CP Rank', fontsize=14, fontweight='bold')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_xscale('log', base=2)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig
+
+
+def plot_cp_pareto_frontier(
+    cp_df,
+    baseline_df=None,
+    ranks=None,
+    figsize: Tuple[int, int] = (10, 8),
+    save_path: Optional[Path] = None,
+) -> plt.Figure:
+    """
+    Plot CP accuracy vs effective rank (Pareto frontier).
+    
+    Args:
+        cp_df: DataFrame with CP results (columns: rank, accuracy, effective_rank)
+        baseline_df: Optional DataFrame with dense baseline results
+        ranks: List of ranks to include (default: all)
+        figsize: Figure size
+        save_path: Optional path to save figure
+        
+    Returns:
+        matplotlib Figure object
+    """
+    set_publication_style()
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    if len(cp_df) > 0:
+        if ranks is None:
+            ranks = sorted(cp_df['rank'].unique())
+        
+        colors = plt.cm.viridis(np.linspace(0, 1, len(ranks)))
+        for i, rank in enumerate(ranks):
+            subset = cp_df[cp_df['rank'] == rank]
+            if len(subset) > 0:
+                ax.scatter(subset['effective_rank'], subset['accuracy'] * 100,
+                           c=[colors[i]], s=80, alpha=0.6, label=f'CP R={rank}', 
+                           edgecolors='black', linewidth=0.5)
+    
+    # Dense baselines
+    if baseline_df is not None and len(baseline_df) > 0:
+        mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
+        for mode, marker in [('none', '^'), ('full', 'v')]:
+            subset = baseline_df[baseline_df[mode_col].str.contains(mode, case=False)]
+            if len(subset) > 0:
+                ax.scatter(subset['effective_rank'], subset['accuracy'] * 100,
+                          marker=marker, s=150, c='red', edgecolors='black',
+                          linewidth=1, label=f'Dense ({mode})', zorder=5)
+    
+    ax.set_xlabel('Effective Rank', fontsize=12)
+    ax.set_ylabel('Accuracy (%)', fontsize=12)
+    ax.set_title('Accuracy vs Interpretability (Pareto Frontier)', fontsize=14, fontweight='bold')
+    ax.legend(loc='best', fontsize=8, ncol=2)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    
+    return fig
