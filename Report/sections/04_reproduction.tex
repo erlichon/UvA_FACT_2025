@@ -97,12 +97,12 @@ Figure~\ref{fig:negation_circuit} shows this for negation features in fw-medium:
 Red blocks indicate positive interactions (features that co-activate $f$), blue indicates negative.
 \textbf{(B) Eigenvector projections}: Input features projected onto top eigenvectors.
 Neg./Pos.\ sentiment features cluster separately; arrows show ``good''/``bad'' unembed directions and ``not'' input direction.
-The black dot marks where the output feature lies---at the intersection of negation and sentiment.
+The black dot marks where the output feature lies-at the intersection of negation and sentiment.
 This reveals the AND-gate circuit: \emph{negation $\otimes$ sentiment $\to$ negated-sentiment}.
 
 \textbf{Feature selection and interpretation:}
-Following the tutorial methodology, we select output features by ranking all 8,192 features by their top eigenvalue magnitude---a heuristic for identifying features with strong interaction structure.
-Features 3834 and 751 emerge as the top two, with weakly negative cosine similarity ($-0.16$) between their SAE decoder directions---what the tutorial calls a ``somewhat linear subspace.''
+Following the tutorial methodology, we select output features by ranking all 8,192 features by their top eigenvalue magnitude-a heuristic for identifying features with strong interaction structure.
+Features 3834 and 751 emerge as the top two, with weakly negative cosine similarity ($-0.16$) between their SAE decoder directions-what the tutorial calls a ``somewhat linear subspace.''
 Semantic interpretation comes from inspecting top-activating tokens: feature 3834 fires on negated positive contexts (``no losses'', ``not lost''), while feature 751 fires on negated negative contexts (``not harmless'', ``doesn't go away'').
 These are \emph{semantic} opposites (not-good vs.\ not-bad), though not geometrically opposing ($-0.16$ is closer to orthogonal than anti-parallel).
 As additional validation, we test the circuit on FineWeb-16k (the model's training distribution): correlations remain strong (0.91/0.82 vs.\ 0.93/0.83 on TinyStories), demonstrating robustness to distribution shift (Appendix~\ref{app:figure8_investigation}).
@@ -111,7 +111,7 @@ As additional validation, we test the circuit on FineWeb-16k (the model's traini
     \includegraphics[width=0.78\linewidth]{figures/language/figure_8_final.pdf}
     \caption{Negation circuit discovery (fw-medium, layer 7, TinyStories evaluation).
     Top: feature 3834 (``not-good'', $r=0.93$); bottom: feature 751 (``not-bad'', $r=0.83$).
-    (A) Interaction submatrix $Q_f$ shows block structure---positive/negative sentiment features interact oppositely.
+    (A) Interaction submatrix $Q_f$ shows block structure-positive/negative sentiment features interact oppositely.
     (B) Eigenvector projections reveal clustering: sentiment features separate along the ``good''$\leftrightarrow$``bad'' axis.}
     \label{fig:negation_circuit}
 \end{figure}
@@ -155,6 +155,6 @@ Since more training tokens corresponds to longer training time, this parallels F
 Figure~\ref{fig:correlation_analysis}(c) visually confirms this: only $\sim$3 of 9 randomly sampled features show strong true-vs-predicted correlation.
 
 \textbf{SAE artifact limitation:} The paper uses 4x expansion SAEs for all models.
-However, for fw-medium at 2/3 depth (layer 10--11), only 8x expansion SAEs are publicly available---4x is only available at layers 6 and 12.
+However, for fw-medium at 2/3 depth (layer 10--11), only 8x expansion SAEs are publicly available-4x is only available at layers 6 and 12.
 With 8x expansion (8192 total features, of which 5688 are active), more sparse/specialized features exist, potentially lowering average correlation.
 This artifact gap prevents exact reproduction of the paper's fw-medium configuration.

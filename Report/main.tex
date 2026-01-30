@@ -75,13 +75,13 @@ Mechanistic interpretability typically relies on post-hoc analysis of model acti
 We reproduce both main experiments from Pearce et al.\ (2024): Section 4 (Vision) on MNIST/Fashion-MNIST, and Section 5 (Language) discovering sentiment negation circuits via Sparse Autoencoder analysis.
 In vision, we fully reproduce the core findings: weight decay reduces effective rank from 38.5 to 15.5, confirming that regularization induces interpretable low-rank structure, while eigenvectors under noise augmentation show recognizable digit patterns.
 Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank while noise primarily improves accuracy.
-In language, we confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' emerge as semantic opposites (cosine similarity $-0.16$).
+In language, we confirm negation circuit discovery-SAE features encoding ``not + positive'' and ``not + negative'' emerge as semantic opposites (cosine similarity $-0.16$).
 However, we do \emph{not} fully reproduce the low-rank interaction claim: the fraction of features achieving $>$0.75 correlation varies from 32\% (ts-medium) to 65\% (fw-small).
 We interpret ``most features'' as a median threshold ($>$50\%): fw-small (65\%) reproduces the claim, while ts-medium (32\%) and fw-medium (45\%) fall short.
 We trace this discrepancy to both SAE training time and model training compute (tokens/parameter): comparing five SAE versions, correlation improves 2.5$\times$ with longer training, while models with higher tokens/param show better low-rank behavior.
 Additionally, the paper's 4x expansion SAEs are unavailable at the specified layer for fw-medium, requiring use of 8x expansion (more sparse features).
 The bilinear decomposition methodology is sound; low-rank approximation quality depends on both SAE and model convergence.
-In our extensions, we demonstrate that regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy, for which we propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
+In our extensions, we demonstrate that regularized bilinear MLPs learn transferable geometric circuits-MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy, for which we propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
 Finally, we explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5, while gaining significant efficiency (30 times faster training).
 \end{abstract}
 

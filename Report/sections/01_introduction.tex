@@ -9,7 +9,7 @@ The dominant approach trains Sparse Autoencoders (SAEs) post-hoc on model activa
 While effective, this approach incurs substantial computational overhead and yields features that may not faithfully represent the original model's learned representations.
 
 \citet{pearce2024bilinear} propose an alternative paradigm: \emph{intrinsic} interpretability through architectural design.
-Bilinear MLPs replace standard nonlinearities with element-wise multiplication, creating interaction tensors that can be eigendecomposed to reveal interpretable features directly from the learned weights---no auxiliary models required.
+Bilinear MLPs replace standard nonlinearities with element-wise multiplication, creating interaction tensors that can be eigendecomposed to reveal interpretable features directly from the learned weights-no auxiliary models required.
 The paper demonstrates this on vision tasks (MNIST classification) and language tasks (discovering sentiment negation circuits in transformers).
 
 This work contributes to \textbf{FACT-AI Transparency}~\citep{fact_manual}.
@@ -25,7 +25,7 @@ We reproduce both main experimental sections of \citet{pearce2024bilinear}:
     
     \item \textbf{Language Reproduction (Section~\ref{sec:language_results}):} Partially reproduced. We confirm AND-gate negation circuits with semantic opposites (not-good vs.\ not-bad), but the fraction of features achieving high ($>$0.75) rank-2 correlation varies by model (32\%--65\%).
     Interpreting ``most features'' as a median threshold ($>$50\%), fw-small (65\%) reproduces the claim while ts-medium (32\%) and fw-medium (45\%) fall short.
-    We trace this to SAE training duration---comparing five checkpoints, correlation improves 2.5$\times$ (0.15 $\to$ 0.39) with longer training.
+    We trace this to SAE training duration-comparing five checkpoints, correlation improves 2.5$\times$ (0.15 $\to$ 0.39) with longer training.
     
     \item \textbf{Extension 1 (Section~\ref{sec:cross_dataset_robustness}):} We demonstrate that regularized bilinear MLPs learn transferable geometric circuits across MNIST, EMNIST, and USPS. We propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
     

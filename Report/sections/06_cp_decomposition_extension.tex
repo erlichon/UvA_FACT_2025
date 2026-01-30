@@ -16,7 +16,7 @@ CP-decomposition parameterizes the interaction tensor directly as a sum of rank-
 where $R$ is the maximum rank and $\lambda_r$ are learnable scaling factors~\citep{veeramacheneni2022canonical}.
 This does not enforce orthogonality, enabling disentangled representations where factors naturally overlap.
 We investigate three variants:
-\textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
+\textbf{Fixed CP:} Hard rank constraint with no additional regularization-strict complexity bound.
 \textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
 \textbf{Gated CP:} Soft gates with L0 proxy for explicit rank pruning~\citep{cao2024learning}.
 All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{32, 64, 128, 256\}$.
@@ -25,12 +25,12 @@ All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{3
 
 Figure~\ref{fig:cp_tradeoff} and Table~\ref{tab:cp_sweep} (Appendix~\ref{app:cp_results}) present the Pareto frontier; Table~\ref{tab:app_cp_sweep} (Appendix~\ref{app:cp_full}) provides the complete rank sweep.
 Fixed CP operates as a strict bottleneck with eff.\ rank $\sim$3.5 regardless of allocated capacity, at $\sim$6\% accuracy cost (91.9\% vs.\ 97.5\%).
-Lambda/Gated CP at $R=256$ achieve 93.8\% accuracy with eff.\ rank 17.5---comparable to dense models with weight decay (eff.\ rank 15.5) while providing structural disentanglement.
+Lambda/Gated CP at $R=256$ achieve 93.8\% accuracy with eff.\ rank 17.5-comparable to dense models with weight decay (eff.\ rank 15.5) while providing structural disentanglement.
 
 \subsection{Qualitative Analysis: Disentangled Factors}
 
 Figure~\ref{fig:cp_comparison} (Appendix~\ref{app:cp_full}) compares eigenvectors from Dense vs.\ CP models.
-Dense eigenvectors resemble superimposed digit templates---entangled representations combining strokes for orthogonality.
+Dense eigenvectors resemble superimposed digit templates-entangled representations combining strokes for orthogonality.
 CP factors appear more \textbf{atomic} and \textbf{localized}: top loops, vertical strokes, bottom curves that can be linearly combined.
 This aligns with ``parts-based'' representations sought in interpretability.
 
