@@ -79,17 +79,19 @@ The input clusters have clear semantic content based on token analysis:
 
 \textbf{Positive cluster} (3 features: 5212, 7655, 253):
 \begin{itemize}
-    \item Tokens: ``wonderful'', ``excellent'', ``fortunate'', ``beautiful'', ``amazing''
-    \item Semantics: Positive sentiment/quality descriptors
+    \item Feature 5212: ``grateful'', ``opportunity'', ``Luckily'', ``thanks''
+    \item Feature 7655: ``beauty'', ``lovely'', ``amazing'', ``enjoy'', ``fun''
+    \item Feature 253: ``couldn't help'' (compulsion/emotion contexts)
+    \item Semantics: Positive sentiment/gratitude/appreciation
 \end{itemize}
 
-\textbf{Negative cluster} (12 features):
+\textbf{Negative cluster} (5 features: 5201, 3601, 6051, 6921, 1003):
 \begin{itemize}
-    \item Feature 5201: ``horrible'', ``bad'', ``terrible''
-    \item Feature 3601: ``problems'', ``illness'', ``disease''
-    \item Feature 6051: ``excessive'', ``unfair'', ``wrong''
-    \item Feature 6921: ``no'', ``minimal'', ``neither''
-    \item Feature 1003: ``reduce'', ``prevent'', ``eliminate''
+    \item Feature 5201: ``unfortunate'', ``bad''
+    \item Feature 3601: ``problems'', ``disease''
+    \item Feature 6051: ``overly'', ``too narrow''
+    \item Feature 6921: ``no need''
+    \item Feature 1003: ``reducing'', ``stopping'', ``stop''
 \end{itemize}
 
 \textbf{Circuit function:} Feature 751 detects contexts where negative concepts appear \emph{without} positive modulation.
