@@ -72,7 +72,7 @@
 \begin{abstract}
 Mechanistic interpretability typically relies on post-hoc analysis of model activations, but bilinear MLPs offer an alternative: architectures whose weights are directly interpretable through eigendecomposition of interaction tensors.
 We reproduce both main experiments from Pearce et al.\ (2024): Section 4 (Vision) on MNIST/Fashion-MNIST, and Section 5 (Language) discovering sentiment negation circuits via Sparse Autoencoder analysis.
-In vision, we fully reproduce the core findings: weight decay reduces effective rank from 38.5 to 21.4, confirming that regularization induces interpretable low-rank structure, while eigenvectors under noise augmentation show recognizable digit patterns.
+In vision, we fully reproduce the core findings: weight decay reduces effective rank from 38.5 to 15.5, confirming that regularization induces interpretable low-rank structure, while eigenvectors under noise augmentation show recognizable digit patterns.
 Our ablation disentangles noise and weight decay, finding that weight decay alone achieves the lowest rank while noise primarily improves accuracy.
 In language, we confirm negation circuit discovery---SAE features encoding ``not + positive'' and ``not + negative'' emerge as semantic opposites (cosine similarity $-0.16$).
 However, we do \emph{not} fully reproduce the low-rank interaction claim: the fraction of features achieving $>$0.75 correlation varies from 32\% (ts-medium) to 65\% (fw-small), with fw-small approaching the paper's ``most features'' claim while ts-medium falls short.
