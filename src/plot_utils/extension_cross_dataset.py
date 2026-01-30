@@ -960,3 +960,352 @@ def plot_eigenvector_embedding(
         print(f"Saved: {save_path}")
     
     return fig
+
+
+# =============================================================================
+# FULL HEATMAP PLOTTING FUNCTIONS (10x26 and 10x10 matrices)
+# =============================================================================
+
+
+def plot_abs_cosine_similarity_heatmap_full(
+    mnist_vecs: Float[Tensor, "n_classes n_components d_input"],
+    mnist_vals: Float[Tensor, "n_classes n_components"],
+    letters_vecs: Float[Tensor, "n_classes n_components d_input"],
+    letters_vals: Float[Tensor, "n_classes n_components"],
+    k: int = 20,
+    figsize: Tuple[float, float] = (14, 6),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot full 10x26 absolute cosine similarity heatmap (MNIST digits vs EMNIST letters).
+    
+    Args:
+        mnist_vecs: MNIST eigenvectors [10, n_components, 784]
+        mnist_vals: MNIST eigenvalues [10, n_components]
+        letters_vecs: EMNIST letters eigenvectors [26, n_components, 784]
+        letters_vals: EMNIST letters eigenvalues [26, n_components]
+        k: Number of top eigenvectors to compare
+        figsize: Figure size
+        save_path: If provided, save figure to this path
+    
+    Returns:
+        matplotlib Figure object
+    """
+    # Helper functions
+    def get_sorted_eigenvectors(vals, vecs, class_idx, k_local):
+        class_vals = vals[class_idx].cpu()
+        class_vecs = vecs[class_idx].cpu()
+        _, sorted_idx = class_vals.abs().sort(descending=True)
+        return class_vecs[sorted_idx[:k_local]]
+    
+    def abs_cosine_similarity(vecs_A, vecs_B):
+        vecs_A_norm = vecs_A / (vecs_A.norm(dim=1, keepdim=True) + 1e-10)
+        vecs_B_norm = vecs_B / (vecs_B.norm(dim=1, keepdim=True) + 1e-10)
+        return (vecs_A_norm @ vecs_B_norm.T).abs()
+    
+    def compute_mean_abs_cosine(vecs_A, vecs_B):
+        sim_matrix = abs_cosine_similarity(vecs_A, vecs_B)
+        return sim_matrix.max(dim=1)[0].mean().item()
+    
+    # Compute 10x26 similarity matrix
+    matrix = np.zeros((10, 26))
+    for digit in range(10):
+        d_vecs = get_sorted_eigenvectors(mnist_vals, mnist_vecs, digit, k)
+        for letter in range(26):
+            l_vecs = get_sorted_eigenvectors(letters_vals, letters_vecs, letter, k)
+            matrix[digit, letter] = compute_mean_abs_cosine(d_vecs, l_vecs)
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    letter_labels = [chr(65 + i) for i in range(26)]
+    vmin, vmax = 0.2, 0.6
+    im = ax.imshow(matrix, cmap="RdBu_r", aspect="auto", vmin=vmin, vmax=vmax)
+    
+    # Add text annotations
+    mid_val = (vmin + vmax) / 2
+    for digit in range(10):
+        for letter in range(26):
+            color = "white" if matrix[digit, letter] > mid_val + 0.05 else "black"
+            ax.text(letter, digit, f"{matrix[digit, letter]:.2f}",
+                   ha="center", va="center", fontsize=6, color=color)
+    
+    ax.set_xticks(range(26))
+    ax.set_xticklabels(letter_labels, fontsize=10)
+    ax.set_yticks(range(10))
+    ax.set_yticklabels(range(10), fontsize=10)
+    ax.set_xlabel("EMNIST Letter", fontsize=12, fontweight="bold")
+    ax.set_ylabel("MNIST Digit", fontsize=12, fontweight="bold")
+    ax.set_title(f"Absolute Cosine Similarity (k={k})", fontsize=14, fontweight="bold")
+    
+    # Mark expected similar pairs with blue boxes
+    expected_pairs = [(0, 14), (1, 8), (2, 25), (5, 18)]
+    for digit_idx, letter_idx in expected_pairs:
+        rect = plt.Rectangle((letter_idx - 0.5, digit_idx - 0.5), 1, 1,
+                             fill=False, edgecolor="blue", linewidth=3)
+        ax.add_patch(rect)
+    
+    plt.colorbar(im, ax=ax, label="Absolute Cosine Similarity")
+    plt.tight_layout()
+    
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def plot_quadratic_form_heatmap_full(
+    mnist_vecs: Float[Tensor, "n_classes n_components d_input"],
+    mnist_vals: Float[Tensor, "n_classes n_components"],
+    target_vecs: Float[Tensor, "n_classes n_components d_input"],
+    target_vals: Float[Tensor, "n_classes n_components"],
+    k: int = 20,
+    target_type: str = "letters",
+    figsize: Optional[Tuple[float, float]] = None,
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot quadratic form similarity heatmap (MNIST vs EMNIST letters or digits).
+    
+    Args:
+        mnist_vecs: MNIST eigenvectors [10, n_components, 784]
+        mnist_vals: MNIST eigenvalues [10, n_components]
+        target_vecs: Target eigenvectors (letters: [26, ...] or digits: [10, ...])
+        target_vals: Target eigenvalues
+        k: Number of top eigenvectors to compare
+        target_type: "letters" (10x26) or "digits" (10x10)
+        figsize: Figure size (auto-selected if None)
+        save_path: If provided, save figure to this path
+    
+    Returns:
+        matplotlib Figure object
+    """
+    from src.vision.subspace import compute_weighted_similarity
+    
+    n_target = target_vecs.shape[0]
+    is_letters = target_type == "letters"
+    
+    if figsize is None:
+        figsize = (14, 6) if is_letters else (10, 8)
+    
+    # Compute similarity matrix
+    matrix = np.zeros((10, n_target))
+    for digit in range(10):
+        for target in range(n_target):
+            matrix[digit, target] = compute_weighted_similarity(
+                mnist_vecs[digit].cpu(),
+                target_vecs[target].cpu(),
+                mnist_vals[digit].cpu(),
+                target_vals[target].cpu(),
+                k=k,
+                method='quadratic_form',
+            )
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    vmin, vmax = -0.2, 0.4
+    im = ax.imshow(matrix, cmap='RdBu_r', aspect='auto', vmin=vmin, vmax=vmax)
+    
+    # Add text annotations
+    mid_val = (vmin + vmax) / 2
+    fontsize = 6 if is_letters else 9
+    for i in range(10):
+        for j in range(n_target):
+            color = 'white' if matrix[i, j] > mid_val + 0.1 else 'black'
+            weight = 'normal' if is_letters else 'bold'
+            ax.text(j, i, f'{matrix[i, j]:.2f}',
+                   ha='center', va='center', fontsize=fontsize, color=color, weight=weight)
+    
+    # Set labels
+    if is_letters:
+        labels = [chr(65 + i) for i in range(26)]
+        xlabel = 'EMNIST Letter'
+        title = f'Quadratic Form Similarity: MNIST ↔ EMNIST-Letters (k={k})'
+        expected_pairs = [(0, 14), (1, 8), (2, 25), (5, 18)]
+    else:
+        labels = list(range(10))
+        xlabel = 'EMNIST Digit'
+        title = f'Quadratic Form Similarity: MNIST ↔ EMNIST-Digits (k={k})'
+        expected_pairs = [(i, i) for i in range(10)]  # Diagonal
+    
+    ax.set_xticks(range(n_target))
+    ax.set_xticklabels(labels, fontsize=10 if is_letters else 11)
+    ax.set_yticks(range(10))
+    ax.set_yticklabels(range(10), fontsize=10 if is_letters else 11)
+    ax.set_xlabel(xlabel, fontsize=12 if is_letters else 13, fontweight='bold')
+    ax.set_ylabel('MNIST Digit', fontsize=12 if is_letters else 13, fontweight='bold')
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    
+    # Mark expected pairs with blue boxes
+    for digit_idx, target_idx in expected_pairs:
+        rect = plt.Rectangle((target_idx - 0.5, digit_idx - 0.5), 1, 1,
+                             fill=False, edgecolor='blue', linewidth=2.5 if not is_letters else 3)
+        ax.add_patch(rect)
+    
+    plt.colorbar(im, ax=ax, label='Quadratic Form Similarity')
+    plt.tight_layout()
+    
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def plot_similarity_vs_k(
+    mnist_vecs: Float[Tensor, "n_classes n_components d_input"],
+    mnist_vals: Float[Tensor, "n_classes n_components"],
+    letters_vecs: Float[Tensor, "n_classes n_components d_input"],
+    letters_vals: Float[Tensor, "n_classes n_components"],
+    method: str = 'quadratic_form',
+    k_max: int = 100,
+    figsize: Tuple[float, float] = (10, 6),
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot similarity vs number of eigenvectors (k) for similar and dissimilar pairs.
+    
+    Args:
+        mnist_vecs: MNIST eigenvectors [10, n_components, 784]
+        mnist_vals: MNIST eigenvalues [10, n_components]
+        letters_vecs: EMNIST letters eigenvectors [26, n_components, 784]
+        letters_vals: EMNIST letters eigenvalues [26, n_components]
+        method: Similarity method ('quadratic_form' or 'eigenvalue_weighted')
+        k_max: Maximum k value
+        figsize: Figure size
+        save_path: If provided, save figure to this path
+    
+    Returns:
+        matplotlib Figure object
+    """
+    from src.vision.subspace import compute_weighted_similarity
+    
+    k_values = list(range(2, k_max + 1))
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Expected similar pairs
+    similar_pairs = [(0, 14, "0-O"), (1, 8, "1-I"), (2, 25, "2-Z"), (5, 18, "5-S")]
+    for idx, (digit_idx, letter_idx, label) in enumerate(similar_pairs):
+        overlaps = []
+        for k in k_values:
+            overlap = compute_weighted_similarity(
+                mnist_vecs[digit_idx].cpu(),
+                letters_vecs[letter_idx].cpu(),
+                mnist_vals[digit_idx].cpu(),
+                letters_vals[letter_idx].cpu(),
+                k=k,
+                method=method,
+            )
+            overlaps.append(overlap)
+        ax.plot(k_values, overlaps, label=f'{label} (similar)', color=colors[idx], linewidth=2)
+    
+    # Control pairs (dissimilar)
+    control_pairs = [(0, 23), (1, 22), (3, 7), (7, 14)]
+    control_overlaps_by_k = {k: [] for k in k_values}
+    for d_idx, l_idx in control_pairs:
+        for k in k_values:
+            overlap = compute_weighted_similarity(
+                mnist_vecs[d_idx].cpu(),
+                letters_vecs[l_idx].cpu(),
+                mnist_vals[d_idx].cpu(),
+                letters_vals[l_idx].cpu(),
+                k=k,
+                method=method,
+            )
+            control_overlaps_by_k[k].append(overlap)
+    
+    control_means = [np.mean(control_overlaps_by_k[k]) for k in k_values]
+    control_stds = [np.std(control_overlaps_by_k[k]) for k in k_values]
+    
+    ax.plot(k_values, control_means, 'k--', label='Dissimilar (0-X, 1-W, ...)', linewidth=1.5, alpha=0.7)
+    ax.fill_between(k_values,
+                    np.array(control_means) - np.array(control_stds),
+                    np.array(control_means) + np.array(control_stds),
+                    color='gray', alpha=0.2)
+    
+    method_label = 'Quadratic Form' if method == 'quadratic_form' else 'Eigenvalue-Weighted'
+    ax.set_xlabel('k (number of eigenvectors)', fontsize=12)
+    ax.set_ylabel(f'{method_label} Similarity', fontsize=12)
+    ax.set_title(f'{method_label} Similarity vs Number of Eigenvectors', fontsize=14)
+    ax.legend(loc='best')
+    ax.set_xlim(0, k_max)
+    ylim = (-0.5, 1) if method == 'quadratic_form' else (0, 1)
+    ax.set_ylim(ylim)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path:
+        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(save_path, bbox_inches='tight')
+        print(f"Saved: {save_path}")
+    
+    return fig
+
+
+def plot_3way_eigenvector_comparison(
+    mnist_vecs: Float[Tensor, "n_classes n_components d_input"],
+    mnist_vals: Float[Tensor, "n_classes n_components"],
+    letters_vecs: Float[Tensor, "n_classes n_components d_input"],
+    letters_vals: Float[Tensor, "n_classes n_components"],
+    digit_class: int = 0,
+    letter_similar_idx: int = 14,  # O
+    letter_dissimilar_idx: int = 23,  # X
+    n_top: int = 5,
+    save_path: Optional[str] = None,
+) -> plt.Figure:
+    """
+    Plot 3-way eigenvector comparison: MNIST digit vs similar letter vs dissimilar letter.
+    
+    Args:
+        mnist_vecs: MNIST eigenvectors [10, n_components, 784]
+        mnist_vals: MNIST eigenvalues [10, n_components]
+        letters_vecs: EMNIST letters eigenvectors [26, n_components, 784]
+        letters_vals: EMNIST letters eigenvalues [26, n_components]
+        digit_class: MNIST digit class index (default: 0)
+        letter_similar_idx: Similar letter index (default: 14 for 'O')
+        letter_dissimilar_idx: Dissimilar letter index (default: 23 for 'X')
+        n_top: Number of top eigenvectors to show
+        save_path: If provided, save figure to this path
+    
+    Returns:
+        matplotlib Figure object
+    """
+    from src.plot_utils.eigenvectors import plot_eigenvectors_grid
+    
+    # Stack eigenvectors and eigenvalues
+    combined_vecs = torch.stack([
+        mnist_vecs[digit_class].cpu(),
+        letters_vecs[letter_similar_idx].cpu(),
+        letters_vecs[letter_dissimilar_idx].cpu(),
+    ])
+    
+    combined_vals = torch.stack([
+        mnist_vals[digit_class].cpu(),
+        letters_vals[letter_similar_idx].cpu(),
+        letters_vals[letter_dissimilar_idx].cpu(),
+    ])
+    
+    # Get letter labels
+    digit_label = str(digit_class)
+    similar_letter = chr(65 + letter_similar_idx)
+    dissimilar_letter = chr(65 + letter_dissimilar_idx)
+    
+    fig = plot_eigenvectors_grid(
+        combined_vecs,
+        combined_vals,
+        n_top=n_top,
+        title=f"Eigenvector Comparison: Digit '{digit_label}' vs Letters '{similar_letter}' and '{dissimilar_letter}'",
+        show_both_signs=True,
+        classes=[0, 1, 2],
+        class_names=[f"MNIST Digit '{digit_label}'", f"EMNIST Letter '{similar_letter}'", f"EMNIST Letter '{dissimilar_letter}'"],
+        save_path=save_path,
+    )
+    
+    return fig

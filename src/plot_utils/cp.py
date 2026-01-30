@@ -589,11 +589,13 @@ def plot_cp_pareto_frontier(
     cp_df,
     baseline_df=None,
     ranks=None,
-    figsize: Tuple[int, int] = (10, 8),
+    figsize: Tuple[int, int] = (8, 6),
     save_path: Optional[Path] = None,
 ) -> plt.Figure:
     """
     Plot CP accuracy vs effective rank (Pareto frontier).
+    
+    Matches the style of cp_rank_accuracy_tradeoff.pdf from generate_extension_cp_figures.py.
     
     Args:
         cp_df: DataFrame with CP results (columns: rank, accuracy, effective_rank)
@@ -612,28 +614,92 @@ def plot_cp_pareto_frontier(
         if ranks is None:
             ranks = sorted(cp_df['rank'].unique())
         
-        colors = plt.cm.viridis(np.linspace(0, 1, len(ranks)))
-        for i, rank in enumerate(ranks):
-            subset = cp_df[cp_df['rank'] == rank]
-            if len(subset) > 0:
-                ax.scatter(subset['effective_rank'], subset['accuracy'] * 100,
-                           c=[colors[i]], s=80, alpha=0.6, label=f'CP R={rank}', 
-                           edgecolors='black', linewidth=0.5)
+        # Group by rank and compute mean/std
+        rank_stats = cp_df.groupby('rank').agg({
+            'accuracy': ['mean', 'std'],
+            'effective_rank': ['mean', 'std'],
+        }).reset_index()
+        rank_stats.columns = ['rank', 'acc_mean', 'acc_std', 'eff_rank_mean', 'eff_rank_std']
+        
+        # Plot CP models with color by log(rank)
+        scatter = ax.scatter(
+            rank_stats['eff_rank_mean'], 
+            rank_stats['acc_mean'] * 100,
+            c=np.log2(rank_stats['rank']),
+            cmap='viridis',
+            s=150,
+            edgecolors='black',
+            linewidths=1.5,
+            zorder=3,
+            label='CP Models'
+        )
+        
+        # Add error bars
+        ax.errorbar(
+            rank_stats['eff_rank_mean'],
+            rank_stats['acc_mean'] * 100,
+            xerr=rank_stats['eff_rank_std'],
+            yerr=rank_stats['acc_std'] * 100,
+            fmt='none',
+            color='gray',
+            alpha=0.5,
+            capsize=3,
+            zorder=2,
+        )
+        
+        # Add rank labels
+        for _, row in rank_stats.iterrows():
+            ax.annotate(
+                f"R={int(row['rank'])}",
+                (row['eff_rank_mean'], row['acc_mean'] * 100),
+                textcoords="offset points",
+                xytext=(5, 5),
+                fontsize=9,
+            )
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter, ax=ax, label='log₂(CP Rank)')
     
-    # Dense baselines
+    # Dense baselines (all 4 configs)
     if baseline_df is not None and len(baseline_df) > 0:
         mode_col = 'mode' if 'mode' in baseline_df.columns else 'config'
-        for mode, marker in [('none', '^'), ('full', 'v')]:
-            subset = baseline_df[baseline_df[mode_col].str.contains(mode, case=False)]
-            if len(subset) > 0:
-                ax.scatter(subset['effective_rank'], subset['accuracy'] * 100,
-                          marker=marker, s=150, c='red', edgecolors='black',
-                          linewidth=1, label=f'Dense ({mode})', zorder=5)
+        markers = {'none': 's', 'noise': '^', 'wd': 'v', 'full': 'D'}
+        labels = {
+            'none': 'Dense (no reg)',
+            'noise': 'Dense (noise)',
+            'wd': 'Dense (WD)',
+            'full': 'Dense (full reg)',
+        }
+        
+        # Group by config and compute mean
+        dense_stats = baseline_df.groupby(mode_col).agg({
+            'accuracy': 'mean',
+            'effective_rank': 'mean',
+        }).reset_index()
+        
+        for _, row in dense_stats.iterrows():
+            config = row[mode_col]
+            # Extract config name (e.g., 'dense_none' -> 'none')
+            config_key = config.replace('dense_', '') if 'dense_' in config else config
+            marker = markers.get(config_key, 'o')
+            label = labels.get(config_key, f'Dense ({config_key})')
+            
+            ax.scatter(
+                row['effective_rank'],
+                row['accuracy'] * 100,
+                marker=marker,
+                s=100,
+                color='red',
+                edgecolors='black',
+                linewidths=1,
+                label=label,
+                zorder=4,
+            )
     
     ax.set_xlabel('Effective Rank', fontsize=12)
-    ax.set_ylabel('Accuracy (%)', fontsize=12)
-    ax.set_title('Accuracy vs Interpretability (Pareto Frontier)', fontsize=14, fontweight='bold')
-    ax.legend(loc='best', fontsize=8, ncol=2)
+    ax.set_ylabel('Validation Accuracy (%)', fontsize=12)
+    ax.set_title('CP Rank vs Accuracy Trade-off', fontsize=14, fontweight='bold')
+    ax.legend(loc='lower right', fontsize=9, framealpha=0.9, title='Dense Baselines')
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()

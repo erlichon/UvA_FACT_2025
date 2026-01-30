@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "bilinear-decomposition-main"))
 
 from shared.components import Bilinear, Linear
 from src.data.challenge_dataset import create_challenge_datasets, ChallengeDatasetWrapper
+from src.utils import track_emissions, get_device
 
 
 def train_challenge_variant(
@@ -145,25 +146,26 @@ def train_challenge_variant(
     }
 
 
+DEFAULT_SEEDS = [42, 43, 44, 45, 46]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=None, help="Single seed (default: all 5 seeds)")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--out-dir", type=str, default="checkpoints/vision/challenge")
     args = parser.parse_args()
 
-    if args.device:
-        device = args.device
-    elif torch.cuda.is_available():
-        device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
-    else:
-        device = "cpu"
+    device = get_device(args.device)
+    print(f"Using device: {device}")
 
     out_dir = PROJECT_ROOT / args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use all 5 seeds by default, or single seed if specified
+    seeds = [args.seed] if args.seed is not None else DEFAULT_SEEDS
+    print(f"Training with seeds: {seeds}")
 
     variants_spec = {
         "none": (0.0, 0.0),
@@ -172,19 +174,39 @@ def main() -> int:
         "full": (0.5, 1.0),
     }
 
-    for tag, (noise_std, wd) in variants_spec.items():
-        path = out_dir / f"mnist_challenge_{tag}_seed{args.seed}.pt"
-        print(f"Training {tag}: noise_std={noise_std}, weight_decay={wd} -> {path}")
-        ckpt = train_challenge_variant(
-            device=device,
-            seed=args.seed,
-            noise_std=noise_std,
-            weight_decay=wd,
-            epochs=args.epochs,
-        )
-        torch.save(ckpt, path)
+    total_trained = 0
+    for seed in seeds:
+        print(f"\n{'='*50}")
+        print(f"Seed {seed}")
+        print(f"{'='*50}")
+        
+        for tag, (noise_std, wd) in variants_spec.items():
+            path = out_dir / f"mnist_challenge_{tag}_seed{seed}.pt"
+            print(f"Training {tag}: noise_std={noise_std}, weight_decay={wd} -> {path}")
+            
+            # Track emissions for each variant
+            with track_emissions("fact-bilinear-challenge") as tracker:
+                ckpt = train_challenge_variant(
+                    device=device,
+                    seed=seed,
+                    noise_std=noise_std,
+                    weight_decay=wd,
+                    epochs=args.epochs,
+                )
+            
+            # Add emissions data to checkpoint
+            ckpt["emissions"] = {
+                "wall_time_hours": tracker.result.wall_time_hours,
+                "wall_time_seconds": tracker.result.wall_time_seconds,
+                "gpu_hours": tracker.result.gpu_hours,
+                "co2_kg": tracker.result.emissions_kg,
+            }
+            
+            torch.save(ckpt, path)
+            print(f"  Wall time: {tracker.result.wall_time_seconds:.1f}s, GPU hours: {tracker.result.gpu_hours:.4f}")
+            total_trained += 1
 
-    print("Done.")
+    print(f"\nDone. Trained {total_trained} checkpoints ({len(seeds)} seeds × {len(variants_spec)} variants).")
     return 0
 
 
