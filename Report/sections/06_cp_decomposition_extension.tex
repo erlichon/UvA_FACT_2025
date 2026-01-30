@@ -18,7 +18,7 @@ This does not enforce orthogonality, enabling disentangled representations where
 We investigate three variants:
 \textbf{Fixed CP:} Hard rank constraint with no additional regularization---strict complexity bound.
 \textbf{Lambda CP:} $L_1$ regularization on learnable scales $\lambda_r$ for soft sparsity~\citep{veeramacheneni2022canonical}.
-\textbf{Gated CP:} Stochastic gates with $L_0$ proxy for explicit rank pruning~\citep{cao2024learning}.
+\textbf{Gated CP:} Soft gates with L0 proxy for explicit rank pruning~\citep{cao2024learning}.
 All variants trained on MNIST with weight decay 0.1 across rank sweep $R \in \{32, 64, 128, 256\}$.
 
 \subsection{Quantitative Analysis: Accuracy-Interpretability Trade-off}
@@ -39,4 +39,6 @@ This aligns with ``parts-based'' representations sought in interpretability.
 CP-decomposition serves dual purposes:
 (1) \textbf{Intrinsic interpretability} via disentangled, atomic parts rather than entangled templates.
 (2) \textbf{Scalable efficiency} by reducing parameters from $\mathcal{O}(d_{\text{hidden}} \times d_{\text{in}}^2)$ to $\mathcal{O}(R \times d_{\text{in}})$.
+Training efficiency is dramatically improved: CP models require 0.00046 GPU-h per run compared to 0.014 GPU-h for dense vision models (based on 81 GPU-tracked vision experiments, excluding challenge task; Table~\ref{tab:environmental}), achieving approximately 30$\times$ faster training.
+This efficiency gain enables scalability to larger models and datasets, making CP-decomposition a practical path toward interpretable, efficient neural architectures.
 Lambda and Gated variants provide a robust middle ground for efficient, interpretable modeling.

@@ -118,6 +118,7 @@ As additional validation, we test the circuit on FineWeb-16k (the model's traini
 
 \subsubsection{Low-Rank Correlation Analysis (Paper Figure 9)}
 The paper claims most features achieve $>$0.75 rank-2 correlation.
+We interpret ``most features'' as a median threshold ($>$50\% of features achieving $>$0.75 correlation).
 For each token, we record MLP input activations and encode them with the output SAE ($k$=30 TopK sparsity, matching the paper) to obtain sparse feature activations.
 For each active feature $f$ (where $n$ denotes the number of features with at least one non-zero activation), we eigendecompose its interaction matrix $Q_f$ and compute Pearson correlation between true and low-rank predicted activations across all tokens where the feature is active.
 All models processed $\sim$1.57M tokens: ts-medium used TinyStories validation~\citep{eldan2023tinystories}, while fw-small and fw-medium used FineWeb-Edu~\citep{penedo2024fineweb}.
@@ -149,6 +150,7 @@ The paper notes correlation improves with SAE training time (Appendix H).
 We confirm this using fw-medium layer 12 checkpoints v0--v4 (Figure~\ref{fig:sae_training_effect}, Appendix~\ref{app:language_results}): rank-2 correlation improves from 0.15 to 0.39 with longer training, consistent with the paper's acknowledgment that ``correlation drastically improves with longer SAE training.''
 
 \textbf{Model training duration hypothesis:} We observe a correlation between training compute (tokens/parameter) and low-rank behavior: ts-medium (83 tokens/param, $n$=2048, 32\%), fw-medium (95 tokens/param, $n$=5688, 45\%), and fw-small (198 tokens/param, $n$=3072, 65\%).
+Under the median interpretation ($>$50\% threshold), only fw-small reproduces the claim, while ts-medium and fw-medium fall short.
 Since more training tokens corresponds to longer training time, this parallels Figure~\ref{fig:sae_training_effect}: just as undertrained SAEs fail to capture low-rank structure, undertrained models (low tokens/param) may not develop the structured interactions that exhibit low-rank approximability.
 Figure~\ref{fig:correlation_analysis}(c) visually confirms this: only $\sim$3 of 9 randomly sampled features show strong true-vs-predicted correlation.
 

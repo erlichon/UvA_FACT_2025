@@ -51,6 +51,7 @@ By placing SAEs at MLP input and output, we analyze how sparse input features in
 The bilinear structure implies $z^{\text{out}}_f \approx (\mathbf{z}^{\text{in}})^\top Q_f \, \mathbf{z}^{\text{in}}$, where $Q_f$ is the interaction matrix for output feature $f$.
 Eigendecomposing $Q_f$ reveals dominant input directions---if rank-2 captures most variance, the feature depends on just two input directions, enabling circuit discovery.
 We use pretrained SAEs with TopK sparsity ($k=30$); the paper claims ``most features'' achieve $>$0.75 rank-2 correlation.
+We interpret ``most features'' as a median threshold ($>$50\% of features achieving $>$0.75 correlation).
 
 \subsection{Datasets}
 \label{sec:datasets}
