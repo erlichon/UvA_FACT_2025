@@ -24,7 +24,7 @@ Low-rank bilinear models offer sustainable alternatives to scaling dense archite
 Bilinear MLPs offer intrinsic transparency: eigenvectors are the learned features-no auxiliary models needed.
 Our partial language reproduction highlights that low-rank approximation quality depends on both SAE training duration and model training compute (tokens/parameter): models with higher tokens/param show stronger low-rank behavior.
 This emphasizes the importance of documenting training budgets in interpretability research.
-Following the tutorial methodology, we identify features 3834 (``not-good'') and 751 (``not-bad'') as semantic opposites with weakly negative cosine similarity ($-0.16$) in SAE decoder space-what the tutorial calls a ``somewhat linear subspace.''
+Following the tutorial methodology, we identify features 3834 (``not-bad'') and 751 (``not-good'') as semantic opposites with weakly negative cosine similarity ($-0.16$) in SAE decoder space-what the tutorial calls a ``somewhat linear subspace.''
 As additional validation beyond the paper, we test the same circuit on both TinyStories and FineWeb-16k: correlations remain consistent (0.93/0.83 vs.\ 0.91/0.82), demonstrating robustness to distribution shift.
 Weight decay reduces effective rank from 38.5 to 15.5 ($2.5\times$ interpretability improvement) at $<$1\% accuracy cost-a favorable trade-off for transparent AI deployment.
 
@@ -37,7 +37,7 @@ All experiments were conducted using the publicly available code repository and 
 \label{sec:conclusion}
 
 We fully reproduce vision results: weight decay reduces effective rank from 38.5 to 15.5 while maintaining 97--98\% accuracy with interpretable digit patterns.
-Language results are partially reproduced: AND-gate circuits confirmed with semantic opposites (not-good vs.\ not-bad, cosine similarity $-0.16$), but the fraction of features with high rank-2 correlation varies by model (32\%--65\%).
+Language results are partially reproduced: AND-gate circuits confirmed with semantic opposites (not-bad vs.\ not-good, cosine similarity $-0.16$), but the fraction of features with high rank-2 correlation varies by model (32\%--65\%).
 Under our median interpretation ($>$50\% threshold), fw-small (65\%) reproduces the ``most features'' claim, while ts-medium (32\%) and fw-medium (45\%) fall short.
 The bilinear decomposition methodology is sound; low-rank approximation quality depends on both SAE convergence and model training compute (tokens/parameter).
 Extensions demonstrate transferable geometric circuits across datasets and CP-decomposition achieving 93.8\% accuracy with disentangled factors at eff.\ rank 17.5, while gaining significant efficiency (30 times faster training).

@@ -165,7 +165,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
     Generate Final Figure 8: Comparison of Feature 3834 vs Feature 751.
     
     Layout: 2 rows x 3 columns
-    - Row 1: Feature 3834 (Tutorial "not-good")
+    - Row 1: Feature 3834 (Tutorial "not-bad")
     - Row 2: Feature 751 (Strong AND-gate circuit)
     
     Each row shows: A) Interaction Submatrix | B) Eigenvector Projections | C) Scatter Plot
@@ -279,7 +279,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
         ax_Q_3834.axhline(y=n_pos_3834 - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
         ax_Q_3834.axvline(x=n_pos_3834 - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
     
-    ax_Q_3834.set_title("Feature 3834 (\"not-good\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
+    ax_Q_3834.set_title("Feature 3834 (\"not-bad\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
     ax_Q_3834.set_xlabel("Input Feature", fontsize=9)
     ax_Q_3834.set_ylabel("Input Feature", fontsize=9)
     plt.colorbar(im, ax=ax_Q_3834, fraction=0.046, pad=0.04)
@@ -335,8 +335,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
                                  zorder=8)
             ax_proj_3834.scatter(-bg_v1_scaled, -bg_v2_scaled, marker='o', c='#2ca02c', s=50, 
                                 edgecolors='black', linewidths=1, zorder=15)
-            # "not-good feature" marker (black dot) - near "good" direction (negation of good)
-            ax_proj_3834.scatter(-bg_v1_scaled*0.7, -bg_v2_scaled*0.7, marker='o', c='black', s=60, 
+            # "not-bad feature" marker (black dot) - near "bad" direction (negation of bad)
+            ax_proj_3834.scatter(bg_v1_scaled*0.7, bg_v2_scaled*0.7, marker='o', c='black', s=60, 
                                 edgecolors='white', linewidths=1.5, zorder=16)
     
     if "[BOS] not" in meaningful_dirs_3834:
@@ -377,7 +377,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
         Line2D([0], [0], marker='o', color='w', markerfacecolor='#8B0000', 
                markersize=6, markeredgecolor='black', label='"bad" unembed'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='black', 
-               markersize=6, markeredgecolor='white', label='not-good feature'),
+               markersize=6, markeredgecolor='white', label='not-bad feature'),
     ]
     ax_proj_3834.legend(handles=legend_elements_3834, loc='upper left', fontsize=6)
     
@@ -455,7 +455,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
         ax_Q_751.axhline(y=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
         ax_Q_751.axvline(x=n_pos - 0.5, color='black', linestyle='-', linewidth=1.5, alpha=0.7)
     
-    ax_Q_751.set_title("Feature 751 (\"not-bad\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
+    ax_Q_751.set_title("Feature 751 (\"not-good\")\nA) Interaction Submatrix (grouped)", fontsize=10, fontweight='bold')
     ax_Q_751.set_xlabel("Input Feature", fontsize=9)
     ax_Q_751.set_ylabel("Input Feature", fontsize=9)
     plt.colorbar(im, ax=ax_Q_751, fraction=0.046, pad=0.04)
@@ -523,8 +523,8 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
                                 zorder=8)
             ax_proj_751.scatter(-bg_v1_scaled, -bg_v2_scaled, marker='o', c='#2ca02c', s=50, 
                                edgecolors='black', linewidths=1, zorder=15)
-            # "not-bad feature" marker (black dot) - near "bad" direction (negation of bad)
-            ax_proj_751.scatter(bg_v1_scaled*0.7, bg_v2_scaled*0.7, marker='o', c='black', s=60, 
+            # "not-good feature" marker (black dot) - near "good" direction (negation of good)
+            ax_proj_751.scatter(-bg_v1_scaled*0.7, -bg_v2_scaled*0.7, marker='o', c='black', s=60, 
                                edgecolors='white', linewidths=1.5, zorder=16)
     
     if "[BOS] not" in meaningful_dirs_751:
@@ -565,7 +565,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
         Line2D([0], [0], marker='o', color='w', markerfacecolor='#8B0000', 
                markersize=6, markeredgecolor='black', label='"bad" unembed'),
         Line2D([0], [0], marker='o', color='w', markerfacecolor='black', 
-               markersize=6, markeredgecolor='white', label='not-bad feature'),
+               markersize=6, markeredgecolor='white', label='not-good feature'),
     ]
     ax_proj_751.legend(handles=legend_elements_751, loc='lower right', fontsize=6)
     
@@ -590,7 +590,7 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
     ax_scatter_751.set_title(f"C) Correlation: r = {corr_751:.3f}", fontsize=10, fontweight='bold')
     
     # Main title (always include dataset name)
-    title = f"Sentiment Negation Circuits: Feature 3834 (not-good) vs Feature 751 (not-bad) [{dataset_label}]"
+    title = f"Sentiment Negation Circuits: Feature 3834 (not-bad) vs Feature 751 (not-good) [{dataset_label}]"
     fig.suptitle(title, fontsize=13, fontweight='bold', y=0.98)
     
     plt.tight_layout()
@@ -602,12 +602,12 @@ def generate_figure_8_final(results_dir: Path, figure_dir: Path, dataset_suffix:
     
     print(f"\nFinal Figure 8 generated! ({dataset_label})")
     print(f"  Output: {output_filename}")
-    print(f"  Row 1: Feature 3834 (not-good), r = {corr_3834:.3f}")
+    print(f"  Row 1: Feature 3834 (not-bad), r = {corr_3834:.3f}")
     print(f"         Clusters: {type_counts_3834['positive']} positive, {type_counts_3834['negative']} negative")
-    print(f"  Row 2: Feature 751 (not-bad), r = {corr_751:.3f}")
+    print(f"  Row 2: Feature 751 (not-good), r = {corr_751:.3f}")
     print(f"         Clusters: {type_counts_751['positive']} positive, {type_counts_751['negative']} negative")
     
-    return True
+    return fig  # Return figure for notebook display
 
 
 def generate_figure_10(results_dir: Path, figure_dir: Path):

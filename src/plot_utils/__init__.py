@@ -59,6 +59,15 @@ from src.plot_utils.cp import (
     visualize_top_eigenvectors,
     plot_cp_rank_comparison,
 )
+from src.plot_utils.challenge import (
+    plot_challenge_figure,
+)
+from src.plot_utils.adversarial import (
+    generate_figure_7,
+    compute_adversarial_curves,
+    aggregate_curves,
+    plot_adversarial_figure,
+)
 
 __all__ = [
     # Eigenspectrum plots (matplotlib)
@@ -104,4 +113,11 @@ __all__ = [
     "plot_eigenvector_grid",
     "visualize_top_eigenvectors",
     "plot_cp_rank_comparison",
+    # Challenge task plots
+    "plot_challenge_figure",
+    # Adversarial robustness plots (Figure 7)
+    "generate_figure_7",
+    "compute_adversarial_curves",
+    "aggregate_curves",
+    "plot_adversarial_figure",
 ]
