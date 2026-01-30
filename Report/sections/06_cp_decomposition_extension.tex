@@ -39,4 +39,6 @@ This aligns with ``parts-based'' representations sought in interpretability.
 CP-decomposition serves dual purposes:
 (1) \textbf{Intrinsic interpretability} via disentangled, atomic parts rather than entangled templates.
 (2) \textbf{Scalable efficiency} by reducing parameters from $\mathcal{O}(d_{\text{hidden}} \times d_{\text{in}}^2)$ to $\mathcal{O}(R \times d_{\text{in}})$.
+Training efficiency is dramatically improved: CP models require 0.0005 GPU-h per run compared to 0.011 GPU-h for dense vision models (Table~\ref{tab:environmental}), achieving approximately 23$\times$ faster training.
+This efficiency gain enables scalability to larger models and datasets, making CP-decomposition a practical path toward interpretable, efficient neural architectures.
 Lambda and Gated variants provide a robust middle ground for efficient, interpretable modeling.

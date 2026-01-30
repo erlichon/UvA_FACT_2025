@@ -81,7 +81,7 @@ We trace this discrepancy to both SAE training time and model training compute (
 Additionally, the paper's 4x expansion SAEs are unavailable at the specified layer for fw-medium, requiring use of 8x expansion (more sparse features).
 The bilinear decomposition methodology is sound; low-rank approximation quality depends on both SAE and model convergence.
 In our extensions, we demonstrate that regularized bilinear MLPs learn transferable geometric circuits---MNIST-trained models achieve 97.7\% accuracy on EMNIST-Digits and recognize letters O, I, Z, S as their corresponding digits with near-perfect accuracy, for which we propose Quadratic Form Similarity to quantify structural alignment where cosine similarity fails.
-Finally, we explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5.
+Finally, we explore explicit low-rank structure via CP factorization, achieving 93.8\% accuracy with disentangled, atomic feature representations at effective rank 17.5, while gaining significant efficiency (23 times faster training).
 \end{abstract}
 
 % Modular sections
