@@ -1,38 +1,41 @@
 name: fact_cpu
 channels:
-  - pytorch
   - conda-forge
   - defaults
+  - pytorch
 dependencies:
   - python=3.12.7
-  - pip=24.2.0
-  - pytest
-  - pytorch>=2.5.0
-  - torchvision
-  - torchaudio
-  - cpuonly
+  - pip=24.2
+  - cpuonly=2.0
+  - pytorch=2.5.1
+  - torchvision=0.20.1
+  - torchaudio=2.5.1
+  - pillow=12.1.0
   - pip:
+    - pytest==9.0.2
     - pytorch-lightning==2.4.0
     - tensorboard==2.17.1
-    - tabulate>=0.9.0
-    - tqdm>=4.66.5
-    - pillow>=10.4.0
-    - notebook>=7.2.2
-    - jupyterlab>=4.2.5
-    - matplotlib>=3.9.2
-    - seaborn>=0.13.2
-    - ipywidgets>=8.1.2
+    - tabulate==0.9.0
+    - tqdm==4.67.1
+    - notebook==7.5.2
+    - jupyterlab==4.5.2
+    - matplotlib==3.10.8
+    - seaborn==0.13.2
+    - ipywidgets==8.1.8
     # Project-specific dependencies
-    - einops
-    - jaxtyping
-    - transformers
-    - datasets
-    - accelerate
-    - wandb
-    - codecarbon
-    - kornia
-    - nnsight>=0.5.0  # Requires 0.5.x API (Sight class updated)
-    - bidict
-    - pandas
-    - plotly
-    - gdown>=5.0.0  # Google Drive download for checkpoints/results
+    - einops==0.8.1
+    - jaxtyping==0.3.5
+    - transformers==4.57.6
+    - tokenizers==0.22.2  # Must match transformers version
+    - huggingface-hub==0.36.0
+    - safetensors==0.7.0
+    - datasets==4.5.0
+    - accelerate==1.12.0
+    - wandb==0.24.0
+    - codecarbon==3.2.1
+    - kornia==0.8.2
+    - nnsight==0.5.15  # Requires 0.5.x API (Sight class updated)
+    - bidict==0.23.1
+    - pandas==3.0.0
+    - plotly==6.5.2
+    - gdown==5.2.1  # Google Drive download for checkpoints/results
