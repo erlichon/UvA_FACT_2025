@@ -94,8 +94,8 @@ GDRIVE_FOLDER_URL = "https://drive.google.com/drive/folders/1et6EfHxvyEZKCZ1yXfA
 GDRIVE_FOLDER_ID = "1et6EfHxvyEZKCZ1yXfA1EOHbcShCNWzt"
 
 # Individual file IDs (for direct download)
-GDRIVE_CHECKPOINTS_ZIP_ID = "1lMJNrWeRSrXdRUHp1APGq_IQhSaZXVZn"
-GDRIVE_RESULTS_ZIP_ID = "1IY-zAuUWLZc0G0bOs3guWPmZERWCOXke"
+GDRIVE_CHECKPOINTS_ZIP_ID = "12RI9zXhgjXcrVO50qU3GGRvHNTyKw3ws"
+GDRIVE_RESULTS_ZIP_ID = "1iy3BfsCVOOIt43yi9h9KNe31wwGPVFgK"
 
 # Local zip file paths
 CHECKPOINTS_ZIP = PROJECT_ROOT / "checkpoints.zip"
