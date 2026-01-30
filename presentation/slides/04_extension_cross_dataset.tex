@@ -50,28 +50,27 @@
                 \toprule
                 Experiment & Runs & Wall (h) & GPU-h & CO2 (kg) \\
                 \midrule
-                Vision (Section 4)$^\dagger$ & 81 & 1.22 & 1.11 & 0.039 \\
-                Language (Section 5)$^\ddagger$ & 3 & 19.09 & 0.00 & 0.105 \\
+                Vision (Section 4) & 101 & 1.66 & 1.11 & 0.040 \\
+                Language (Section 5) & 3 & 19.09 & 0.00 & 0.105 \\
                 Extension 1 & 15 & 0.58 & 0.58 & 0.020 \\
                 Extension 2 (CP) & 105 & 0.05 & 0.05 & 0.004 \\
                 \midrule
-                \textbf{Total} & \textbf{204} & \textbf{20.95} & \textbf{1.74} & \textbf{0.168} \\
+                \textbf{Total} & \textbf{224} & \textbf{21.39} & \textbf{1.74} & \textbf{0.169} \\
                 \bottomrule
             \end{tabular}
             \caption{Environmental impact (CO2 via \texttt{codecarbon})}
         \end{table}
-        
-        
-        
     \end{center}
     
     \vspace{0.3cm}
     \textbf{Key Efficiency Gains:}
     \begin{itemize}
         \item \textbf{Parameter reduction:} $\mathcal{O}(d_{\text{hidden}} \times d_{\text{in}}^2) \to \mathcal{O}(R \times d_{\text{in}})$
-        \item Average GPU-h per run: CP decomposition (0.00048) vs Vision (0.014) --- \textbf{29$\times$ more efficient}
+        \item Average GPU-h per run: CP (0.00046) vs Vision$^*$ (0.014) --- \textbf{30$\times$ more efficient}
         \item Only \textbf{3.7 pp accuracy drop} for significant parameter efficiency
     \end{itemize}
+    \vspace{0.2cm}
+    \footnotesize{$^*$Based on 81 GPU-tracked vision experiments (excluding challenge task)}
 \end{frame}
 
 \begin{frame}{CP-Decomposition: Disentangled Factors}

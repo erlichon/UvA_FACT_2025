@@ -51,12 +51,12 @@ conda env create -f environment_cpu.yml && conda activate fact_cpu
 
 The `notebooks/` directory contains Jupyter notebooks that reproduce **all figures and results** from the report. Each notebook can be run end-to-end and automatically downloads required checkpoints/results from Google Drive.
 
-| Notebook | Description | Report Figures |
-|----------|-------------|----------------|
-| `01_reproduction_vision.ipynb` | **Vision experiments (Section 4)**: eigenspectrum analysis, eigenvector visualization, ablation studies | Figures 1-4 |
-| `02a_extension_cross_dataset_robustness.ipynb` | **Extension 1**: Cross-dataset functional analysis, eigenvector similarity, geometric semantics | Extension 1 figures |
-| `02b_cp_extension.ipynb` | **Extension 2**: CP rank sweep analysis, accuracy vs interpretability trade-offs, eigenvector visualization | Extension 2 figures |
-| `04_reproduction_language.ipynb` | **Language experiments (Section 5)**: correlation analysis, negation circuits, SAE training effect | Figures 8-10 |
+| Notebook | Description | Report Sections |
+|----------|-------------|-----------------|
+| `01_reproduction_vision.ipynb` | **Vision experiments (Section 4)**: eigenspectrum analysis, eigenvector visualization, ablation studies. Verifies low-rank emergence, weight decay effectiveness, and interpretable eigenvectors. | Figures 1-7 |
+| `02_reproduction_language.ipynb` | **Language experiments (Section 5)**: correlation analysis, negation circuits, SAE training effect. Verifies low-rank approximation, negation AND-gate structure, and SAE training correlation. | Figures 8-10 |
+| `03a_extension_cross_dataset_robustness.ipynb` | **Extension 1: Cross-Dataset Robustness**: Tests whether regularized models learn universal "Platonic forms" (shape geometry) vs dataset-specific artifacts. Validates via EMNIST-Digits transfer, USPS domain shift, and geometric letter semantics (O→0, I→1). | Extension 1 |
+| `03b_cp_extension.ipynb` | **Extension 2: CP Decomposition**: Analyzes architectural rank constraints (Fixed, Lambda, Gated CP) vs emergent low-rank from regularization. Compares accuracy-interpretability trade-offs and eigenvector quality. | Extension 2 |
 
 ### Running Notebooks
 
@@ -259,11 +259,10 @@ python -m pytest tests/ -v -k "test_effective_rank"
 ```
 UvA_FACT_2025/
 ├── notebooks/           # Jupyter notebooks with all results (run these!)
-│   ├── 01_reproduction.ipynb          # Vision experiments (Section 4)
-│   ├── 02a_extension_cross_dataset_robustness.ipynb
-│   ├── 02b_cp_sweep.ipynb
-│   ├── 03_eigenvector_visualization.ipynb
-│   └── 04_language_experiments.ipynb  # Language experiments (Section 5)
+│   ├── 01_reproduction_vision.ipynb   # Vision experiments (Section 4)
+│   ├── 02_reproduction_language.ipynb # Language experiments (Section 5)
+│   ├── 03a_extension_cross_dataset_robustness.ipynb  # Extension 1: Cross-dataset transfer
+│   └── 03b_cp_extension.ipynb         # Extension 2: CP decomposition analysis
 ├── src/                 # Core code (vision, language, models, plot_utils)
 ├── scripts/             # Experiment runners and figure generation
 ├── configs/             # YAML experiment configs

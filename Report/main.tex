@@ -1,8 +1,9 @@
 \documentclass[10pt]{article}
+% For anonymous submission, use:
 \usepackage{tmlr}
-% If accepted, instead use the following line for the camera-ready submission:
-%\usepackage[accepted]{tmlr}
-% To de-anonymize and remove mentions to TMLR (for example for posting to preprint servers), instead use the following:
+% For camera-ready (shows authors + GitHub URL), use:
+% \usepackage[accepted]{tmlr}
+% For preprint (shows authors, hides GitHub URL), use:
 %\usepackage[preprint]{tmlr}
 
 % Optional math commands from https://github.com/goodfeli/dlbook_notation.
@@ -235,13 +236,5 @@ This enables discrimination between geometrically similar pairs (0--O: 0.400) an
 % ENVIRONMENTAL
 %------------------------------------------------------------------------------
 \input{sections/appendix_environmental}
-
-\section{CO2 Tracking Details}
-\label{app:co2}
-
-All experiments tracked using \texttt{codecarbon} with Netherlands grid intensity.
-Hardware: NVIDIA A100 (Snellius HPC) for language experiments; Apple M4 (MPS) for vision experiments.
-Total compute: 1.74 GPU-hours.
-Total emissions: 0.168 kg CO2eq ($\approx$ 1 km driving).
 
 \end{document}
