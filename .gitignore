@@ -61,3 +61,6 @@ arXiv-2410.08417v2/
 # IDE folders
 .cursor/
 .vscode/
+results/
+notebooks/data/
+results_old/
