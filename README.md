@@ -238,7 +238,7 @@ These are enforced project conventions:
 ## Known Constraints and Notes
 
 - **Language on MPS is slow** (4–6 hours). Prefer GPU if available.
-- **Figure 8 SAE limitation**: ts-medium lacks mlp-in SAE checkpoints. Use fw-medium (features 3834/751).
+- **Figure 8 SAE limitation**: ts-medium lacks mlp-in SAE checkpoints. We used fw-medium (features 3834/751).
 
 ## Tests
 
@@ -246,13 +246,6 @@ These are enforced project conventions:
 python -m pytest tests/ -v
 python -m pytest tests/ -v -k "test_effective_rank"
 ```
-
-## Submission Checklist (Report + Presentation)
-
-- Update author names in `Report/main.tex`.
-- Ensure all required figures are present in `Report/figures/`.
-- Include environmental impact table using `results/emissions_summary.json`.
-- Build `Report/main.pdf` and `presentation/main.pdf`.
 
 ## Repository Structure (High-Level)
 
